@@ -24,6 +24,11 @@ type Config struct {
 	F_rope_freq_base float32
 }
 
+func (c Config) String() string {
+	result, _ := json.Marshal(c)
+	return string(result)
+}
+
 func loadConfigFromFile(configFilePath string, model *Model) (*Config, error) {
 	jsonFile, err := os.Open(configFilePath)
 	// if we os.Open returns an error then handle it

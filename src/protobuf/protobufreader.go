@@ -36,17 +36,43 @@ func (m Message) String() string {
 	return fmt.Sprintf("%d: { %v }", m.Number, m.Value)
 }
 
-type ProtobufReader struct {
-	fileReader *bufio.Reader
+type ProtoDescriptor struct {
+	MainObjectConstructorFn func() interface{}
+	MessageProcessorFns     map[Number]func(interface{}, Message)
 }
 
-func NewProtobufReader(fileReader io.ReadCloser) *ProtobufReader {
+type ProtobufReader struct {
+	fileReader      *bufio.Reader
+	protoDescriptor ProtoDescriptor
+}
+
+func NewProtobufReader(fileReader io.ReadCloser, protoDescriptor ProtoDescriptor) *ProtobufReader {
 	result := new(ProtobufReader)
 	result.fileReader = bufio.NewReader(fileReader)
+	result.protoDescriptor = protoDescriptor
 	return result
 }
 
-func (pbr *ProtobufReader) ReadMessage() (message *Message, ok bool) {
+func (pbr *ProtobufReader) Unmarshal() (mainObject interface{}, err error) {
+	mainObject = pbr.protoDescriptor.MainObjectConstructorFn()
+	counter := 0
+	for {
+		message, ok := pbr.readMessage()
+		if !ok {
+			break
+		}
+
+		//fmt.Printf("%d | %v\n", counter, *message)
+		if pbr.protoDescriptor.MessageProcessorFns[message.Number] == nil {
+			return nil, fmt.Errorf("cannot find MessageProcessorFns item for number %d", message.Number)
+		}
+		pbr.protoDescriptor.MessageProcessorFns[message.Number](mainObject, *message)
+		counter++
+	}
+	return
+}
+
+func (pbr *ProtobufReader) readMessage() (message *Message, ok bool) {
 	_, err := pbr.fileReader.Peek(1)
 	if err != nil {
 		return nil, false
@@ -83,17 +109,24 @@ func (pbr *ProtobufReader) readField(r *bufio.Reader) (number Number, result int
 					if err != nil {
 						break
 					}
+					remainingPosLocal := r.Buffered()
 					itemNumber, item, allOk = pbr.readField(localReader)
 					if !allOk {
+						pbr.undoRead(localReader, remainingPosLocal-localReader.Buffered())
+						break
+					}
+					// A rule to prevent misinterpretation of byte arrays
+					if ((len(resultMap) > 0 && int(itemNumber)/len(resultMap) > 3) ||
+						(len(resultMap) == 0 && int(itemNumber) > 2)) && utf8.Valid(b) {
+						pbr.undoRead(localReader, remainingPosLocal-localReader.Buffered())
 						break
 					}
 					resultMap[itemNumber] = item
-					//resultArr = append(resultArr, item)
 				}
 			}
 			_, err := localReader.Peek(1)
 			if err == nil || len(b) == 0 {
-				if utf8.Valid(b) {
+				if len(b) > 0 && utf8.Valid(b) {
 					return number, string(b), true
 				} else {
 					return number, b, true

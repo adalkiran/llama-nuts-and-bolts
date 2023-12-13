@@ -6,6 +6,7 @@ import (
 	"io"
 	"reflect"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/pickle"
 )
 
@@ -61,12 +62,12 @@ var TORCH_CLASSES = map[string]interface{}{
 func rebuild_tensor_v2(storage StorageDescriptor, storageOffset int, size pickle.PickleTuple, stride pickle.PickleTuple,
 	requires_grad bool, backward_hooks interface{}, metadata interface{}) (*TensorDescriptor, error) {
 
-	sizeInt, err := pickle.InterfaceArrToIntArr(size)
+	sizeInt, err := common.InterfaceArrToIntArr(size)
 	if err != nil {
 		return nil, err
 	}
 
-	strideInt, err := pickle.InterfaceArrToIntArr(stride)
+	strideInt, err := common.InterfaceArrToIntArr(stride)
 	if err != nil {
 		return nil, err
 	}

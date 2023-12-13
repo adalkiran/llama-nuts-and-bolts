@@ -16,3 +16,4 @@ https://github.com/protocolbuffers/protobuf
 https://github.com/protocolbuffers/protoscope
 https://protobuf.dev/getting-started/gotutorial/ ????
 https://protobuf.dev/programming-guides/encoding/ ????
+https://github.com/protocolbuffers/protoscope/blob/main/writer.go

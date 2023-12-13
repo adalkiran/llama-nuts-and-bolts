@@ -1,28 +1,27 @@
 package sentencepiece
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/protobuf"
 )
 
-func Load(vocabFilePath string) ([]protobuf.Message, error) {
+func Load(vocabFilePath string) (*ModelProto, error) {
 	vocabFile, err := os.Open(vocabFilePath)
 	if err != nil {
 		return nil, err
 	}
 	defer vocabFile.Close()
 
-	vocabReader := protobuf.NewProtobufReader(vocabFile)
-	resultArr := make([]protobuf.Message, 0)
-
-	for {
-		message, ok := vocabReader.ReadMessage()
-		if !ok {
-			break
-		}
-		resultArr = append(resultArr, *message)
-		//fmt.Printf("\n%6d: %v", len(resultArr), itemPair)
+	vocabReader := protobuf.NewProtobufReader(vocabFile, modelprotoDescriptor)
+	modelVal, err := vocabReader.Unmarshal()
+	if err != nil {
+		return nil, err
 	}
-	return resultArr, nil
+	model, ok := modelVal.(ModelProto)
+	if !ok {
+		return nil, fmt.Errorf("cannot convert %v to ModelProto", model)
+	}
+	return &model, nil
 }
