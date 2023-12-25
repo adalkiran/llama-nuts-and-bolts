@@ -5,23 +5,31 @@ import (
 	"fmt"
 	"io"
 	"os"
-
-	"github.com/adalkiran/llama-nuts-and-bolts/src/torch"
 )
 
 // See: https://github.com/ggerganov/llama.cpp/blob/master/convert.py
 
 type Config struct {
-	N_vocab    int
-	N_embd     int
-	N_layer    int
-	N_ctx      int
-	N_ff       int
-	N_head     int
-	N_head_kv  int
-	N_norm_eps float32
+	N_vocab        int
+	N_embd         int
+	N_layer        int
+	N_ctx          int
+	N_ff           int
+	N_head         int
+	N_head_kv      int
+	F_norm_eps     float32
+	F_norm_rms_eps float32
 
 	F_rope_freq_base float32
+}
+
+func (c Config) N_grouped_query_attn_factor() int {
+	// Grouped Query Attention Factor (use 8 for LLaMA2 70B)
+	return c.N_head / c.N_head_kv
+}
+
+func (c Config) N_embd_grouped_query_attn() int {
+	return c.N_embd / c.N_grouped_query_attn_factor()
 }
 
 func (c Config) String() string {
@@ -55,11 +63,11 @@ func loadConfigFromFile(configFilePath string, model *Model) (*Config, error) {
 	}
 	n_vocab, ok := config["vocab_size"]
 	if !ok {
-		layer, _ := model.Layers.Get("tok_embeddings.weight")
-		n_vocab = layer.(torch.TensorDescriptor).GetShape()[0]
+		tensor, _ := model.Tensors.Get("tok_embeddings.weight")
+		n_vocab = tensor.GetShape()[0]
 	}
-	layer, _ := model.Layers.Get("layers.0.feed_forward.w1.weight")
-	n_ff := layer.(*torch.TensorDescriptor).GetShape()[0]
+	tensor, _ := model.Tensors.Get("layers.0.feed_forward.w1.weight")
+	n_ff := tensor.GetShape()[0]
 	n_head := int(config["n_heads"].(float64))
 	var n_head_kv int
 	n_head_kv_val, ok := config["n_kv_heads"].(float64)
@@ -83,7 +91,7 @@ func loadConfigFromFile(configFilePath string, model *Model) (*Config, error) {
 		N_ff:             n_ff,
 		N_head:           n_head,
 		N_head_kv:        n_head_kv,
-		N_norm_eps:       float32(config["norm_eps"].(float64)),
+		F_norm_rms_eps:   float32(config["norm_eps"].(float64)),
 		F_rope_freq_base: rope_theta,
 	}
 	return result, nil

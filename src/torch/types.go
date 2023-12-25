@@ -1,9 +1,8 @@
 package torch
 
 import (
-	"bufio"
 	"fmt"
-	"io"
+	"os"
 	"reflect"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
@@ -26,22 +25,34 @@ type TensorDescriptor struct {
 	stride        []int
 	dataType      DataType
 	description   string
-	storageOffset int
+	storageOffset int64
 
 	storage StorageDescriptor
 }
 
-func (lt TensorDescriptor) GetDataType() DataType {
-	return lt.dataType
+func (td TensorDescriptor) GetDataType() DataType {
+	return td.dataType
 }
 
-func (lt TensorDescriptor) GetShape() []int {
-	return lt.size
+func (td TensorDescriptor) GetShape() []int {
+	return td.size
 }
 
-func (lt TensorDescriptor) Load(tmr *TorchModelReader) (Tensor, error) {
-	elmCount := lt.stride[0] * lt.size[0]
-	lt.storage.Load(tmr, lt.storageOffset, elmCount)
+func (td TensorDescriptor) GetElementCount() int {
+	result := 1
+	for _, shapeItem := range td.GetShape() {
+		result = result * shapeItem
+	}
+	return result
+}
+
+func (td TensorDescriptor) GetBytesCount() int {
+	return td.GetElementCount() * td.dataType.itemSize()
+}
+
+func (td TensorDescriptor) Load(tmr *TorchModelReader) (Tensor, error) {
+	elmCount := td.stride[0] * td.size[0]
+	td.storage.Load(tmr, elmCount)
 	return nil, nil
 }
 
@@ -72,7 +83,7 @@ func rebuild_tensor_v2(storage StorageDescriptor, storageOffset int, size pickle
 		return nil, err
 	}
 	description := fmt.Sprintf("pickled storage_offset=%d in %s", storageOffset, storage.description)
-	return &TensorDescriptor{size: sizeInt, stride: strideInt, dataType: storage.kind.dataType, description: description, storageOffset: storageOffset, storage: storage}, nil
+	return &TensorDescriptor{size: sizeInt, stride: strideInt, dataType: storage.kind.dataType, description: description, storageOffset: storage.storageOffset, storage: storage}, nil
 }
 
 type DataType struct {
@@ -93,30 +104,52 @@ type StorageKind struct {
 }
 
 type StorageDescriptor struct {
-	filename    string
-	kind        StorageKind
-	description string
+	filename      string
+	kind          StorageKind
+	storageOffset int64
+	description   string
 }
 
-func (sd StorageDescriptor) Load(tmr *TorchModelReader, offset int, elmCount int) (string, error) {
-	dataFile, err := tmr.inputZipReader.Open(sd.filename)
+func (sd StorageDescriptor) Load(tmr *TorchModelReader, elmCount int) (string, error) {
+	file, err := os.OpenFile(tmr.modelFilePath, os.O_RDONLY, 0)
 	if err != nil {
-		return "", err
+		return "asdsd", err
 	}
-	defer dataFile.Close()
-	if offset != 0 {
-		return "", fmt.Errorf("offset value other than 0 is not supported for storage")
+	defer file.Close()
+	_, err = file.Seek(sd.storageOffset, 0)
+	if err != nil {
+		return "asdsd", err
 	}
-	dataType := sd.kind.dataType
+	buf := make([]byte, 1024)
+	file.Read(buf)
+	buf = buf
 
-	dataFileReader := bufio.NewReader(dataFile)
-	buf := make([]byte, elmCount*dataType.itemSize())
-	readCount, err := io.ReadFull(dataFileReader, buf)
-	if err != nil {
-		return "", err
-	}
-	if readCount != len(buf) {
-		return "", fmt.Errorf("cannot read all of tensor bytes")
-	}
-	return "asasdf", nil
+	/*
+		dataFile, err := tmr.inputZipReader.Open(sd.filename)
+		if err != nil {
+			return "", err
+		}
+		defer dataFile.Close()
+		if offset != 0 {
+			return "", fmt.Errorf("offset value other than 0 is not supported for storage")
+		}
+		dataType := sd.kind.dataType
+
+		dataFileReader := bufio.NewReader(dataFile)
+		buf := make([]byte, elmCount*dataType.itemSize())
+		readCount, err := io.ReadFull(dataFileReader, buf)
+		if err != nil {
+			return "", err
+		}
+		if readCount != len(buf) {
+			return "", fmt.Errorf("cannot read all of tensor bytes")
+		}
+
+		cnt := 0
+		for i, byt := range buf {
+			if byt == 21 && buf[i+1] == 0 {
+				cnt += i
+			}
+		}*/
+	return fmt.Sprintf("asasdf"), nil
 }

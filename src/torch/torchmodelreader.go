@@ -20,25 +20,37 @@ func NewTorchModelReader(modelFilePath string) *TorchModelReader {
 	result.modelFilePath = modelFilePath
 	return result
 }
-func (tmr *TorchModelReader) Load() (*pickle.PickleDict, error) {
+
+func (tmr *TorchModelReader) Close() error {
+	return tmr.inputZipReader.Close()
+}
+
+func (tmr *TorchModelReader) Load() (*pickle.PickleDict[*TensorDescriptor], error) {
 	var err error
 	tmr.inputZipReader, err = zip.OpenReader(tmr.modelFilePath)
 	if err != nil {
 		return nil, err
 	}
-	defer tmr.inputZipReader.Close()
 
 	pklRegexp, _ := regexp.Compile(`\.pkl$`)
 	pklFileList := tmr.findFilesInZip(pklRegexp)
 	if len(pklFileList) != 1 {
 		return nil, fmt.Errorf("no .pkl file found in Torch model file \"%s\"", tmr.modelFilePath)
 	}
-	model, err := tmr.readPickleFile(pklFileList[0])
+	modelTensorVals, err := tmr.readPickleFile(pklFileList[0])
 	if err != nil {
 		return nil, err
 	}
 
-	return model, nil
+	modelTensors := pickle.NewPickleDict[*TensorDescriptor]()
+
+	for _, key := range modelTensorVals.GetKeys() {
+		val, _ := modelTensorVals.Get(key)
+		modelTensors.Set(key, val.(*TensorDescriptor))
+	}
+	modelTensorVals = nil
+
+	return modelTensors, nil
 }
 
 func (tmr *TorchModelReader) findFilesInZip(fileNameRegexp *regexp.Regexp) []*zip.File {
@@ -51,7 +63,16 @@ func (tmr *TorchModelReader) findFilesInZip(fileNameRegexp *regexp.Regexp) []*zi
 	return result
 }
 
-func (tmr *TorchModelReader) readPickleFile(inputPickleFile *zip.File) (*pickle.PickleDict, error) {
+func (tmr *TorchModelReader) findFileInZip(filename string) *zip.File {
+	for _, file := range tmr.inputZipReader.File {
+		if filename == file.Name {
+			return file
+		}
+	}
+	return nil
+}
+
+func (tmr *TorchModelReader) readPickleFile(inputPickleFile *zip.File) (*pickle.PickleDict[interface{}], error) {
 	fileReader, err := inputPickleFile.Open()
 	if err != nil {
 		return nil, err
@@ -90,12 +111,15 @@ func (tmr *TorchModelReader) persistentLoad(pid []interface{}) (interface{}, err
 	filenameStem := pid[2].(string)
 	filename := fmt.Sprintf("%s/%s", tmr.dataBasePath, filenameStem)
 
-	foundFile, err := tmr.inputZipReader.Open(filename)
+	contentFile := tmr.findFileInZip(filename)
+	if contentFile == nil {
+		return nil, fmt.Errorf("file \"%s\" not found in Torch model file \"%s\"", filename, tmr.modelFilePath)
+	}
+	storageOffset, err := contentFile.DataOffset()
 	if err != nil {
 		return nil, err
 	}
-	foundFile.Close()
 	dataType := kind.dataType
 	description := fmt.Sprintf("storage dataType=%v path-in-zip=%s", dataType, filename)
-	return StorageDescriptor{filename, pid[1].(StorageKind), description}, nil
+	return StorageDescriptor{filename, pid[1].(StorageKind), storageOffset, description}, nil
 }

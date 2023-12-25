@@ -27,7 +27,7 @@ func NewPickleReader(fileReader io.ReadCloser) *PickleReader {
 	return result
 }
 
-func (pr *PickleReader) Load() (*PickleDict, error) {
+func (pr *PickleReader) Load() (*PickleDict[interface{}], error) {
 	for {
 		key, err := pr.ReadByte()
 		if err != nil {

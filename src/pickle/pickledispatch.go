@@ -107,7 +107,7 @@ func load_proto(pr *PickleReader) error {
 }
 
 func load_empty_dictionary(pr *PickleReader) error {
-	pr.Append(NewPickleDict())
+	pr.Append(NewPickleDict[interface{}]())
 	return nil
 }
 
@@ -332,7 +332,7 @@ func load_long_binput(pr *PickleReader) error {
 func load_stop(pr *PickleReader) error {
 	var value interface{}
 	pr.stack, value = pop(pr.stack)
-	return &StopSignal{value.(*PickleDict)}
+	return &StopSignal{value.(*PickleDict[interface{}])}
 }
 
 func load_short_binstring(pr *PickleReader) error {
@@ -350,7 +350,7 @@ func load_short_binstring(pr *PickleReader) error {
 
 func load_setitems(pr *PickleReader) error {
 	items := pop_mark(pr)
-	dict := pr.stack[len(pr.stack)-1].(*PickleDict)
+	dict := pr.stack[len(pr.stack)-1].(*PickleDict[interface{}])
 	for i := 0; i < len(items); i += 2 {
 		dict.Set(items[i].(string), items[i+1])
 	}

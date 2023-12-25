@@ -5,26 +5,26 @@ import (
 )
 
 var BASE_CLASSES = map[string]interface{}{
-	"collections.OrderedDict": NewPickleDict,
+	"collections.OrderedDict": NewPickleDict[interface{}],
 }
 
-type PickleDict struct {
+type PickleDict[T any] struct {
 	keys  []string
-	items map[string]interface{}
+	items map[string]T
 }
 
-func NewPickleDict() *PickleDict {
-	result := PickleDict{}
-	result.items = make(map[string]interface{})
+func NewPickleDict[T any]() *PickleDict[T] {
+	result := PickleDict[T]{}
+	result.items = make(map[string]T)
 	return &result
 }
 
-func (pd *PickleDict) Get(key string) (interface{}, bool) {
+func (pd *PickleDict[T]) Get(key string) (T, bool) {
 	val, ok := pd.items[key]
 	return val, ok
 }
 
-func (pd *PickleDict) Set(key string, val interface{}) {
+func (pd *PickleDict[T]) Set(key string, val T) {
 	_, ok := pd.items[key]
 	if ok {
 		for i, existingKey := range pd.keys {
@@ -38,14 +38,14 @@ func (pd *PickleDict) Set(key string, val interface{}) {
 	pd.items[key] = val
 }
 
-func (pd *PickleDict) GetKeys() []string {
+func (pd *PickleDict[T]) GetKeys() []string {
 	return pd.keys
 }
 
 type PickleTuple = []interface{}
 
 type StopSignal struct {
-	Value *PickleDict
+	Value *PickleDict[interface{}]
 }
 
 func (s *StopSignal) Error() string {
