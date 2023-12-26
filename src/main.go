@@ -13,7 +13,10 @@ func main() {
 	fmt.Print("=================================\n\n\n")
 	modelFilePath := "../models-original/7B/consolidated.00.pth"
 
-	prompt := "Hello my name is"
+	prompts := []string{
+		"Hello my name is",
+		"Je m'appelle",
+	}
 
 	//initialize()
 
@@ -24,30 +27,23 @@ func main() {
 
 	contextInitParams := inference.NewInferenceContextInitParams()
 	contextInitParams.Seed = 1234
-	contextInitParams.N_ctx = 2048
+	contextInitParams.SequenceLength = 8
 
 	context := inference.NewInferenceContext(llamaModel, contextInitParams)
 
 	engine := inference.NewInferenceEngine(context)
 
-	tokenIds, err := engine.Tokenize(prompt, true)
+	tokenIdBatches, err := engine.TokenizeBatch(prompts, true)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("")
-
-	for _, tokenId := range tokenIds {
-		fmt.Print(engine.TokenToString(tokenId))
+	for iBatch, tokenIdBatch := range tokenIdBatches {
+		fmt.Printf("\nBatch %d: ", iBatch)
+		fmt.Print(engine.TokenBatchToString(tokenIdBatch))
+		fmt.Println()
 	}
-
-	batch := inference.NewBatch()
-	singleSequenceId := []model.SequenceId{0}
-	for i, tokenId := range tokenIds {
-		// Model will output logits only for the last token of the prompt
-		includeOutputLogits := i == len(tokenIds)-1
-		batch.Add(tokenId, model.Position(i), singleSequenceId, includeOutputLogits)
-	}
+	engine.Generate(tokenIdBatches)
 }
 
 /*

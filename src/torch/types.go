@@ -51,8 +51,8 @@ func (td TensorDescriptor) GetBytesCount() int {
 }
 
 func (td TensorDescriptor) Load(tmr *TorchModelReader) (Tensor, error) {
-	elmCount := td.stride[0] * td.size[0]
-	td.storage.Load(tmr, elmCount)
+	//elmCount := td.stride[0] * td.size[0]
+	//td.storage.Load(tmr, elmCount)
 	return nil, nil
 }
 

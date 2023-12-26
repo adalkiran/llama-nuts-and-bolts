@@ -17,6 +17,7 @@ type Vocabulary struct {
 	BeginOfSentenceId TokenId
 	EndOfSentenceId   TokenId
 	UnknownId         TokenId
+	PadId             TokenId
 }
 
 func NewVocabulary(vocabModelProto *sentencepiece.ModelProto) *Vocabulary {
@@ -26,6 +27,7 @@ func NewVocabulary(vocabModelProto *sentencepiece.ModelProto) *Vocabulary {
 		UnknownId:         -1,
 		BeginOfSentenceId: -1,
 		EndOfSentenceId:   -1,
+		PadId:             -1,
 	}
 	for i, token := range result.IdToToken {
 		result.TokenToId[token.Piece] = TokenId(i)
