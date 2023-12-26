@@ -14,7 +14,10 @@ const (
 )
 
 func LoadModel(modelFilePath string) (*Model, error) {
-	torchModelReader := torch.NewTorchModelReader(modelFilePath)
+	torchModelReader, err := torch.NewTorchModelReader(modelFilePath)
+	if err != nil {
+		return nil, err
+	}
 	defer torchModelReader.Close()
 	fmt.Printf("Loading model file: \"%s\"...\n", modelFilePath)
 	modelTensors, err := torchModelReader.Load()
@@ -50,11 +53,6 @@ func LoadModel(modelFilePath string) (*Model, error) {
 	}
 
 	printMeta(model)
-
-	err = loadTensors(torchModelReader, model)
-	if err != nil {
-		return nil, err
-	}
 
 	return model, nil
 }
@@ -170,7 +168,7 @@ func printMeta(model *Model) {
 
 }
 
-func getTensor(model *Model, name string, expectedShape []int) (*torch.TensorDescriptor, error) {
+func getTensor(model *Model, name string, expectedShape []int) (*torch.Tensor, error) {
 	result, ok := model.Tensors.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("tensor \"%s\" not found", name)
@@ -181,13 +179,7 @@ func getTensor(model *Model, name string, expectedShape []int) (*torch.TensorDes
 	return result, nil
 }
 
-func getLayerTensor(model *Model, nameFormat string, layerIndex int, expectedShape []int) (*torch.TensorDescriptor, error) {
+func getLayerTensor(model *Model, nameFormat string, layerIndex int, expectedShape []int) (*torch.Tensor, error) {
 	name := fmt.Sprintf(nameFormat, layerIndex)
 	return getTensor(model, name, expectedShape)
-}
-
-func loadTensors(torchModelReader *torch.TorchModelReader, model *Model) error {
-	tok_embeddings, _ := model.Tensors.Get(model.Tensors.GetKeys()[0])
-	tok_embeddings.Load(torchModelReader)
-	return nil
 }

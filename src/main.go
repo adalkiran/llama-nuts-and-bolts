@@ -35,6 +35,7 @@ func main() {
 
 	tokenIdBatches, err := engine.TokenizeBatch(prompts, true)
 	if err != nil {
+		llamaModel.Free()
 		log.Fatal(err)
 	}
 
@@ -44,6 +45,8 @@ func main() {
 		fmt.Println()
 	}
 	engine.Generate(tokenIdBatches)
+
+	llamaModel.Free()
 }
 
 /*

@@ -7,17 +7,17 @@ import (
 )
 
 type LlamaTransformer struct {
-	tok_embd *torch.TensorDescriptor // Original: "tok_embeddings.weight"  |  ggml: "token_embd.weight" | shape: [32000 4096] -> [VocabSize, Dim]
+	tok_embd *torch.Tensor // Original: "tok_embeddings.weight"  |  ggml: "token_embd.weight" | shape: [32000 4096] -> [VocabSize, Dim]
 
 	Layers []*LlamaTransformerBlock
 
-	output_norm *torch.TensorDescriptor // Original: "norm.weight"  |  ggml: "output_norm.weight" | shape: [4096] -> [Dim]
-	output      *torch.TensorDescriptor // Original: "output.weight"  |  ggml: "output.weight" | [out_features, in_features] -> shape: [32000 4096] -> [VocabSize, Dim]
+	output_norm *torch.Tensor // Original: "norm.weight"  |  ggml: "output_norm.weight" | shape: [4096] -> [Dim]
+	output      *torch.Tensor // Original: "output.weight"  |  ggml: "output.weight" | [out_features, in_features] -> shape: [32000 4096] -> [VocabSize, Dim]
 }
 
 type LlamaTransformerBlock struct {
-	attn_norm *torch.TensorDescriptor // Original: "layers.0.attention_norm.weight"  |  ggml: "blk.0.attn_norm.weight" | shape: [4096] -> [Dim]
-	ffn_norm  *torch.TensorDescriptor // Original: "layers.0.ffn_norm.weight"  |  ggml: "blk.0.ffn_norm.weight" | shape: [4096] -> [Dim]
+	attn_norm *torch.Tensor // Original: "layers.0.attention_norm.weight"  |  ggml: "blk.0.attn_norm.weight" | shape: [4096] -> [Dim]
+	ffn_norm  *torch.Tensor // Original: "layers.0.ffn_norm.weight"  |  ggml: "blk.0.ffn_norm.weight" | shape: [4096] -> [Dim]
 
 	attention   *LlamaAttention
 	feedForward *LlamaFeedForward
@@ -27,18 +27,18 @@ type LlamaAttention struct {
 	N_KVHeads int
 	HeadDim   int
 
-	attn_wq *torch.TensorDescriptor // Original: "layers.0.attention.wq.weight"  |  ggml: "blk.0.attn_q.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
-	attn_wk *torch.TensorDescriptor // Original: "layers.0.attention.wk.weight"  |  ggml: "blk.0.attn_k.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
-	attn_wv *torch.TensorDescriptor // Original: "layers.0.attention.wv.weight"  |  ggml: "blk.0.attn_v.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
-	attn_wo *torch.TensorDescriptor // Original: "layers.0.attention.wo.weight"  |  ggml: "blk.0.attn_output.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
+	attn_wq *torch.Tensor // Original: "layers.0.attention.wq.weight"  |  ggml: "blk.0.attn_q.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
+	attn_wk *torch.Tensor // Original: "layers.0.attention.wk.weight"  |  ggml: "blk.0.attn_k.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+	attn_wv *torch.Tensor // Original: "layers.0.attention.wv.weight"  |  ggml: "blk.0.attn_v.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+	attn_wo *torch.Tensor // Original: "layers.0.attention.wo.weight"  |  ggml: "blk.0.attn_output.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
 }
 
 type LlamaFeedForward struct {
 	FFNHiddenDim int
 
-	ffn_gate *torch.TensorDescriptor // Original: "layers.0.feed_forward.w1.weight"  |  ggml: "blk.0.ffn_gate.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w1
-	ffn_down *torch.TensorDescriptor // Original: "layers.0.feed_forward.w2.weight"  |  ggml: "blk.0.ffn_down.weight" | [out_features, in_features] -> shape: [4096 11008] -> [Dim, FFNHiddenDim] | w2
-	ffn_up   *torch.TensorDescriptor // Original: "layers.0.feed_forward.w3.weight"  |  ggml: "blk.0.ffn_up.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w3
+	ffn_gate *torch.Tensor // Original: "layers.0.feed_forward.w1.weight"  |  ggml: "blk.0.ffn_gate.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w1
+	ffn_down *torch.Tensor // Original: "layers.0.feed_forward.w2.weight"  |  ggml: "blk.0.ffn_down.weight" | [out_features, in_features] -> shape: [4096 11008] -> [Dim, FFNHiddenDim] | w2
+	ffn_up   *torch.Tensor // Original: "layers.0.feed_forward.w3.weight"  |  ggml: "blk.0.ffn_up.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w3
 }
 
 func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
@@ -78,6 +78,8 @@ func (t *LlamaTransformer) Forward(tokens [][]TokenId, startPos int) error {
 	if len(tokens) == 0 {
 		return fmt.Errorf("empty token array")
 	}
+	weights := t.tok_embd.GetWeights()
+	weights = weights
 	// We assume all items are with same size
 	//sequenceLength := len(tokens[0])
 

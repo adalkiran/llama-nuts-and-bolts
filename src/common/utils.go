@@ -24,6 +24,9 @@ func InterfaceToInt(val interface{}) (int, error) {
 	if x, ok := val.(int16); ok {
 		return int(x), nil
 	}
+	if x, ok := val.(int32); ok {
+		return int(x), nil
+	}
 	if x, ok := val.(int64); ok {
 		return int(x), nil
 	}

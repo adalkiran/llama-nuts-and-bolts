@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/pickle"
 )
 
@@ -13,19 +14,28 @@ type TorchModelReader struct {
 	modelFilePath  string
 	inputZipReader *zip.ReadCloser
 	dataBasePath   string
+
+	memoryMapper *common.MemoryMapper
 }
 
-func NewTorchModelReader(modelFilePath string) *TorchModelReader {
-	result := new(TorchModelReader)
-	result.modelFilePath = modelFilePath
-	return result
+func NewTorchModelReader(modelFilePath string) (*TorchModelReader, error) {
+	memoryMapper, err := common.NewMemoryMapper(modelFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &TorchModelReader{
+		modelFilePath: modelFilePath,
+		memoryMapper:  memoryMapper,
+	}
+	return result, nil
 }
 
 func (tmr *TorchModelReader) Close() error {
 	return tmr.inputZipReader.Close()
 }
 
-func (tmr *TorchModelReader) Load() (*pickle.PickleDict[*TensorDescriptor], error) {
+func (tmr *TorchModelReader) Load() (*pickle.PickleDict[*Tensor], error) {
 	var err error
 	tmr.inputZipReader, err = zip.OpenReader(tmr.modelFilePath)
 	if err != nil {
@@ -42,11 +52,11 @@ func (tmr *TorchModelReader) Load() (*pickle.PickleDict[*TensorDescriptor], erro
 		return nil, err
 	}
 
-	modelTensors := pickle.NewPickleDict[*TensorDescriptor]()
+	modelTensors := pickle.NewPickleDict[*Tensor]()
 
 	for _, key := range modelTensorVals.GetKeys() {
 		val, _ := modelTensorVals.Get(key)
-		modelTensors.Set(key, val.(*TensorDescriptor))
+		modelTensors.Set(key, val.(*Tensor))
 	}
 	modelTensorVals = nil
 
@@ -111,6 +121,10 @@ func (tmr *TorchModelReader) persistentLoad(pid []interface{}) (interface{}, err
 	filenameStem := pid[2].(string)
 	filename := fmt.Sprintf("%s/%s", tmr.dataBasePath, filenameStem)
 
+	elmCount, err := common.InterfaceToInt(pid[4])
+	if err != nil {
+		return nil, err
+	}
 	contentFile := tmr.findFileInZip(filename)
 	if contentFile == nil {
 		return nil, fmt.Errorf("file \"%s\" not found in Torch model file \"%s\"", filename, tmr.modelFilePath)
@@ -121,5 +135,8 @@ func (tmr *TorchModelReader) persistentLoad(pid []interface{}) (interface{}, err
 	}
 	dataType := kind.dataType
 	description := fmt.Sprintf("storage dataType=%v path-in-zip=%s", dataType, filename)
-	return StorageDescriptor{filename, pid[1].(StorageKind), storageOffset, description}, nil
+
+	storage := TorchStorage{filename, pid[1].(StorageKind), storageOffset, description, nil}
+	storage.Load(tmr.memoryMapper, elmCount)
+	return storage, nil
 }

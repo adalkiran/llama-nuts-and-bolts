@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/pickle"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/torch"
 )
@@ -38,7 +39,7 @@ const (
 )
 
 type Model struct {
-	Tensors    *pickle.PickleDict[*torch.TensorDescriptor]
+	Tensors    *pickle.PickleDict[*torch.Tensor]
 	ModelArgs  *ModelArgs
 	Vocabulary *Vocabulary
 
@@ -46,6 +47,12 @@ type Model struct {
 
 	ModelArchitecture ModelArchitecture
 	ModelType         ModelType
+
+	MemoryMapper *common.MemoryMapper
+}
+
+func (m *Model) Free() error {
+	return m.MemoryMapper.Unmap()
 }
 
 func (m *Model) GetElementCount() int {
