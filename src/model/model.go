@@ -2,8 +2,8 @@ package model
 
 import (
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/pickle"
-	"github.com/adalkiran/llama-nuts-and-bolts/src/torch"
 )
 
 type ModelArchitecture uint8
@@ -39,7 +39,7 @@ const (
 )
 
 type Model struct {
-	Tensors    *pickle.PickleDict[*torch.Tensor]
+	Tensors    *pickle.PickleDict[*ml.Tensor]
 	ModelArgs  *ModelArgs
 	Vocabulary *Vocabulary
 

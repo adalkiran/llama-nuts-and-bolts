@@ -13,12 +13,7 @@ func main() {
 	fmt.Print("=================================\n\n\n")
 	modelFilePath := "../models-original/7B/consolidated.00.pth"
 
-	prompts := []string{
-		"Hello my name is",
-		"Je m'appelle",
-	}
-
-	//initialize()
+	prompt := "Hello my name is"
 
 	llamaModel, err := model.LoadModel(modelFilePath)
 	if err != nil {
@@ -33,18 +28,20 @@ func main() {
 
 	engine := inference.NewInferenceEngine(context)
 
-	tokenIdBatches, err := engine.TokenizeBatch(prompts, true)
+	tokens, err := engine.Tokenize(prompt, true)
 	if err != nil {
 		llamaModel.Free()
 		log.Fatal(err)
 	}
 
-	for iBatch, tokenIdBatch := range tokenIdBatches {
-		fmt.Printf("\nBatch %d: ", iBatch)
-		fmt.Print(engine.TokenBatchToString(tokenIdBatch))
-		fmt.Println()
+	fmt.Println()
+	fmt.Print(engine.TokenBatchToString(tokens))
+
+	generatedTokens, err := engine.Generate(tokens)
+	if err != nil {
+		log.Fatal(err)
 	}
-	engine.Generate(tokenIdBatches)
+	generatedTokens = generatedTokens
 
 	llamaModel.Free()
 }

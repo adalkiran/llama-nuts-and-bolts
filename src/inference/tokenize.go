@@ -13,7 +13,7 @@ const (
 	unknownOutputToken    = "\xe2\x96\x85"
 )
 
-func (ie *InferenceEngine) tokenize(text string, addBeginOfSentence bool) ([]model.TokenId, error) {
+func (ie *InferenceEngine) Tokenize(text string, addBeginOfSentence bool) ([]model.TokenId, error) {
 	result := make([]model.TokenId, 0)
 	vocabulary := ie.context.model.Vocabulary
 
@@ -31,7 +31,7 @@ func (ie *InferenceEngine) tokenize(text string, addBeginOfSentence bool) ([]mod
 func (ie *InferenceEngine) TokenizeBatch(texts []string, addBeginOfSentence bool) (result [][]model.TokenId, err error) {
 	result = make([][]model.TokenId, len(texts))
 	for i, text := range texts {
-		tokenIds, err := ie.tokenize(text, addBeginOfSentence)
+		tokenIds, err := ie.Tokenize(text, addBeginOfSentence)
 		if err != nil {
 			return nil, err
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/sentencepiece"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/torch"
 )
@@ -106,7 +107,7 @@ func printMeta(model *Model) {
 	fmt.Print("=================================\n")
 	for i, tensorName := range model.Tensors.GetKeys() {
 		tensor, _ := model.Tensors.Get(tensorName)
-		fmt.Printf("Tensor %4d: %-48s | %-6s | %v\n", i, tensorName, tensor.GetDataType().GetName(), tensor.GetShape())
+		fmt.Printf("Tensor %4d: %-48s | %-6s | %v\n", i, tensorName, tensor.DataType.GetName(), tensor.GetShape())
 	}
 
 	fmt.Print("\nModel Metadata:\n")
@@ -168,7 +169,7 @@ func printMeta(model *Model) {
 
 }
 
-func getTensor(model *Model, name string, expectedShape []int) (*torch.Tensor, error) {
+func getTensor(model *Model, name string, expectedShape []int) (*ml.Tensor, error) {
 	result, ok := model.Tensors.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("tensor \"%s\" not found", name)
@@ -179,7 +180,7 @@ func getTensor(model *Model, name string, expectedShape []int) (*torch.Tensor, e
 	return result, nil
 }
 
-func getLayerTensor(model *Model, nameFormat string, layerIndex int, expectedShape []int) (*torch.Tensor, error) {
+func getLayerTensor(model *Model, nameFormat string, layerIndex int, expectedShape []int) (*ml.Tensor, error) {
 	name := fmt.Sprintf(nameFormat, layerIndex)
 	return getTensor(model, name, expectedShape)
 }

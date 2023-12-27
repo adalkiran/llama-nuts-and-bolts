@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/pickle"
 )
 
@@ -35,7 +36,7 @@ func (tmr *TorchModelReader) Close() error {
 	return tmr.inputZipReader.Close()
 }
 
-func (tmr *TorchModelReader) Load() (*pickle.PickleDict[*Tensor], error) {
+func (tmr *TorchModelReader) Load() (*pickle.PickleDict[*ml.Tensor], error) {
 	var err error
 	tmr.inputZipReader, err = zip.OpenReader(tmr.modelFilePath)
 	if err != nil {
@@ -52,11 +53,13 @@ func (tmr *TorchModelReader) Load() (*pickle.PickleDict[*Tensor], error) {
 		return nil, err
 	}
 
-	modelTensors := pickle.NewPickleDict[*Tensor]()
+	modelTensors := pickle.NewPickleDict[*ml.Tensor]()
 
 	for _, key := range modelTensorVals.GetKeys() {
 		val, _ := modelTensorVals.Get(key)
-		modelTensors.Set(key, val.(*Tensor))
+		tensorVal := val.(*ml.Tensor)
+		tensorVal.Name = key
+		modelTensors.Set(key, tensorVal)
 	}
 	modelTensorVals = nil
 

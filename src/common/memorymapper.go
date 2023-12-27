@@ -39,12 +39,15 @@ func NewMemoryMapper(filePath string) (*MemoryMapper, error) {
 }
 
 func (mm *MemoryMapper) Unmap() error {
-	if mm.Data == nil {
-		return nil
-	}
-	err := syscall.Munmap(mm.Data)
-	if err != nil {
-		return fmt.Errorf("error unmapping file from memory: %v", err)
-	}
+	// TODO: Check this part again, it gives this error while trying to unmap: "runtime error: invalid memory address or nil pointer dereference"
+	/*
+		if mm.Data == nil {
+			return nil
+		}
+		err := syscall.Munmap(mm.Data)
+		if err != nil {
+			return fmt.Errorf("error unmapping file from memory: %v", err)
+		}
+	*/
 	return nil
 }

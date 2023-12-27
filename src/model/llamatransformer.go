@@ -1,23 +1,26 @@
 package model
 
 import (
+	"encoding/binary"
 	"fmt"
+	"math"
 
-	"github.com/adalkiran/llama-nuts-and-bolts/src/torch"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
+	"github.com/x448/float16"
 )
 
 type LlamaTransformer struct {
-	tok_embd *torch.Tensor // Original: "tok_embeddings.weight"  |  ggml: "token_embd.weight" | shape: [32000 4096] -> [VocabSize, Dim]
+	tok_embd *ml.Tensor // Original: "tok_embeddings.weight"  |  ggml: "token_embd.weight" | shape: [32000 4096] -> [VocabSize, Dim]
 
 	Layers []*LlamaTransformerBlock
 
-	output_norm *torch.Tensor // Original: "norm.weight"  |  ggml: "output_norm.weight" | shape: [4096] -> [Dim]
-	output      *torch.Tensor // Original: "output.weight"  |  ggml: "output.weight" | [out_features, in_features] -> shape: [32000 4096] -> [VocabSize, Dim]
+	output_norm *ml.Tensor // Original: "norm.weight"  |  ggml: "output_norm.weight" | shape: [4096] -> [Dim]
+	output      *ml.Tensor // Original: "output.weight"  |  ggml: "output.weight" | [out_features, in_features] -> shape: [32000 4096] -> [VocabSize, Dim]
 }
 
 type LlamaTransformerBlock struct {
-	attn_norm *torch.Tensor // Original: "layers.0.attention_norm.weight"  |  ggml: "blk.0.attn_norm.weight" | shape: [4096] -> [Dim]
-	ffn_norm  *torch.Tensor // Original: "layers.0.ffn_norm.weight"  |  ggml: "blk.0.ffn_norm.weight" | shape: [4096] -> [Dim]
+	attn_norm *ml.Tensor // Original: "layers.0.attention_norm.weight"  |  ggml: "blk.0.attn_norm.weight" | shape: [4096] -> [Dim]
+	ffn_norm  *ml.Tensor // Original: "layers.0.ffn_norm.weight"  |  ggml: "blk.0.ffn_norm.weight" | shape: [4096] -> [Dim]
 
 	attention   *LlamaAttention
 	feedForward *LlamaFeedForward
@@ -27,18 +30,18 @@ type LlamaAttention struct {
 	N_KVHeads int
 	HeadDim   int
 
-	attn_wq *torch.Tensor // Original: "layers.0.attention.wq.weight"  |  ggml: "blk.0.attn_q.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
-	attn_wk *torch.Tensor // Original: "layers.0.attention.wk.weight"  |  ggml: "blk.0.attn_k.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
-	attn_wv *torch.Tensor // Original: "layers.0.attention.wv.weight"  |  ggml: "blk.0.attn_v.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
-	attn_wo *torch.Tensor // Original: "layers.0.attention.wo.weight"  |  ggml: "blk.0.attn_output.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
+	attn_wq *ml.Tensor // Original: "layers.0.attention.wq.weight"  |  ggml: "blk.0.attn_q.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
+	attn_wk *ml.Tensor // Original: "layers.0.attention.wk.weight"  |  ggml: "blk.0.attn_k.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+	attn_wv *ml.Tensor // Original: "layers.0.attention.wv.weight"  |  ggml: "blk.0.attn_v.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+	attn_wo *ml.Tensor // Original: "layers.0.attention.wo.weight"  |  ggml: "blk.0.attn_output.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
 }
 
 type LlamaFeedForward struct {
 	FFNHiddenDim int
 
-	ffn_gate *torch.Tensor // Original: "layers.0.feed_forward.w1.weight"  |  ggml: "blk.0.ffn_gate.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w1
-	ffn_down *torch.Tensor // Original: "layers.0.feed_forward.w2.weight"  |  ggml: "blk.0.ffn_down.weight" | [out_features, in_features] -> shape: [4096 11008] -> [Dim, FFNHiddenDim] | w2
-	ffn_up   *torch.Tensor // Original: "layers.0.feed_forward.w3.weight"  |  ggml: "blk.0.ffn_up.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w3
+	ffn_gate *ml.Tensor // Original: "layers.0.feed_forward.w1.weight"  |  ggml: "blk.0.ffn_gate.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w1
+	ffn_down *ml.Tensor // Original: "layers.0.feed_forward.w2.weight"  |  ggml: "blk.0.ffn_down.weight" | [out_features, in_features] -> shape: [4096 11008] -> [Dim, FFNHiddenDim] | w2
+	ffn_up   *ml.Tensor // Original: "layers.0.feed_forward.w3.weight"  |  ggml: "blk.0.ffn_up.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w3
 }
 
 func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
@@ -71,20 +74,30 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 	if result.output, err = getTensor(model, "output.weight", []int{vocabSize, dim}); err != nil {
 		return nil, err
 	}
+
+	precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2)
 	return result, nil
 }
 
-func (t *LlamaTransformer) Forward(tokens [][]TokenId, startPos int) error {
+func (t *LlamaTransformer) Forward(tokens []TokenId, startPos int) ([]TokenId, error) {
 	if len(tokens) == 0 {
-		return fmt.Errorf("empty token array")
+		return nil, fmt.Errorf("empty token array")
 	}
-	weights := t.tok_embd.GetWeights()
-	weights = weights
-	// We assume all items are with same size
-	//sequenceLength := len(tokens[0])
 
-	// Expected embedding shape [2, 5, 4096]
-	return nil
+	sequenceLength := len(tokens)
+	inp_tokens := ml.NewEmptyTensorEx("inp_tokens", []int{sequenceLength}, ml.DT_BF16)
+
+	for i, token := range tokens {
+		binary.BigEndian.PutUint16(inp_tokens.RawData[2*i:2*i+2], uint16(token))
+	}
+
+	inpL, err := ml.Fwd_Get_Rows(t.tok_embd, inp_tokens)
+	if err != nil {
+		return nil, err
+	}
+	inpL = inpL
+
+	return nil, nil
 }
 
 func NewLlamaTransformerBlock(model *Model, layerIndex int) (*LlamaTransformerBlock, error) {
@@ -177,4 +190,46 @@ func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error
 	}
 
 	return result, nil
+}
+
+func precomputeFreqsCis(dim int, end int) error {
+	dim = 128
+	end = 256
+	/*
+		Precompute the frequency tensor for complex exponentials (cis) with given dimensions.
+
+		This function calculates a frequency tensor with complex exponentials using the given dimension 'dim'
+		and the end index 'end'. The 'theta' parameter scales the frequencies.
+		The returned tensor contains complex values in complex64 data type.
+
+		Args:
+			dim (int): Dimension of the frequency tensor.
+			end (int): End index for precomputing frequencies.
+			theta (float, optional): Scaling factor for frequency computation. Defaults to 10000.0.
+
+		Returns:
+			torch.Tensor: Precomputed frequency tensor with complex exponentials.
+	*/
+	theta := 10000.0
+
+	dimFloat := float32(dim)
+	freqs, err := ml.ARange(0, dim, 2, ml.DT_BF16)
+	if err != nil {
+		return err
+	}
+	freqs.Apply(func(val float16.Float16) float16.Float16 {
+		return float16.Fromfloat32(float32(1.0 / math.Pow(theta, float64(val.Float32()/dimFloat))))
+	})
+
+	t, err := ml.ARange(0, end, 1, ml.DT_BF16)
+	if err != nil {
+		return err
+	}
+	freqs, err = ml.Outer(t, freqs)
+	if err != nil {
+		return err
+	}
+	freqs_cis := ml.Polar(ml.OnesLike(freqs), freqs)
+	freqs_cis = freqs_cis
+	return nil
 }

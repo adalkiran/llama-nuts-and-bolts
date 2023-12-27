@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"math"
 	"math/rand"
 	"time"
 
@@ -88,15 +87,15 @@ func NewInferenceEngine(context *InferenceContext) *InferenceEngine {
 	}
 }
 
-func (ie *InferenceEngine) Generate(promptBatches [][]model.TokenId) ([][]model.TokenId, error) {
-	sequence, minPromptLength, sequenceLength := ie.createTokenSequence(promptBatches)
+func (ie *InferenceEngine) Generate(promptTokens []model.TokenId) ([]model.TokenId, error) {
+	sequence, minPromptLength, sequenceLength := ie.createTokenSequence(promptTokens)
 	prevPos := 0
 	for curPos := minPromptLength; curPos < sequenceLength; curPos++ {
-		input := make([][]model.TokenId, len(sequence))
-		for i := range input {
-			input[i] = sequence[i][prevPos:curPos]
-		}
-		/*logits := */ err := ie.context.model.Transformer.Forward(input, prevPos)
+		input := make([]model.TokenId, len(sequence))
+		input = sequence[prevPos:curPos]
+
+		/*logits := */
+		_, err := ie.context.model.Transformer.Forward(input, prevPos)
 		if err != nil {
 			return nil, err
 		}
@@ -104,16 +103,13 @@ func (ie *InferenceEngine) Generate(promptBatches [][]model.TokenId) ([][]model.
 	return nil, nil
 }
 
-func (ie *InferenceEngine) createTokenSequence(promptTokenBatches [][]model.TokenId) (result [][]model.TokenId, minBatchLength int, sequenceLength int) {
+func (ie *InferenceEngine) createTokenSequence(promptTokens []model.TokenId) (result []model.TokenId, minBatchLength int, sequenceLength int) {
+	// This part was planned to process token batches (multiple prompts at a time), but currently reverted.
 	sequenceLength = ie.context.contextParams.SequenceLength
-	result = make([][]model.TokenId, len(promptTokenBatches))
-	minBatchLength = math.MaxInt
-	for i, promptTokenBatch := range promptTokenBatches {
-		minBatchLength = int(math.Min(float64(minBatchLength), float64(len(promptTokenBatch))))
-		batch := createEmptyTokenBatch(sequenceLength, ie.context.model.Vocabulary.PadId)
-		copy(batch[:len(promptTokenBatch)], promptTokenBatch)
-		result[i] = batch
-	}
+	minBatchLength = len(promptTokens)
+	batch := createEmptyTokenBatch(sequenceLength, ie.context.model.Vocabulary.PadId)
+	copy(batch[:len(promptTokens)], promptTokens)
+	result = batch
 	return
 }
 
