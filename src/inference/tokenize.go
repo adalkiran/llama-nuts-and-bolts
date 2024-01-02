@@ -15,7 +15,7 @@ const (
 
 func (ie *InferenceEngine) Tokenize(text string, addBeginOfSentence bool) ([]model.TokenId, error) {
 	result := make([]model.TokenId, 0)
-	vocabulary := ie.context.model.Vocabulary
+	vocabulary := ie.model.Vocabulary
 
 	text = " " + text
 	text = escapeWhitespace(text)
@@ -41,7 +41,7 @@ func (ie *InferenceEngine) TokenizeBatch(texts []string, addBeginOfSentence bool
 }
 
 func (ie *InferenceEngine) TokenToString(tokenId model.TokenId) string {
-	vocabulary := ie.context.model.Vocabulary
+	vocabulary := ie.model.Vocabulary
 	if tokenId < 0 || int(tokenId) >= len(vocabulary.IdToToken) {
 		return unknownOutputToken
 	}
@@ -58,7 +58,7 @@ func (ie *InferenceEngine) TokenToString(tokenId model.TokenId) string {
 func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) string {
 	result := ""
 	for _, tokenId := range tokenIdBatch {
-		if tokenId == ie.context.model.Vocabulary.PadId {
+		if tokenId == ie.model.Vocabulary.PadId {
 			break
 		}
 		result += ie.TokenToString(tokenId)

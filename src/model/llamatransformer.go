@@ -16,7 +16,7 @@ type LlamaTransformer struct {
 	output_norm *ml.Tensor // Original: "norm.weight"  |  ggml: "output_norm.weight" | shape: [4096] -> [Dim]
 	output      *ml.Tensor // Original: "output.weight"  |  ggml: "output.weight" | [out_features, in_features] -> shape: [32000 4096] -> [VocabSize, Dim]
 
-	Context *LlamaContext
+	PrecomputedFreqsCis *ml.Tensor // Precomputed frequency tensor for complex exponentials (cis)
 }
 
 type LlamaTransformerBlock struct {
@@ -45,14 +45,8 @@ type LlamaFeedForward struct {
 	ffn_up   *ml.Tensor // Original: "layers.0.feed_forward.w3.weight"  |  ggml: "blk.0.ffn_up.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w3
 }
 
-type LlamaContext struct {
-	FreqsCis *ml.Tensor // Precomputed frequency tensor for complex exponentials (cis)
-}
-
 func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
-	result := &LlamaTransformer{
-		Context: &LlamaContext{},
-	}
+	result := &LlamaTransformer{}
 	modelArgs := model.ModelArgs
 
 	var err error
@@ -82,13 +76,13 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 		return nil, err
 	}
 
-	if result.Context.FreqsCis, err = precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2); err != nil {
+	if result.PrecomputedFreqsCis, err = precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2); err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
-func (t *LlamaTransformer) Forward(tokens []TokenId, startPos int) ([]TokenId, error) {
+func (t *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId, startPos int) ([]TokenId, error) {
 	if len(tokens) == 0 {
 		return nil, fmt.Errorf("empty token array")
 	}
@@ -109,7 +103,7 @@ func (t *LlamaTransformer) Forward(tokens []TokenId, startPos int) ([]TokenId, e
 	}
 	inpL = inpL
 
-	freqsCis, err := t.Context.FreqsCis.Slice([]int{startPos}, []int{startPos + sequenceLength})
+	freqsCis, err := t.PrecomputedFreqsCis.Slice([]int{startPos}, []int{startPos + sequenceLength})
 	if err != nil {
 		return nil, err
 	}

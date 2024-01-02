@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/inference"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/model"
 )
@@ -20,13 +21,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	contextInitParams := inference.NewInferenceContextInitParams()
-	contextInitParams.Seed = 1234
-	contextInitParams.SequenceLength = 8
+	inferenceArgs := common.NewInferenceArgs()
+	inferenceArgs.Seed = 1234
+	inferenceArgs.SequenceLength = 8
 
-	context := inference.NewInferenceContext(llamaModel, contextInitParams)
-
-	engine := inference.NewInferenceEngine(context)
+	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs)
 
 	tokens, err := engine.Tokenize(prompt, true)
 	if err != nil {
