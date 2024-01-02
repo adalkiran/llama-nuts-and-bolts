@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math"
 
@@ -16,6 +15,8 @@ type LlamaTransformer struct {
 
 	output_norm *ml.Tensor // Original: "norm.weight"  |  ggml: "output_norm.weight" | shape: [4096] -> [Dim]
 	output      *ml.Tensor // Original: "output.weight"  |  ggml: "output.weight" | [out_features, in_features] -> shape: [32000 4096] -> [VocabSize, Dim]
+
+	Context *LlamaContext
 }
 
 type LlamaTransformerBlock struct {
@@ -44,8 +45,14 @@ type LlamaFeedForward struct {
 	ffn_up   *ml.Tensor // Original: "layers.0.feed_forward.w3.weight"  |  ggml: "blk.0.ffn_up.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w3
 }
 
+type LlamaContext struct {
+	FreqsCis *ml.Tensor // Precomputed frequency tensor for complex exponentials (cis)
+}
+
 func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
-	result := &LlamaTransformer{}
+	result := &LlamaTransformer{
+		Context: &LlamaContext{},
+	}
 	modelArgs := model.ModelArgs
 
 	var err error
@@ -75,7 +82,9 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 		return nil, err
 	}
 
-	precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2)
+	if result.Context.FreqsCis, err = precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
@@ -85,10 +94,13 @@ func (t *LlamaTransformer) Forward(tokens []TokenId, startPos int) ([]TokenId, e
 	}
 
 	sequenceLength := len(tokens)
-	inp_tokens := ml.NewEmptyTensorEx("inp_tokens", []int{sequenceLength}, ml.DT_BF16)
+	inp_tokens := ml.NewEmptyTensorEx("inp_tokens", []int{sequenceLength}, ml.DT_UINT16)
 
 	for i, token := range tokens {
-		binary.BigEndian.PutUint16(inp_tokens.RawData[2*i:2*i+2], uint16(token))
+		err := inp_tokens.SetItem([]int{i}, uint16(token))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	inpL, err := ml.Fwd_Get_Rows(t.tok_embd, inp_tokens)
@@ -97,6 +109,12 @@ func (t *LlamaTransformer) Forward(tokens []TokenId, startPos int) ([]TokenId, e
 	}
 	inpL = inpL
 
+	freqsCis, err := t.Context.FreqsCis.Slice([]int{startPos}, []int{startPos + sequenceLength})
+	if err != nil {
+		return nil, err
+	}
+
+	freqsCis = freqsCis
 	return nil, nil
 }
 
@@ -192,9 +210,9 @@ func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error
 	return result, nil
 }
 
-func precomputeFreqsCis(dim int, end int) error {
-	dim = 128
-	end = 256
+func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {
+	// Comment from Llama code
+	// See: https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L80
 	/*
 		Precompute the frequency tensor for complex exponentials (cis) with given dimensions.
 
@@ -215,21 +233,29 @@ func precomputeFreqsCis(dim int, end int) error {
 	dimFloat := float32(dim)
 	freqs, err := ml.ARange(0, dim, 2, ml.DT_BF16)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	freqs.Apply(func(val float16.Float16) float16.Float16 {
-		return float16.Fromfloat32(float32(1.0 / math.Pow(theta, float64(val.Float32()/dimFloat))))
+	freqs.Apply(func(val any) any {
+		f16val := val.(float16.Float16)
+		return float16.Fromfloat32(float32(1.0 / math.Pow(theta, float64(f16val.Float32()/dimFloat))))
 	})
+	fmt.Printf("\n%s\n", freqs)
 
 	t, err := ml.ARange(0, end, 1, ml.DT_BF16)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	fmt.Printf("\n%s\n", t)
+
 	freqs, err = ml.Outer(t, freqs)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	freqs_cis := ml.Polar(ml.OnesLike(freqs), freqs)
-	freqs_cis = freqs_cis
-	return nil
+	fmt.Printf("\n%s\n", freqs)
+
+	freqs_cis, err := ml.Polar(ml.OnesLike(freqs), freqs)
+	if err != nil {
+		return nil, err
+	}
+	return freqs_cis, nil
 }

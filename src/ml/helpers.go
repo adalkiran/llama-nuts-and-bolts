@@ -3,6 +3,7 @@ package ml
 import (
 	"fmt"
 	"os"
+	"reflect"
 )
 
 func processErrors(errors ...error) error {
@@ -33,6 +34,13 @@ func checkSameDataType(a *Tensor, b *Tensor) error {
 		return nil
 	}
 	return fmt.Errorf("tensors are not in same data type: \"%s\" is %s, \"%s\" is %s", a.Name, a.DataType, b.Name, b.DataType)
+}
+
+func checkSameShape(a *Tensor, b *Tensor) error {
+	if reflect.DeepEqual(a.Size, b.Size) {
+		return nil
+	}
+	return fmt.Errorf("tensors are not in same shape: \"%s\" is %v, \"%s\" is %v", a.Name, a.Size, b.Name, b.Size)
 }
 
 func DebugHelper(tensor *Tensor, filename string) {

@@ -9,6 +9,8 @@ https://huggingface.co/meta-llama/Llama-2-7b-hf/tree/main
 https://github.com/hkproj/pytorch-llama ????
 https://www.youtube.com/watch?v=Mn_9W1nCFLo (Umar Jamil - LLaMA explained: KV-Cache, Rotary Positional Embedding, RMS Norm, Grouped Query Attention, SwiGLU)
 
+https://aliissa99.medium.com/-a596e4d86f79 (What's Grouped-Query attention - GQA)
+
 Pickle Format
 https://github.com/ggerganov/llama.cpp/blob/master/convert.py
 https://github.com/python/cpython/blob/main/Lib/pickle.py
