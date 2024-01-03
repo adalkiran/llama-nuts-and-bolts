@@ -13,15 +13,15 @@ type LlamaTransformer struct {
 
 	Layers []*LlamaTransformerBlock
 
-	output_norm *ml.Tensor // Original: "norm.weight"  |  ggml: "output_norm.weight" | shape: [4096] -> [Dim]
+	output_norm *RMSNorm   // Weights Original: "norm.weight"  |  ggml: "output_norm.weight" | shape: [4096] -> [Dim]
 	output      *ml.Tensor // Original: "output.weight"  |  ggml: "output.weight" | [out_features, in_features] -> shape: [32000 4096] -> [VocabSize, Dim]
 
 	PrecomputedFreqsCis *ml.Tensor // Precomputed frequency tensor for complex exponentials (cis)
 }
 
 type LlamaTransformerBlock struct {
-	attn_norm *ml.Tensor // Original: "layers.0.attention_norm.weight"  |  ggml: "blk.0.attn_norm.weight" | shape: [4096] -> [Dim]
-	ffn_norm  *ml.Tensor // Original: "layers.0.ffn_norm.weight"  |  ggml: "blk.0.ffn_norm.weight" | shape: [4096] -> [Dim]
+	attn_norm *RMSNorm // Weights Original: "layers.0.attention_norm.weight"  |  ggml: "blk.0.attn_norm.weight" | shape: [4096] -> [Dim]
+	ffn_norm  *RMSNorm // Weights Original: "layers.0.ffn_norm.weight"  |  ggml: "blk.0.ffn_norm.weight" | shape: [4096] -> [Dim]
 
 	attention   *LlamaAttention
 	feedForward *LlamaFeedForward
@@ -43,6 +43,11 @@ type LlamaFeedForward struct {
 	ffn_gate *ml.Tensor // Original: "layers.0.feed_forward.w1.weight"  |  ggml: "blk.0.ffn_gate.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w1
 	ffn_down *ml.Tensor // Original: "layers.0.feed_forward.w2.weight"  |  ggml: "blk.0.ffn_down.weight" | [out_features, in_features] -> shape: [4096 11008] -> [Dim, FFNHiddenDim] | w2
 	ffn_up   *ml.Tensor // Original: "layers.0.feed_forward.w3.weight"  |  ggml: "blk.0.ffn_up.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w3
+}
+
+type RMSNorm struct {
+	epsilon float64
+	weights *ml.Tensor
 }
 
 func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
@@ -67,9 +72,11 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 		result.Layers[i] = layer
 	}
 
-	if result.output_norm, err = getTensor(model, "norm.weight", []int{dim}); err != nil {
+	output_norm_weights, err := getTensor(model, "norm.weight", []int{dim})
+	if err != nil {
 		return nil, err
 	}
+	result.output_norm = NewRMSNorm(modelArgs.NormEpsilon, output_norm_weights)
 
 	// output is a Linear unit, so weight shape is ordered reversely as [out_features, in_features]
 	if result.output, err = getTensor(model, "output.weight", []int{vocabSize, dim}); err != nil {
@@ -82,7 +89,7 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 	return result, nil
 }
 
-func (t *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId, startPos int) ([]TokenId, error) {
+func (lt *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId, startPos int) ([]TokenId, error) {
 	if len(tokens) == 0 {
 		return nil, fmt.Errorf("empty token array")
 	}
@@ -97,18 +104,29 @@ func (t *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId, 
 		}
 	}
 
-	inpL, err := ml.Fwd_Get_Rows(t.tok_embd, inp_tokens)
-	if err != nil {
-		return nil, err
-	}
-	inpL = inpL
-
-	freqsCis, err := t.PrecomputedFreqsCis.Slice([]int{startPos}, []int{startPos + sequenceLength})
+	currentTensor, err := ml.Fwd_Get_Rows(lt.tok_embd, inp_tokens)
 	if err != nil {
 		return nil, err
 	}
 
-	freqsCis = freqsCis
+	freqsCis, err := lt.PrecomputedFreqsCis.Slice([]int{startPos}, []int{startPos + sequenceLength})
+	if err != nil {
+		return nil, err
+	}
+
+	var mask *ml.Tensor
+	if sequenceLength > 1 {
+		negativeInfinity := float16.Fromfloat32(float32(math.Inf(-1)))
+		mask = ml.Full([]int{sequenceLength, sequenceLength}, negativeInfinity)
+		mask = ml.TriangularUpper(mask, 1)
+	}
+
+	for _, layer := range lt.Layers {
+		if currentTensor, err = layer.Forward(context, currentTensor, startPos, freqsCis, mask); err != nil {
+			return nil, err
+		}
+	}
+
 	return nil, nil
 }
 
@@ -119,24 +137,37 @@ func NewLlamaTransformerBlock(model *Model, layerIndex int) (*LlamaTransformerBl
 	var err error
 
 	// attention normalization
-	if result.attn_norm, err = getLayerTensor(model, "layers.%d.attention_norm.weight", layerIndex, []int{dim}); err != nil {
+	attn_norm_weights, err := getLayerTensor(model, "layers.%d.attention_norm.weight", layerIndex, []int{dim})
+	if err != nil {
 		return nil, err
 	}
+	result.attn_norm = NewRMSNorm(modelArgs.NormEpsilon, attn_norm_weights)
 
 	if result.attention, err = NewLlamaAttention(model, layerIndex); err != nil {
 		return nil, err
 	}
 
 	// feed forward normalization
-	if result.ffn_norm, err = getLayerTensor(model, "layers.%d.ffn_norm.weight", layerIndex, []int{dim}); err != nil {
+	ffn_norm_weights, err := getLayerTensor(model, "layers.%d.ffn_norm.weight", layerIndex, []int{dim})
+	if err != nil {
 		return nil, err
 	}
+	result.ffn_norm = NewRMSNorm(modelArgs.NormEpsilon, ffn_norm_weights)
 
 	if result.feedForward, err = NewLlamaFeedForward(model, layerIndex); err != nil {
 		return nil, err
 	}
 
 	return result, nil
+}
+
+func (ltb *LlamaTransformerBlock) Forward(context *InferenceContext, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) (*ml.Tensor, error) {
+	normalized, err := ltb.attn_norm.Forward(context, x)
+	if err != nil {
+		return nil, err
+	}
+	normalized = normalized
+	return nil, nil
 }
 
 func NewLlamaAttention(model *Model, layerIndex int) (*LlamaAttention, error) {
@@ -202,6 +233,26 @@ func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error
 	}
 
 	return result, nil
+}
+
+func NewRMSNorm(epsilon float64, weights *ml.Tensor) *RMSNorm {
+	return &RMSNorm{
+		epsilon: epsilon,
+		weights: weights,
+	}
+}
+
+func (rms *RMSNorm) Forward(context *InferenceContext, x *ml.Tensor) (*ml.Tensor, error) {
+	var err error
+	if x, err = ml.Pow(x, 2); err != nil {
+		return nil, err
+	}
+
+	if x, err = ml.Mean(x, -1, true); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
 
 func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {

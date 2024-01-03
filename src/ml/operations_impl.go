@@ -129,3 +129,101 @@ func Fwd_Get_Rows(embedding *Tensor, tokens *Tensor) (*Tensor, error) {
 	}
 	return dst, nil
 }
+
+func TriangularUpper(input *Tensor, diagonal int) *Tensor {
+	// See: https://pytorch.org/docs/stable/generated/torch.triu.html
+
+	rowCount := input.Size[0]
+	colCount := input.Size[1]
+
+	dst := NewEmptyTensor(input.Size, input.DataType)
+	for i := 0; i < rowCount; i++ {
+		for j := i; j < colCount; j++ {
+			if j-i >= diagonal {
+				loc := []int{i, j}
+				val, _ := input.GetItem(loc)
+				dst.SetItem(loc, val)
+			}
+		}
+	}
+
+	return dst
+}
+
+func Pow(input *Tensor, power float64) (*Tensor, error) {
+	dstDataType := input.DataType
+	switch input.DataType {
+	case DT_BF16:
+		dstDataType = DT_F32
+	}
+	inputItemSize := input.DataType.ItemSize()
+
+	dst := NewEmptyTensor(input.Size, dstDataType)
+	writeOffset := 0
+	for readOffset := 0; readOffset < input.GetBytesCount(); readOffset += inputItemSize {
+		item := input.GetItemByOffset(readOffset)
+		switch input.DataType {
+		case DT_BF16:
+			item := item.(float16.Float16)
+			resultItem := float32(math.Pow(float64(item.Float32()), power))
+			dst.SetItemByOffset(writeOffset, resultItem)
+		default:
+			return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+		}
+		writeOffset += dstDataType.ItemSize()
+	}
+	return dst, nil
+}
+
+func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
+	if dim != -1 && dim != len(input.Size) {
+		return nil, fmt.Errorf("function Mean currently supports only dim=-1 or dim=(last dimension of input)")
+	}
+	dstSize := make([]int, len(input.Size))
+	copy(dstSize, input.Size)
+
+	if keepdim {
+		dstSize[len(dstSize)-1] = 1
+	} else {
+		dstSize = dstSize[:len(dstSize)-1]
+	}
+	itemSize := input.DataType.ItemSize()
+	dst := NewEmptyTensor(dstSize, input.DataType)
+	inputLastSize := input.Size[len(input.Size)-1]
+	inputStride := inputLastSize * itemSize
+
+	fmt.Println()
+	dstOffset := 0
+	for readGroupOffset := 0; readGroupOffset < input.GetBytesCount(); readGroupOffset += inputStride {
+		groupSum := float32(0)
+		for groupItemIdx := 0; groupItemIdx < inputLastSize; groupItemIdx++ {
+			var itemF32 float32
+			item := input.GetItemByOffset(readGroupOffset + groupItemIdx*itemSize)
+			switch input.DataType {
+			case DT_BF16:
+				itemF32 = item.(float16.Float16).Float32()
+			case DT_F32:
+				itemF32 = item.(float32)
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+			}
+			groupSum += itemF32
+		}
+		groupMeanF32 := groupSum / float32(inputLastSize)
+		var groupMean any
+		switch input.DataType {
+		case DT_BF16:
+			groupMean = float16.Fromfloat32(groupMeanF32)
+		case DT_F32:
+			groupMean = groupMeanF32
+		}
+
+		if err := dst.SetItemByOffset(dstOffset, groupMean); err != nil {
+			return nil, err
+		}
+		dstOffset += itemSize
+	}
+
+	fmt.Printf("%s\n", dst.String())
+	return dst, nil
+}

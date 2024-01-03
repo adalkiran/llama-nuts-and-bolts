@@ -17,6 +17,7 @@ type UnquantizedDataType = DataType
 
 var (
 	DT_BF16    = UnquantizedDataType{"BF16", reflect.TypeOf(uint16(0))}
+	DT_F32     = DataType{"Float32", reflect.TypeOf(float32(0))}
 	DT_UINT16  = DataType{"UInt16", reflect.TypeOf(uint16(0))}
 	DT_COMPLEX = DataType{"Complex", reflect.TypeOf(complex64(complex(0.0, 0.0)))}
 )
@@ -199,12 +200,14 @@ func (t *Tensor) SetItem(loc []int, val any) error {
 func (t *Tensor) GetItemByOffset(offset int) any {
 	switch t.DataType {
 	case DT_BF16:
-		return float16.Frombits(binary.BigEndian.Uint16(t.RawData[offset:]))
+		return float16.Frombits(binary.LittleEndian.Uint16(t.RawData[offset:]))
 	case DT_UINT16:
-		return binary.BigEndian.Uint16(t.RawData[offset:])
+		return binary.LittleEndian.Uint16(t.RawData[offset:])
+	case DT_F32:
+		return math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset:]))
 	case DT_COMPLEX:
-		realPart := math.Float32frombits(binary.BigEndian.Uint32(t.RawData[offset:]))
-		imagPart := math.Float32frombits(binary.BigEndian.Uint32(t.RawData[offset+int(unsafe.Sizeof(realPart)):]))
+		realPart := math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset:]))
+		imagPart := math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset+int(unsafe.Sizeof(realPart)):]))
 		return complex64(complex(realPart, imagPart))
 	}
 	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
@@ -217,15 +220,23 @@ func (t *Tensor) SetItemByOffset(offset int, val any) error {
 		if !ok {
 			return fmt.Errorf("uncompatible types float16 and %v", reflect.TypeOf(val))
 		}
-		binary.BigEndian.PutUint16(t.RawData[offset:], convVal.Bits())
+		binary.LittleEndian.PutUint16(t.RawData[offset:], convVal.Bits())
 		return nil
 	case DT_UINT16:
 		convVal, ok := val.(uint16)
 		if !ok {
 			return fmt.Errorf("uncompatible types uint16 and %v", reflect.TypeOf(val))
 		}
-		binary.BigEndian.PutUint16(t.RawData[offset:], convVal)
+		binary.LittleEndian.PutUint16(t.RawData[offset:], convVal)
 		return nil
+	case DT_F32:
+		convVal, ok := val.(float32)
+		if !ok {
+			return fmt.Errorf("uncompatible types float32 and %v", reflect.TypeOf(val))
+		}
+		binary.LittleEndian.PutUint32(t.RawData[offset:], math.Float32bits(convVal))
+		return nil
+
 	case DT_COMPLEX:
 		convVal, ok := val.(complex64)
 		if !ok {
@@ -233,8 +244,8 @@ func (t *Tensor) SetItemByOffset(offset int, val any) error {
 		}
 		realPartBits := math.Float32bits(real(convVal))
 		imagPartBits := math.Float32bits(imag(convVal))
-		binary.BigEndian.PutUint32(t.RawData[offset:], realPartBits)
-		binary.BigEndian.PutUint32(t.RawData[offset+int(unsafe.Sizeof(realPartBits)):], imagPartBits)
+		binary.LittleEndian.PutUint32(t.RawData[offset:], realPartBits)
+		binary.LittleEndian.PutUint32(t.RawData[offset+int(unsafe.Sizeof(realPartBits)):], imagPartBits)
 		return nil
 	}
 	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
