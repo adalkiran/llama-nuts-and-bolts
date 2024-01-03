@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/x448/float16"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 )
 
 // See: https://github.com/ggerganov/llama.cpp/blob/master/convert.py
@@ -16,7 +16,7 @@ import (
 type UnquantizedDataType = DataType
 
 var (
-	DT_BF16    = UnquantizedDataType{"BF16", reflect.TypeOf(uint16(0))}
+	DT_BF16    = UnquantizedDataType{"BF16", reflect.TypeOf(dtype.BFloat16(0))}
 	DT_F32     = DataType{"Float32", reflect.TypeOf(float32(0))}
 	DT_UINT16  = DataType{"UInt16", reflect.TypeOf(uint16(0))}
 	DT_COMPLEX = DataType{"Complex", reflect.TypeOf(complex64(complex(0.0, 0.0)))}
@@ -99,6 +99,10 @@ func (t *Tensor) String() string {
 	return fmt.Sprintf("[Tensor \"%s\"](%s, shape=%v, dtype=%s)", t.Name, t.dimensionToString([]int{}, shorten), t.Size, t.DataType.name)
 }
 
+func (t *Tensor) StringLong() string {
+	return fmt.Sprintf("[Tensor \"%s\"](%s, shape=%v, dtype=%s)", t.Name, t.dimensionToString([]int{}, false), t.Size, t.DataType.name)
+}
+
 func (t *Tensor) dimensionToString(loc []int, shorten bool) string {
 	currentDimension := len(loc)
 	if currentDimension < len(t.Size) {
@@ -156,7 +160,7 @@ func (t *Tensor) dimensionToString(loc []int, shorten bool) string {
 		return "err"
 	}
 	switch item := item.(type) {
-	case float16.Float16:
+	case dtype.BFloat16:
 		return fmt.Sprintf("%.4e", item.Float32())
 	case float32, float64:
 		return fmt.Sprintf("%.4e", item)
@@ -182,6 +186,10 @@ func (t *Tensor) IsMatrix() bool {
 }
 
 func (t *Tensor) GetItem(loc []int) (any, error) {
+	if len(t.Size) == 0 {
+		// A check existing in Pytorch
+		return 0, fmt.Errorf("invalid index of a 0-dim tensor. Use `tensor.item()`")
+	}
 	if len(loc) != len(t.Size) {
 		return 0, fmt.Errorf("dimensions are not compatible: tensor is %dD, loc is %dD", len(t.Size), len(loc))
 	}
@@ -200,7 +208,7 @@ func (t *Tensor) SetItem(loc []int, val any) error {
 func (t *Tensor) GetItemByOffset(offset int) any {
 	switch t.DataType {
 	case DT_BF16:
-		return float16.Frombits(binary.LittleEndian.Uint16(t.RawData[offset:]))
+		return dtype.ReadBFloat16LittleEndian(t.RawData[offset:])
 	case DT_UINT16:
 		return binary.LittleEndian.Uint16(t.RawData[offset:])
 	case DT_F32:
@@ -216,11 +224,11 @@ func (t *Tensor) GetItemByOffset(offset int) any {
 func (t *Tensor) SetItemByOffset(offset int, val any) error {
 	switch t.DataType {
 	case DT_BF16:
-		convVal, ok := val.(float16.Float16)
+		convVal, ok := val.(dtype.BFloat16)
 		if !ok {
-			return fmt.Errorf("uncompatible types float16 and %v", reflect.TypeOf(val))
+			return fmt.Errorf("uncompatible types BFloat16 and %v", reflect.TypeOf(val))
 		}
-		binary.LittleEndian.PutUint16(t.RawData[offset:], convVal.Bits())
+		dtype.WriteBFloat16LittleEndian(t.RawData[offset:], convVal)
 		return nil
 	case DT_UINT16:
 		convVal, ok := val.(uint16)
@@ -251,6 +259,10 @@ func (t *Tensor) SetItemByOffset(offset int, val any) error {
 	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
 }
 
+func (t *Tensor) Item() any {
+	return t.GetItemByOffset(0)
+}
+
 func (t *Tensor) Apply(fn func(val any) any) {
 	for offset := 0; offset < len(t.RawData); offset += t.DataType.ItemSize() {
 		val := t.GetItemByOffset(offset)
@@ -268,6 +280,9 @@ func (t *Tensor) calculateByteOffset(loc []int) int {
 }
 
 func calculateByteStride(size []int, dataType DataType) []int {
+	if len(size) == 0 {
+		return []int{1}
+	}
 	result := make([]int, len(size))
 
 	result[len(size)-1] = dataType.ItemSize()

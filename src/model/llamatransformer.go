@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
-	"github.com/x448/float16"
 )
 
 type LlamaTransformer struct {
@@ -116,7 +116,7 @@ func (lt *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId,
 
 	var mask *ml.Tensor
 	if sequenceLength > 1 {
-		negativeInfinity := float16.Fromfloat32(float32(math.Inf(-1)))
+		negativeInfinity := dtype.BFloat16fromFloat32(float32(math.Inf(-1)))
 		mask = ml.Full([]int{sequenceLength, sequenceLength}, negativeInfinity)
 		mask = ml.TriangularUpper(mask, 1)
 	}
@@ -281,8 +281,8 @@ func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {
 		return nil, err
 	}
 	freqs.Apply(func(val any) any {
-		f16val := val.(float16.Float16)
-		return float16.Fromfloat32(float32(1.0 / math.Pow(theta, float64(f16val.Float32()/dimFloat))))
+		f16val := val.(dtype.BFloat16)
+		return dtype.BFloat16fromFloat32(float32(1.0 / math.Pow(theta, float64(f16val.Float32()/dimFloat))))
 	})
 	fmt.Printf("\n%s\n", freqs)
 

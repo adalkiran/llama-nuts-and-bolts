@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/x448/float16"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 )
 
 func ARange(start int, end int, step int, dataType DataType) (*Tensor, error) {
@@ -13,7 +13,7 @@ func ARange(start int, end int, step int, dataType DataType) (*Tensor, error) {
 	}
 	result := NewEmptyTensor([]int{int(float32(end-start) / float32(step))}, dataType)
 	for i := start; i < end; i += step {
-		result.SetItem([]int{i / step}, float16.Fromfloat32(float32(i)))
+		result.SetItem([]int{i / step}, dtype.BFloat16fromFloat32(float32(i)))
 	}
 	return result, nil
 }
@@ -32,10 +32,10 @@ func Outer(vec1 *Tensor, vec2 *Tensor) (*Tensor, error) {
 		rowVal := vec1.GetItemByOffset(i * itemSize)
 		switch result.DataType {
 		case DT_BF16:
-			row := rowVal.(float16.Float16)
+			row := rowVal.(dtype.BFloat16)
 			for j := 0; j < vec2.Size[0]; j++ {
-				col := vec2.GetItemByOffset(j * itemSize).(float16.Float16)
-				val := float16.Fromfloat32(row.Float32() * col.Float32())
+				col := vec2.GetItemByOffset(j * itemSize).(dtype.BFloat16)
+				val := dtype.BFloat16fromFloat32(row.Float32() * col.Float32())
 				result.SetItem([]int{i, j}, val)
 			}
 		default:
@@ -54,11 +54,11 @@ func Full(size []int, fillValue any) *Tensor {
 }
 
 func Zeros(size []int) *Tensor {
-	return Full(size, float16.Fromfloat32(0))
+	return Full(size, dtype.BFloat16fromFloat32(0))
 }
 
 func Ones(size []int) *Tensor {
-	return Full(size, float16.Fromfloat32(1))
+	return Full(size, dtype.BFloat16fromFloat32(1))
 }
 
 func OnesLike(input *Tensor) *Tensor {
@@ -84,8 +84,8 @@ func Polar(abs *Tensor, angle *Tensor) (*Tensor, error) {
 			if err != nil {
 				return nil, err
 			}
-			absItemConv := float64(absItem.(float16.Float16).Float32())
-			angleItemConv := float64(angleItem.(float16.Float16).Float32())
+			absItemConv := absItem.(dtype.BFloat16).Float64()
+			angleItemConv := angleItem.(dtype.BFloat16).Float64()
 			realPart := absItemConv * math.Cos(angleItemConv)
 			imagPart := absItemConv * math.Sin(angleItemConv)
 			resultItem := complex64(complex(realPart, imagPart))
@@ -164,8 +164,8 @@ func Pow(input *Tensor, power float64) (*Tensor, error) {
 		item := input.GetItemByOffset(readOffset)
 		switch input.DataType {
 		case DT_BF16:
-			item := item.(float16.Float16)
-			resultItem := float32(math.Pow(float64(item.Float32()), power))
+			item := item.(dtype.BFloat16)
+			resultItem := float32(math.Pow(item.Float64(), power))
 			dst.SetItemByOffset(writeOffset, resultItem)
 		default:
 			return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
@@ -201,7 +201,7 @@ func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
 			item := input.GetItemByOffset(readGroupOffset + groupItemIdx*itemSize)
 			switch input.DataType {
 			case DT_BF16:
-				itemF32 = item.(float16.Float16).Float32()
+				itemF32 = item.(dtype.BFloat16).Float32()
 			case DT_F32:
 				itemF32 = item.(float32)
 			default:
@@ -213,7 +213,7 @@ func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
 		var groupMean any
 		switch input.DataType {
 		case DT_BF16:
-			groupMean = float16.Fromfloat32(groupMeanF32)
+			groupMean = dtype.BFloat16fromFloat32(groupMeanF32)
 		case DT_F32:
 			groupMean = groupMeanF32
 		}
@@ -223,7 +223,5 @@ func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
 		}
 		dstOffset += itemSize
 	}
-
-	fmt.Printf("%s\n", dst.String())
 	return dst, nil
 }
