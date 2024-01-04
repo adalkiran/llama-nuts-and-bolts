@@ -170,7 +170,7 @@ func (t *Tensor) dimensionToString(loc []int, shorten bool) string {
 		realPart := real(item)
 		imagPart := imag(item)
 
-		str := fmt.Sprintf("%.4f+%.4ej", realPart, imagPart)
+		str := fmt.Sprintf("%.4e+%.4ej", realPart, imagPart)
 		return str
 	default:
 		return fmt.Sprintf("%v", item)
@@ -263,12 +263,15 @@ func (t *Tensor) Item() any {
 	return t.GetItemByOffset(0)
 }
 
-func (t *Tensor) Apply(fn func(val any) any) {
+func (t *Tensor) Apply(fn func(val any) any) error {
 	for offset := 0; offset < len(t.RawData); offset += t.DataType.ItemSize() {
 		val := t.GetItemByOffset(offset)
 		val = fn(val)
-		t.SetItemByOffset(offset, val)
+		if err := t.SetItemByOffset(offset, val); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (t *Tensor) calculateByteOffset(loc []int) int {

@@ -7,6 +7,8 @@ import (
 )
 
 //See: https://en.wikipedia.org/wiki/Bfloat16_floating-point_format
+//See: https://en.wikipedia.org/wiki/Floating-point_arithmetic
+//See: https://cloud.google.com/tpu/docs/bfloat16
 
 type BFloat16 uint16
 

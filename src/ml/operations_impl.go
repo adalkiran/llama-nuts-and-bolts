@@ -11,9 +11,22 @@ func ARange(start int, end int, step int, dataType DataType) (*Tensor, error) {
 	if start >= end {
 		return nil, fmt.Errorf("start value %d must be less than end value %d in ARange", start, end)
 	}
-	result := NewEmptyTensor([]int{int(float32(end-start) / float32(step))}, dataType)
-	for i := start; i < end; i += step {
-		result.SetItem([]int{i / step}, dtype.BFloat16fromFloat32(float32(i)))
+	result := NewEmptyTensor([]int{int(math.Ceil(float64(end-start) / float64(step)))}, dataType)
+	i := 0
+	for val := start; val < end; val += step {
+		var valConv any
+		switch result.DataType {
+		case DT_BF16:
+			valConv = dtype.BFloat16fromFloat32(float32(val))
+		case DT_F32:
+			valConv = float32(val)
+		default:
+			return nil, fmt.Errorf("unsupported tensor datatype %s", result.DataType)
+		}
+		if err := result.SetItem([]int{i}, valConv); err != nil {
+			return nil, err
+		}
+		i++
 	}
 	return result, nil
 }
@@ -36,7 +49,9 @@ func Outer(vec1 *Tensor, vec2 *Tensor) (*Tensor, error) {
 			for j := 0; j < vec2.Size[0]; j++ {
 				col := vec2.GetItemByOffset(j * itemSize).(dtype.BFloat16)
 				val := dtype.BFloat16fromFloat32(row.Float32() * col.Float32())
-				result.SetItem([]int{i, j}, val)
+				if err := result.SetItem([]int{i, j}, val); err != nil {
+					return nil, err
+				}
 			}
 		default:
 			return nil, fmt.Errorf("unsupported tensor datatype %s", result.DataType)
@@ -45,30 +60,59 @@ func Outer(vec1 *Tensor, vec2 *Tensor) (*Tensor, error) {
 	return result, nil
 }
 
-func Full(size []int, fillValue any) *Tensor {
-	result := NewEmptyTensor(size, DT_BF16)
-	result.Apply(func(val any) any {
+func Full(size []int, dataType DataType, fillValue any) (*Tensor, error) {
+	result := NewEmptyTensor(size, dataType)
+	err := result.Apply(func(val any) any {
 		return fillValue
 	})
-	return result
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
-func Zeros(size []int) *Tensor {
-	return Full(size, dtype.BFloat16fromFloat32(0))
+func Zeros(size []int, dataType DataType) (*Tensor, error) {
+	var val any
+	switch dataType {
+	case DT_BF16:
+		val = dtype.BFloat16fromFloat32(0)
+	case DT_F32:
+		val = float32(0)
+	default:
+		return nil, fmt.Errorf("unsupported tensor datatype %s", dataType)
+	}
+	return Full(size, dataType, val)
 }
 
-func Ones(size []int) *Tensor {
-	return Full(size, dtype.BFloat16fromFloat32(1))
+func Ones(size []int, dataType DataType) (*Tensor, error) {
+	var val any
+	switch dataType {
+	case DT_BF16:
+		val = dtype.BFloat16fromFloat32(1)
+	case DT_F32:
+		val = float32(1)
+	default:
+		return nil, fmt.Errorf("unsupported tensor datatype %s", dataType)
+	}
+	return Full(size, dataType, val)
 }
 
-func OnesLike(input *Tensor) *Tensor {
-	return Ones(input.Size)
+func ZerosLike(input *Tensor) (*Tensor, error) {
+	return Zeros(input.Size, input.DataType)
+}
+
+func OnesLike(input *Tensor) (*Tensor, error) {
+	return Ones(input.Size, input.DataType)
 }
 
 func Polar(abs *Tensor, angle *Tensor) (*Tensor, error) {
 	// See: (For formula) https://pytorch.org/docs/stable/generated/torch.polar.html
 	if err := processErrors(
 		checkSameShape(abs, angle),
+		checkSameDataType(abs, angle),
+		// Currently only 2D matrices are supported
+		checkIsMatrix(abs),
+		checkIsMatrix(angle),
 	); err != nil {
 		return nil, err
 	}
@@ -84,8 +128,19 @@ func Polar(abs *Tensor, angle *Tensor) (*Tensor, error) {
 			if err != nil {
 				return nil, err
 			}
-			absItemConv := absItem.(dtype.BFloat16).Float64()
-			angleItemConv := angleItem.(dtype.BFloat16).Float64()
+			var absItemConv float64
+			var angleItemConv float64
+			switch abs.DataType {
+			case DT_BF16:
+				absItemConv = absItem.(dtype.BFloat16).Float64()
+				angleItemConv = angleItem.(dtype.BFloat16).Float64()
+			case DT_F32:
+				absItemConv = float64(absItem.(float32))
+				angleItemConv = float64(angleItem.(float32))
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", abs.DataType)
+			}
+
 			realPart := absItemConv * math.Cos(angleItemConv)
 			imagPart := absItemConv * math.Sin(angleItemConv)
 			resultItem := complex64(complex(realPart, imagPart))
@@ -130,7 +185,7 @@ func Fwd_Get_Rows(embedding *Tensor, tokens *Tensor) (*Tensor, error) {
 	return dst, nil
 }
 
-func TriangularUpper(input *Tensor, diagonal int) *Tensor {
+func TriangularUpper(input *Tensor, diagonal int) (*Tensor, error) {
 	// See: https://pytorch.org/docs/stable/generated/torch.triu.html
 
 	rowCount := input.Size[0]
@@ -138,16 +193,18 @@ func TriangularUpper(input *Tensor, diagonal int) *Tensor {
 
 	dst := NewEmptyTensor(input.Size, input.DataType)
 	for i := 0; i < rowCount; i++ {
-		for j := i; j < colCount; j++ {
+		for j := 0; j < colCount; j++ {
 			if j-i >= diagonal {
 				loc := []int{i, j}
 				val, _ := input.GetItem(loc)
-				dst.SetItem(loc, val)
+				if err := dst.SetItem(loc, val); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
 
-	return dst
+	return dst, nil
 }
 
 func Pow(input *Tensor, power float64) (*Tensor, error) {
@@ -166,6 +223,10 @@ func Pow(input *Tensor, power float64) (*Tensor, error) {
 		case DT_BF16:
 			item := item.(dtype.BFloat16)
 			resultItem := float32(math.Pow(item.Float64(), power))
+			dst.SetItemByOffset(writeOffset, resultItem)
+		case DT_F32:
+			item := item.(float32)
+			resultItem := float32(math.Pow(float64(item), power))
 			dst.SetItemByOffset(writeOffset, resultItem)
 		default:
 			return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)

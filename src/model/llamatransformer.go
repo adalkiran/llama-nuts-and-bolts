@@ -98,8 +98,7 @@ func (lt *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId,
 	inp_tokens := ml.NewEmptyTensorEx("inp_tokens", []int{sequenceLength}, ml.DT_UINT16)
 
 	for i, token := range tokens {
-		err := inp_tokens.SetItem([]int{i}, uint16(token))
-		if err != nil {
+		if err := inp_tokens.SetItem([]int{i}, uint16(token)); err != nil {
 			return nil, err
 		}
 	}
@@ -117,8 +116,12 @@ func (lt *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId,
 	var mask *ml.Tensor
 	if sequenceLength > 1 {
 		negativeInfinity := dtype.BFloat16fromFloat32(float32(math.Inf(-1)))
-		mask = ml.Full([]int{sequenceLength, sequenceLength}, negativeInfinity)
-		mask = ml.TriangularUpper(mask, 1)
+		if mask, err = ml.Full([]int{sequenceLength, sequenceLength}, ml.DT_BF16, negativeInfinity); err != nil {
+			return nil, err
+		}
+		if mask, err = ml.TriangularUpper(mask, 1); err != nil {
+			return nil, err
+		}
 	}
 
 	for _, layer := range lt.Layers {
@@ -280,10 +283,13 @@ func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {
 	if err != nil {
 		return nil, err
 	}
-	freqs.Apply(func(val any) any {
+	err = freqs.Apply(func(val any) any {
 		f16val := val.(dtype.BFloat16)
 		return dtype.BFloat16fromFloat32(float32(1.0 / math.Pow(theta, float64(f16val.Float32()/dimFloat))))
 	})
+	if err != nil {
+		return nil, err
+	}
 	fmt.Printf("\n%s\n", freqs)
 
 	t, err := ml.ARange(0, end, 1, ml.DT_BF16)
@@ -298,7 +304,11 @@ func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {
 	}
 	fmt.Printf("\n%s\n", freqs)
 
-	freqs_cis, err := ml.Polar(ml.OnesLike(freqs), freqs)
+	ones, err := ml.OnesLike(freqs)
+	if err != nil {
+		return nil, err
+	}
+	freqs_cis, err := ml.Polar(ones, freqs)
 	if err != nil {
 		return nil, err
 	}

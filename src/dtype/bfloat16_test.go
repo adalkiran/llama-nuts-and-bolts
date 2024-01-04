@@ -5,6 +5,66 @@ import (
 	"testing"
 )
 
+func TestNotTruncatedDecimalPart(t *testing.T) {
+	// See: https://en.wikipedia.org/wiki/Floating-point_arithmetic
+	// See: https://cloud.google.com/tpu/docs/bfloat16
+
+	//Case 1
+	expected := float32(1.)
+	actualBF16 := BFloat16fromFloat32(1.)
+	actual := actualBF16.Float32()
+	if actual != expected {
+		t.Errorf("Expected %g, but got %g", expected, actual)
+	}
+
+	//Case 2
+	expected = float32(6.25)
+	actualBF16 = BFloat16fromFloat32(6.25)
+	actual = actualBF16.Float32()
+	if actual != expected {
+		t.Errorf("Expected %g, but got %g", expected, actual)
+	}
+}
+
+func TestTruncatedDecimalPart(t *testing.T) {
+	// See: https://en.wikipedia.org/wiki/Floating-point_arithmetic
+	// See: https://cloud.google.com/tpu/docs/bfloat16
+
+	// Note that, this  an expected behaviour.
+
+	//Case 1
+	expected := float32(1.5234375)
+	actualBF16 := BFloat16fromFloat32(1.53)
+	actual := actualBF16.Float32()
+	if actual != expected {
+		t.Errorf("Expected %g, but got %g", expected, actual)
+	}
+
+	//Case 2
+	expected = float32(6.5)
+	actualBF16 = BFloat16fromFloat32(6.53)
+	actual = actualBF16.Float32()
+	if actual != expected {
+		t.Errorf("Expected %g, but got %g", expected, actual)
+	}
+
+	//Case 3
+	expected = float32(11.3125)
+	actualBF16 = BFloat16fromFloat32(11.34)
+	actual = actualBF16.Float32()
+	if actual != expected {
+		t.Errorf("Expected %g, but got %g", expected, actual)
+	}
+
+	//Case 3
+	expected = float32(584)
+	actualBF16 = BFloat16fromFloat32(586.25)
+	actual = actualBF16.Float32()
+	if actual != expected {
+		t.Errorf("Expected %g, but got %g", expected, actual)
+	}
+}
+
 func TestReadBFloat16LittleEndian(t *testing.T) {
 	// Values are stored in little endian order
 
