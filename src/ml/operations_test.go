@@ -1,11 +1,11 @@
 package ml
 
 import (
-	"fmt"
 	"math"
 	"reflect"
 	"testing"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 )
 
@@ -39,109 +39,6 @@ func createTestInputTensor(size []int) (*Tensor, error) {
 	return tensor, nil
 }
 
-func compareTestTensorDimension(expected interface{}, actual *Tensor, currentDimension int, loc []int) error {
-	loc = append(loc, 0)
-	if currentDimension < len(actual.Size)-1 {
-		for i := 0; i < actual.Size[currentDimension]; i++ {
-			loc[currentDimension] = i
-			if err := compareTestTensorDimension(expected, actual, currentDimension+1, loc); err != nil {
-				return err
-			}
-		}
-	} else {
-		expectedArr := reflect.ValueOf(expected)
-		for dimension := 0; dimension < currentDimension; dimension++ {
-			expectedArr = expectedArr.Index(loc[dimension])
-		}
-		if len(actual.Size) > 0 {
-			if actual.DataType != DT_COMPLEX {
-				expectedArrTyped, ok := expectedArr.Interface().([]float32)
-				if !ok {
-					return fmt.Errorf("given expected argument is in unsupported datatype %s, should be %s", reflect.TypeOf(expectedArr.Interface()), "float32")
-				}
-				for i := 0; i < actual.Size[currentDimension]; i++ {
-					loc[currentDimension] = i
-					actualItem, err := actual.GetItem(loc)
-					if err != nil {
-						return err
-					}
-					var actualItemTyped float32
-					switch actualItem := actualItem.(type) {
-					case dtype.BFloat16:
-						actualItemTyped = actualItem.Float32()
-					case float32:
-						actualItemTyped = actualItem
-					default:
-						return fmt.Errorf("unsupported tensor datatype %s in compareTestTensorDimension function", reflect.TypeOf(actualItem))
-					}
-					expectedItemTyped := expectedArrTyped[i]
-
-					if actualItemTyped != expectedItemTyped {
-						return fmt.Errorf("Expected %g, but got %g at index: %v", expectedItemTyped, actualItemTyped, loc)
-					}
-				}
-			} else {
-				expectedArrTyped, ok := expectedArr.Interface().([]complex64)
-				if !ok {
-					return fmt.Errorf("given expected argument is in unsupported datatype %s, should be %s", reflect.TypeOf(expectedArr.Interface()), "complex64")
-				}
-				for i := 0; i < actual.Size[currentDimension]; i++ {
-					loc[currentDimension] = i
-					actualItem, err := actual.GetItem(loc)
-					if err != nil {
-						return err
-					}
-					actualItemTyped := actualItem.(complex64)
-					expectedItemTyped := expectedArrTyped[i]
-
-					// Comparison is done by converting values to string, because complex64 type may have
-					// some slight differences due to high precision.
-					if fmt.Sprintf("%.4e", actualItemTyped) != fmt.Sprintf("%.4e", expectedItemTyped) {
-						return fmt.Errorf("Expected %g, but got %g at index: %v", expectedItemTyped, actualItemTyped, loc)
-					}
-				}
-			}
-		} else {
-			expectedItemTyped, ok := expectedArr.Interface().(float32)
-			if !ok {
-				return fmt.Errorf("Expected type float32, but got given expected argument %v", expectedArr.Type())
-			}
-			actualItemTyped := actual.Item().(dtype.BFloat16)
-			if actualItemTyped.Float32() != expectedItemTyped {
-				return fmt.Errorf("Expected %g, but got %g at index: %v", expectedItemTyped, actualItemTyped.Float32(), loc)
-			}
-		}
-	}
-	return nil
-}
-
-func compareTestTensor(expected interface{}, expectedSize []int, actual *Tensor) error {
-	if !reflect.DeepEqual(expectedSize, actual.Size) {
-		return fmt.Errorf("Expected size %v, but got %v", expectedSize, actual.Size)
-	}
-	expectedArr := reflect.ValueOf(expected)
-	if len(expectedSize) > 0 && expectedArr.Kind() != reflect.Slice {
-		return fmt.Errorf("given expected argument is not a slice/array, got %v", expectedArr.Type())
-	}
-	for dimension := 0; dimension < len(expectedSize); dimension++ {
-		if expectedArr.Kind() != reflect.Slice {
-			return fmt.Errorf("given expected argument's dimension is not compatible: expected dimension: %d, current dimension: %d", len(expectedSize), dimension)
-		}
-		if expectedArr.Len() != expectedSize[dimension] {
-			return fmt.Errorf("given expected argument's shape is not compatible: expected length at dimension %d: %d, got length: %d", dimension, expectedSize[dimension], expectedArr.Len())
-		}
-		expectedArr = expectedArr.Index(0)
-	}
-	if len(expectedSize) > 0 && expectedArr.Kind() == reflect.Slice {
-		return fmt.Errorf("given expected argument's dimension is not compatible: expected dimension: %d", len(expectedSize))
-	}
-
-	if err := compareTestTensorDimension(expected, actual, 0, []int{}); err != nil {
-		return err
-	}
-	return nil
-}
-
 func TestARangeStep1BF16(t *testing.T) {
 	expectedSize := []int{10}
 	expected := []float32{
@@ -152,7 +49,7 @@ func TestARangeStep1BF16(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -167,7 +64,7 @@ func TestARangeMultipleCasesBF16(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -180,7 +77,7 @@ func TestARangeMultipleCasesBF16(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -193,7 +90,7 @@ func TestARangeMultipleCasesBF16(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -206,7 +103,7 @@ func TestARangeMultipleCasesBF16(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -219,7 +116,7 @@ func TestARangeMultipleCasesBF16(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -232,7 +129,7 @@ func TestARangeMultipleCasesBF16(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -245,7 +142,7 @@ func TestARangeMultipleCasesBF16(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -258,7 +155,7 @@ func TestARangeMultipleCasesBF16(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -286,7 +183,7 @@ func TestOuter(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -308,7 +205,7 @@ func TestFull(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -326,7 +223,7 @@ func TestFull(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -343,7 +240,7 @@ func TestFull(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -361,7 +258,7 @@ func TestZeros(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -392,7 +289,7 @@ func TestOnes(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -457,7 +354,7 @@ func TestPolar(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -485,7 +382,7 @@ func TestTriangularUpperOnSquare(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -503,7 +400,7 @@ func TestTriangularUpperOnSquare(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -521,7 +418,7 @@ func TestTriangularUpperOnSquare(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -539,7 +436,7 @@ func TestTriangularUpperOnSquare(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -566,7 +463,7 @@ func TestTriangularUpperOnLandscapeRectangle(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -583,7 +480,7 @@ func TestTriangularUpperOnLandscapeRectangle(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -600,7 +497,7 @@ func TestTriangularUpperOnLandscapeRectangle(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -630,7 +527,7 @@ func TestTriangularUpperOnPortraitRectangle(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -650,7 +547,7 @@ func TestTriangularUpperOnPortraitRectangle(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -670,7 +567,7 @@ func TestTriangularUpperOnPortraitRectangle(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -690,7 +587,7 @@ func TestPow(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -708,7 +605,7 @@ func TestPow(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 
@@ -735,7 +632,7 @@ func TestPow(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected3d, expectedSize3d, actual3d); err != nil {
+	if err := CompareTestTensor(expected3d, expectedSize3d, actual3d, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -767,7 +664,7 @@ func TestMean3dKeepDimTrue(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -789,7 +686,7 @@ func TestMean3dKeepDimFalse(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -808,7 +705,7 @@ func TestMean2dKeepDimTrue(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -827,7 +724,7 @@ func TestMean2dKeepDimFalse(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -846,7 +743,7 @@ func TestMean1dKeepDimTrue(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
@@ -863,7 +760,105 @@ func TestMean1dKeepDimFalse(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := compareTestTensor(expected, expectedSize, actual); err != nil {
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestLinearTransformationF32(t *testing.T) {
+	inputRowSize := 2
+	inputColSize := 3
+
+	weightsOutputSize := 4
+	weightsInputSize := 3
+
+	expectedSize := []int{2, 4}
+	expected := [][]float32{
+		{0.014, 0.032, 0.05, 0.068},
+		{0.032, 0.077, 0.122, 0.167},
+	}
+
+	weightVals := [][]float32{
+		{0.01, 0.02, 0.03},
+		{0.04, 0.05, 0.06},
+		{0.07, 0.08, 0.09},
+		{0.10, 0.11, 0.12},
+	}
+	weights := NewEmptyTensor([]int{weightsOutputSize, weightsInputSize}, DT_F32)
+	for iterator := IterateOver(weights, 0); iterator.HasNext(); {
+		loc := iterator.Next()
+		if err := weights.SetItem(loc, weightVals[loc[0]][loc[1]]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	inputVals := [][]float32{
+		{0.1, 0.2, 0.3},
+		{0.4, 0.5, 0.6},
+	}
+
+	input := NewEmptyTensor([]int{inputRowSize, inputColSize}, DT_F32)
+	for iterator := IterateOver(input, 0); iterator.HasNext(); {
+		loc := iterator.Next()
+		if err := input.SetItem(loc, inputVals[loc[0]][loc[1]]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	actual, err := LinearTransformation(input, weights)
+	if err != nil {
+		t.Error(err)
+	}
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestLinearTransformationBF16(t *testing.T) {
+	inputRowSize := 2
+	inputColSize := 3
+
+	weightsOutputSize := 4
+	weightsInputSize := 3
+
+	expectedSize := []int{2, 4}
+	expected := [][]float32{
+		{0.0138, 0.0317, 0.0495, 0.0673},
+		{0.0317, 0.0761, 0.1210, 0.1660},
+	}
+
+	weightVals := [][]dtype.BFloat16{
+		{dtype.BFloat16fromFloat32(0.01), dtype.BFloat16fromFloat32(0.02), dtype.BFloat16fromFloat32(0.03)},
+		{dtype.BFloat16fromFloat32(0.04), dtype.BFloat16fromFloat32(0.05), dtype.BFloat16fromFloat32(0.06)},
+		{dtype.BFloat16fromFloat32(0.07), dtype.BFloat16fromFloat32(0.08), dtype.BFloat16fromFloat32(0.09)},
+		{dtype.BFloat16fromFloat32(0.10), dtype.BFloat16fromFloat32(0.11), dtype.BFloat16fromFloat32(0.12)},
+	}
+	weights := NewEmptyTensor([]int{weightsOutputSize, weightsInputSize}, DT_BF16)
+	for iterator := IterateOver(weights, 0); iterator.HasNext(); {
+		loc := iterator.Next()
+		if err := weights.SetItem(loc, weightVals[loc[0]][loc[1]]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	inputVals := [][]dtype.BFloat16{
+		{dtype.BFloat16fromFloat32(0.1), dtype.BFloat16fromFloat32(0.2), dtype.BFloat16fromFloat32(0.3)},
+		{dtype.BFloat16fromFloat32(0.4), dtype.BFloat16fromFloat32(0.5), dtype.BFloat16fromFloat32(0.6)},
+	}
+
+	input := NewEmptyTensor([]int{inputRowSize, inputColSize}, DT_BF16)
+	for iterator := IterateOver(input, 0); iterator.HasNext(); {
+		loc := iterator.Next()
+		if err := input.SetItem(loc, inputVals[loc[0]][loc[1]]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	actual, err := LinearTransformation(input, weights)
+	if err != nil {
+		t.Error(err)
+	}
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }

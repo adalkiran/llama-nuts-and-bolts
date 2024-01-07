@@ -18,7 +18,7 @@ type ModelArgs struct {
 	VocabSize        int     `json:"vocab_size"`         // defined later by tokenizer
 	MultipleOf       int     `json:"multiple_of"`        // make SwiGLU hidden layer size multiple of large power of 2
 	FFNDimMultiplier float64 `json:"ffn_dim_multiplier"` // Optional
-	NormEpsilon      float64 `json:"norm_eps"`
+	NormEpsilon      float32 `json:"norm_eps"`
 
 	MaxBatchSize      int
 	MaxSequenceLength int

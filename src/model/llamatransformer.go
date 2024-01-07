@@ -46,7 +46,7 @@ type LlamaFeedForward struct {
 }
 
 type RMSNorm struct {
-	epsilon float64
+	epsilon float32
 	weights *ml.Tensor
 }
 
@@ -89,48 +89,56 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 	return result, nil
 }
 
+func (lt *LlamaTransformer) prepare(tokens []TokenId, startPos int) (inputTensor *ml.Tensor, freqsCis *ml.Tensor, mask *ml.Tensor, err error) {
+	sequenceLength := len(tokens)
+	inp_tokens := ml.NewEmptyTensorEx("inp_tokens", []int{sequenceLength}, ml.DT_UINT16)
+
+	for i, token := range tokens {
+		if err = inp_tokens.SetItem([]int{i}, uint16(token)); err != nil {
+			return
+		}
+	}
+
+	inputTensor, err = ml.Fwd_Get_Rows(lt.tok_embd, inp_tokens)
+	if err != nil {
+		return
+	}
+
+	freqsCis, err = lt.PrecomputedFreqsCis.Slice([]int{startPos}, []int{startPos + sequenceLength})
+	if err != nil {
+		return
+	}
+
+	if sequenceLength > 1 {
+		negativeInfinity := dtype.BFloat16fromFloat32(float32(math.Inf(-1)))
+		if mask, err = ml.Full([]int{sequenceLength, sequenceLength}, ml.DT_BF16, negativeInfinity); err != nil {
+			return
+		}
+		if mask, err = ml.TriangularUpper(mask, 1); err != nil {
+			return
+		}
+	}
+	return
+}
+
 func (lt *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId, startPos int) ([]TokenId, error) {
 	if len(tokens) == 0 {
 		return nil, fmt.Errorf("empty token array")
 	}
 
-	sequenceLength := len(tokens)
-	inp_tokens := ml.NewEmptyTensorEx("inp_tokens", []int{sequenceLength}, ml.DT_UINT16)
-
-	for i, token := range tokens {
-		if err := inp_tokens.SetItem([]int{i}, uint16(token)); err != nil {
-			return nil, err
-		}
-	}
-
-	currentTensor, err := ml.Fwd_Get_Rows(lt.tok_embd, inp_tokens)
+	inputTensor, freqsCis, mask, err := lt.prepare(tokens, startPos)
 	if err != nil {
 		return nil, err
 	}
 
-	freqsCis, err := lt.PrecomputedFreqsCis.Slice([]int{startPos}, []int{startPos + sequenceLength})
-	if err != nil {
-		return nil, err
-	}
-
-	var mask *ml.Tensor
-	if sequenceLength > 1 {
-		negativeInfinity := dtype.BFloat16fromFloat32(float32(math.Inf(-1)))
-		if mask, err = ml.Full([]int{sequenceLength, sequenceLength}, ml.DT_BF16, negativeInfinity); err != nil {
-			return nil, err
-		}
-		if mask, err = ml.TriangularUpper(mask, 1); err != nil {
-			return nil, err
-		}
-	}
-
+	currentTensor := inputTensor
 	for _, layer := range lt.Layers {
 		if currentTensor, err = layer.Forward(context, currentTensor, startPos, freqsCis, mask); err != nil {
 			return nil, err
 		}
 	}
 
-	return nil, nil
+	return nil, fmt.Errorf("NOT IMPLEMENTED")
 }
 
 func NewLlamaTransformerBlock(model *Model, layerIndex int) (*LlamaTransformerBlock, error) {
@@ -165,12 +173,16 @@ func NewLlamaTransformerBlock(model *Model, layerIndex int) (*LlamaTransformerBl
 }
 
 func (ltb *LlamaTransformerBlock) Forward(context *InferenceContext, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) (*ml.Tensor, error) {
-	normalized, err := ltb.attn_norm.Forward(context, x)
+	normalizedX, err := ltb.attn_norm.Forward(context, x)
 	if err != nil {
 		return nil, err
 	}
-	normalized = normalized
-	return nil, nil
+	h, err := ltb.attention.Forward(context, normalizedX, startPos, freqsCis, mask)
+	if err != nil {
+		return nil, err
+	}
+	h = h
+	return nil, fmt.Errorf("NOT IMPLEMENTED")
 }
 
 func NewLlamaAttention(model *Model, layerIndex int) (*LlamaAttention, error) {
@@ -206,6 +218,31 @@ func NewLlamaAttention(model *Model, layerIndex int) (*LlamaAttention, error) {
 	return result, nil
 }
 
+func (lat *LlamaAttention) Forward(context *InferenceContext, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) (*ml.Tensor, error) {
+	// lat.attn_wq: [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
+	xq, err := ml.LinearTransformation(x, lat.attn_wq)
+	if err != nil {
+		return nil, err
+	}
+
+	// lat.attn_wk: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+	xk, err := ml.LinearTransformation(x, lat.attn_wk)
+	if err != nil {
+		return nil, err
+	}
+
+	// lat.attn_wv: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+	xv, err := ml.LinearTransformation(x, lat.attn_wv)
+	if err != nil {
+		return nil, err
+	}
+
+	xq = xq
+	xk = xk
+	xv = xv
+	return nil, fmt.Errorf("NOT IMPLEMENTED")
+}
+
 func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error) {
 	result := &LlamaFeedForward{}
 	modelArgs := model.ModelArgs
@@ -238,7 +275,7 @@ func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error
 	return result, nil
 }
 
-func NewRMSNorm(epsilon float64, weights *ml.Tensor) *RMSNorm {
+func NewRMSNorm(epsilon float32, weights *ml.Tensor) *RMSNorm {
 	return &RMSNorm{
 		epsilon: epsilon,
 		weights: weights,
@@ -246,16 +283,32 @@ func NewRMSNorm(epsilon float64, weights *ml.Tensor) *RMSNorm {
 }
 
 func (rms *RMSNorm) Forward(context *InferenceContext, x *ml.Tensor) (*ml.Tensor, error) {
+	h, err := rms.doNormalization(x)
+	if err != nil {
+		return nil, err
+	}
+	return ml.MultiplyElementwise(h, rms.weights)
+}
+
+func (rms *RMSNorm) doNormalization(x *ml.Tensor) (*ml.Tensor, error) {
 	var err error
-	if x, err = ml.Pow(x, 2); err != nil {
+	var h *ml.Tensor
+	if h, err = ml.Pow(x, 2); err != nil {
 		return nil, err
 	}
-
-	if x, err = ml.Mean(x, -1, true); err != nil {
+	if h, err = ml.Mean(h, -1, true); err != nil {
 		return nil, err
 	}
-
-	return nil, nil
+	if h, err = ml.AddScalar(h, rms.epsilon); err != nil {
+		return nil, err
+	}
+	if h, err = ml.RSqrt(h); err != nil {
+		return nil, err
+	}
+	if h, err = ml.MultiplyElementwise(x, h); err != nil {
+		return nil, err
+	}
+	return h, nil
 }
 
 func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {

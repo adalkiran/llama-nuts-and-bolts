@@ -75,6 +75,12 @@ func NewEmptyTensor(size []int, dataType DataType) *Tensor {
 	return NewEmptyTensorEx("", size, dataType)
 }
 
+func DuplicateTensor(input *Tensor) *Tensor {
+	dst := NewEmptyTensorEx(input.Name, input.Size, input.DataType)
+	copy(dst.RawData, input.RawData)
+	return dst
+}
+
 func (t *Tensor) GetShape() []int {
 	return t.Size
 }
@@ -361,4 +367,35 @@ func sliceTensorDimension(t *Tensor, dst *Tensor, locStart []int, locEnd []int, 
 		}
 	}
 	return nil
+}
+
+func CheckBroadcastableOnce(size1 []int, size2 []int) bool {
+	// See: https://pytorch.org/docs/stable/notes/broadcasting.html
+	// Aim is to find if can "size2" be expanded to adapt "size1"
+
+	for dimension := max(len(size1), len(size2)) - 1; dimension >= 0; dimension-- {
+		if dimension >= len(size1) {
+			size1 = append([]int{1}, size1...)
+		}
+		if dimension >= len(size2) {
+			size2 = append([]int{1}, size2...)
+		}
+	}
+	for dimension := 0; dimension < len(size1); dimension++ {
+		if size1[dimension]%size2[dimension] != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func CheckBroadcastable(t1 *Tensor, t2 *Tensor, isCommutative bool) (refTensor *Tensor, expandingTensor *Tensor, err error) {
+	// See: https://pytorch.org/docs/stable/notes/broadcasting.html
+	if CheckBroadcastableOnce(t1.Size, t2.Size) {
+		return t1, t2, nil
+	}
+	if isCommutative && CheckBroadcastableOnce(t2.Size, t1.Size) {
+		return t2, t1, nil
+	}
+	return nil, nil, fmt.Errorf("two tensor shapes cannot be broadcasted: %v and %v", t1.Size, t2.Size)
 }

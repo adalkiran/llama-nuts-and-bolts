@@ -3,6 +3,7 @@ package ml
 import (
 	"fmt"
 	"math"
+	"reflect"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 )
@@ -284,5 +285,210 @@ func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
 		}
 		dstOffset += itemSize
 	}
+	return dst, nil
+}
+
+func AddScalar(input *Tensor, scalar any) (*Tensor, error) {
+	switch input.DataType {
+	case DT_BF16:
+		if _, ok := scalar.(dtype.BFloat16); !ok {
+			return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "BFloat16", scalar, reflect.TypeOf(scalar))
+		}
+	case DT_F32:
+		if _, ok := scalar.(float32); !ok {
+			return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "float32", scalar, reflect.TypeOf(scalar))
+		}
+	default:
+		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+	}
+	dst := DuplicateTensor(input)
+	if err := dst.Apply(func(val any) any {
+		switch scalar := scalar.(type) {
+		case dtype.BFloat16:
+			val := val.(dtype.BFloat16)
+			return val + scalar
+		case float32:
+			val := val.(float32)
+			return val + scalar
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return dst, nil
+}
+
+func RSqrt(input *Tensor) (*Tensor, error) {
+	// See: (For formula) https://pytorch.org/docs/stable/generated/torch.rsqrt.html
+	// Returns a new tensor with the reciprocal of the square-root of each of the elements of input.
+	switch input.DataType {
+	case DT_BF16: // Do nothing
+	case DT_F32: // Do nothing
+	default:
+		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+	}
+
+	dst := DuplicateTensor(input)
+	if err := dst.Apply(func(val any) any {
+		switch val := val.(type) {
+		case dtype.BFloat16:
+			return dtype.BFloat16fromFloat32(float32(float64(1) / math.Sqrt(val.Float64())))
+		case float32:
+			return float32(float64(1) / math.Sqrt(float64(val)))
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return dst, nil
+}
+
+func MultiplyElementwise(input *Tensor, other *Tensor) (*Tensor, error) {
+	refTensor, expandingTensor, err := CheckBroadcastable(input, other, true)
+	if err != nil {
+		return nil, err
+	}
+	dst := NewEmptyTensor(refTensor.Size, refTensor.DataType)
+	for iterator := IterateOverTwo(refTensor, expandingTensor, 0); iterator.HasNext(); {
+		loc1, loc2 := iterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		val1, err := refTensor.GetItem(loc1)
+		if err != nil {
+			return nil, err
+		}
+		val2, err := expandingTensor.GetItem(loc2)
+		if err != nil {
+			return nil, err
+		}
+
+		var val1F32 float32
+		var val2F32 float32
+
+		switch refTensor.DataType {
+		case DT_BF16:
+			val1F32 = float32(val1.(dtype.BFloat16).Float32())
+		case DT_F32:
+			val1F32 = val1.(float32)
+		default:
+			return nil, fmt.Errorf("unsupported tensor datatype %s", refTensor.DataType)
+		}
+
+		switch expandingTensor.DataType {
+		case DT_BF16:
+			val2F32 = float32(val2.(dtype.BFloat16).Float32())
+		case DT_F32:
+			val2F32 = val2.(float32)
+		default:
+			return nil, fmt.Errorf("unsupported tensor datatype %s", expandingTensor.DataType)
+		}
+		resultValF32 := val1F32 * val2F32
+
+		var resultVal any
+		switch dst.DataType {
+		case DT_BF16:
+			resultVal = dtype.BFloat16fromFloat32(resultValF32)
+		case DT_F32:
+			resultVal = resultValF32
+		default:
+			return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
+		}
+
+		if err := dst.SetItem(loc1, resultVal); err != nil {
+			return nil, err
+		}
+	}
+	return dst, nil
+}
+
+func LinearTransformation(input *Tensor, weights *Tensor) (*Tensor, error) {
+	rowsSize := input.Size[0]
+	colsSize := input.Size[1]
+
+	// Linear unit weights size: [out_features, in_features]
+	weightsOutputSize := weights.Size[0]
+	weightsInputSize := weights.Size[1]
+
+	if colsSize != weightsInputSize {
+		return nil, fmt.Errorf("columns size %d of input tensor (%v) should be equal with %d input features count of weights tensor (%v)", colsSize, input.Size, weightsInputSize, weights.Size)
+	}
+
+	dst := NewEmptyTensor([]int{rowsSize, weightsOutputSize}, input.DataType)
+	for rowIdx := 0; rowIdx < rowsSize; rowIdx++ {
+		for wOutIdx := 0; wOutIdx < weightsOutputSize; wOutIdx++ {
+			var valDstF32 float32
+
+			valDst, err := dst.GetItem([]int{rowIdx, wOutIdx})
+			if err != nil {
+				return nil, err
+			}
+
+			switch dst.DataType {
+			case DT_BF16:
+				valDstF32 = float32(valDst.(dtype.BFloat16).Float32())
+			case DT_F32:
+				valDstF32 = valDst.(float32)
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
+			}
+
+			for wInIdx := 0; wInIdx < weightsInputSize; wInIdx++ {
+				// Goal in Python manner: dst[rowIdx][wOutIdx] += input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
+
+				// Getting input[rowIdx][wInIdx]
+				val1, err := input.GetItem([]int{rowIdx, wInIdx})
+				if err != nil {
+					return nil, err
+				}
+				// Getting weights[wOutIdx][wInIdx]
+				val2, err := weights.GetItem([]int{wOutIdx, wInIdx})
+				if err != nil {
+					return nil, err
+				}
+
+				var val1F32 float32
+				var val2F32 float32
+
+				switch input.DataType {
+				case DT_BF16:
+					val1F32 = float32(val1.(dtype.BFloat16).Float32())
+				case DT_F32:
+					val1F32 = val1.(float32)
+				default:
+					return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+				}
+
+				switch weights.DataType {
+				case DT_BF16:
+					val2F32 = float32(val2.(dtype.BFloat16).Float32())
+				case DT_F32:
+					val2F32 = val2.(float32)
+				default:
+					return nil, fmt.Errorf("unsupported tensor datatype %s", weights.DataType)
+				}
+
+				//Calculating: input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
+				multiplicationValF32 := val1F32 * val2F32
+
+				//Calculating:  dst[rowIdx][wOutIdx] += multiplicationValF32
+				valDstF32 += multiplicationValF32
+			}
+
+			switch dst.DataType {
+			case DT_BF16:
+				valDst = dtype.BFloat16fromFloat32(valDstF32)
+			case DT_F32:
+				valDst = valDstF32
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
+			}
+
+			if err := dst.SetItem([]int{rowIdx, wOutIdx}, valDst); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return dst, nil
 }

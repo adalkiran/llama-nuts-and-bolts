@@ -1,6 +1,14 @@
 package common
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
+
+const (
+	THRESHOLD_F32  = 1e-4
+	THRESHOLD_BF16 = 2e-2
+)
 
 func InterfaceToInt(val interface{}) (int, error) {
 	if x, ok := val.(int); ok {
@@ -51,4 +59,12 @@ func InterfaceToBool(val interface{}, defaultValue bool) bool {
 		return defaultValue
 	}
 	return intVal == 1
+}
+
+func AlmostEqualFloat32(a float32, b float32, threshold float64) bool {
+	if a == b {
+		// This check is for -Inf and +Inf values
+		return true
+	}
+	return math.Abs(float64(a)-float64(b)) <= threshold
 }
