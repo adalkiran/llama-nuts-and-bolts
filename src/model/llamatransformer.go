@@ -28,6 +28,7 @@ type LlamaTransformerBlock struct {
 }
 
 type LlamaAttention struct {
+	N_Heads   int
 	N_KVHeads int
 	HeadDim   int
 
@@ -191,6 +192,7 @@ func NewLlamaAttention(model *Model, layerIndex int) (*LlamaAttention, error) {
 	dim := modelArgs.Dim // 4096
 	var err error
 
+	result.N_Heads = modelArgs.N_Heads
 	result.N_KVHeads = modelArgs.N_KVHeads
 	if result.N_KVHeads < 0 {
 		result.N_KVHeads = modelArgs.N_Heads
@@ -219,6 +221,8 @@ func NewLlamaAttention(model *Model, layerIndex int) (*LlamaAttention, error) {
 }
 
 func (lat *LlamaAttention) Forward(context *InferenceContext, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) (*ml.Tensor, error) {
+	sequenceLength := x.Size[0]
+
 	// lat.attn_wq: [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
 	xq, err := ml.LinearTransformation(x, lat.attn_wq)
 	if err != nil {
@@ -234,6 +238,18 @@ func (lat *LlamaAttention) Forward(context *InferenceContext, x *ml.Tensor, star
 	// lat.attn_wv: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
 	xv, err := ml.LinearTransformation(x, lat.attn_wv)
 	if err != nil {
+		return nil, err
+	}
+
+	if xq, err = xq.Reshape([]int{sequenceLength, lat.N_Heads, lat.HeadDim}); err != nil {
+		return nil, err
+	}
+
+	if xk, err = xk.Reshape([]int{sequenceLength, lat.N_KVHeads, lat.HeadDim}); err != nil {
+		return nil, err
+	}
+
+	if xv, err = xv.Reshape([]int{sequenceLength, lat.N_KVHeads, lat.HeadDim}); err != nil {
 		return nil, err
 	}
 

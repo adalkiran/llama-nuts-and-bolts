@@ -8,7 +8,7 @@ import (
 const (
 	THRESHOLD_EXACT = 0
 	THRESHOLD_F32   = 1e-4
-	THRESHOLD_BF16  = 2e-2
+	THRESHOLD_BF16  = 1e-2
 )
 
 func InterfaceToInt(val interface{}) (int, error) {

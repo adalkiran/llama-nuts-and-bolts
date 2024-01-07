@@ -11,8 +11,8 @@ import (
 func calculateShortenedExpectedIndex(i int, dimensionSize int, shorten bool) int {
 	if shorten {
 		const shortenCount = 3
-		if i >= shortenCount && dimensionSize > 2*shortenCount {
-			if i >= shortenCount && i < dimensionSize-shortenCount {
+		if i >= shortenCount && dimensionSize >= 2*shortenCount {
+			if i < dimensionSize-shortenCount {
 				return -1
 			} else if dimensionSize-i-1 < shortenCount {
 				return 2*shortenCount - dimensionSize + i
@@ -38,7 +38,7 @@ func CompareTestTensorDimension(expected interface{}, actual *Tensor, currentDim
 	} else {
 		expectedArr := reflect.ValueOf(expected)
 		for dimension := 0; dimension < currentDimension; dimension++ {
-			expectedIdx := calculateShortenedExpectedIndex(loc[dimension], expectedArr.Len(), shorten)
+			expectedIdx := calculateShortenedExpectedIndex(loc[dimension], actual.Size[dimension], shorten)
 			expectedArr = expectedArr.Index(expectedIdx)
 		}
 		if len(actual.Size) > 0 {
