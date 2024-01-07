@@ -369,6 +369,20 @@ func sliceTensorDimension(t *Tensor, dst *Tensor, locStart []int, locEnd []int, 
 	return nil
 }
 
+func (t *Tensor) Reshape(newSize []int) (*Tensor, error) {
+	newElementCount := 1
+	for _, shapeItem := range newSize {
+		newElementCount = newElementCount * shapeItem
+	}
+	if newElementCount != t.GetElementCount() {
+		return nil, fmt.Errorf("shape %v is invalid for input of element count %d", newSize, t.GetElementCount())
+	}
+	dst := NewEmptyTensorEx(t.Name, newSize, t.DataType)
+	dst.RawData = nil
+	dst.RawData = t.RawData
+	return dst, nil
+}
+
 func CheckBroadcastableOnce(size1 []int, size2 []int) bool {
 	// See: https://pytorch.org/docs/stable/notes/broadcasting.html
 	// Aim is to find if can "size2" be expanded to adapt "size1"
