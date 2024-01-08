@@ -349,54 +349,83 @@ func MultiplyElementwise(input *Tensor, other *Tensor) (*Tensor, error) {
 		return nil, err
 	}
 	dst := NewEmptyTensor(refTensor.Size, refTensor.DataType)
-	for iterator := IterateOverTwo(refTensor, expandingTensor, 0); iterator.HasNext(); {
-		loc1, loc2 := iterator.Next()
-		if err != nil {
-			return nil, err
-		}
-		val1, err := refTensor.GetItem(loc1)
-		if err != nil {
-			return nil, err
-		}
-		val2, err := expandingTensor.GetItem(loc2)
-		if err != nil {
-			return nil, err
-		}
+	if refTensor.DataType != DT_COMPLEX {
+		for iterator := IterateOverTwo(refTensor, expandingTensor, 0); iterator.HasNext(); {
+			loc1, loc2 := iterator.Next()
+			if err != nil {
+				return nil, err
+			}
+			val1, err := refTensor.GetItem(loc1)
+			if err != nil {
+				return nil, err
+			}
+			val2, err := expandingTensor.GetItem(loc2)
+			if err != nil {
+				return nil, err
+			}
 
-		var val1F32 float32
-		var val2F32 float32
+			var val1F32 float32
+			var val2F32 float32
 
-		switch refTensor.DataType {
-		case DT_BF16:
-			val1F32 = float32(val1.(dtype.BFloat16).Float32())
-		case DT_F32:
-			val1F32 = val1.(float32)
-		default:
-			return nil, fmt.Errorf("unsupported tensor datatype %s", refTensor.DataType)
+			switch refTensor.DataType {
+			case DT_BF16:
+				val1F32 = float32(val1.(dtype.BFloat16).Float32())
+			case DT_F32:
+				val1F32 = val1.(float32)
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", refTensor.DataType)
+			}
+
+			switch expandingTensor.DataType {
+			case DT_BF16:
+				val2F32 = float32(val2.(dtype.BFloat16).Float32())
+			case DT_F32:
+				val2F32 = val2.(float32)
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", expandingTensor.DataType)
+			}
+			resultValF32 := val1F32 * val2F32
+
+			var resultVal any
+			switch dst.DataType {
+			case DT_BF16:
+				resultVal = dtype.BFloat16fromFloat32(resultValF32)
+			case DT_F32:
+				resultVal = resultValF32
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
+			}
+
+			if err := dst.SetItem(loc1, resultVal); err != nil {
+				return nil, err
+			}
 		}
-
-		switch expandingTensor.DataType {
-		case DT_BF16:
-			val2F32 = float32(val2.(dtype.BFloat16).Float32())
-		case DT_F32:
-			val2F32 = val2.(float32)
-		default:
-			return nil, fmt.Errorf("unsupported tensor datatype %s", expandingTensor.DataType)
+	} else {
+		if expandingTensor.DataType != DT_COMPLEX {
+			return nil, fmt.Errorf("unsupported tensor datatypes %s and %s", refTensor.DataType, expandingTensor.DataType)
 		}
-		resultValF32 := val1F32 * val2F32
+		for iterator := IterateOverTwo(refTensor, expandingTensor, 0); iterator.HasNext(); {
+			loc1, loc2 := iterator.Next()
+			if err != nil {
+				return nil, err
+			}
+			val1, err := refTensor.GetItem(loc1)
+			if err != nil {
+				return nil, err
+			}
+			val2, err := expandingTensor.GetItem(loc2)
+			if err != nil {
+				return nil, err
+			}
 
-		var resultVal any
-		switch dst.DataType {
-		case DT_BF16:
-			resultVal = dtype.BFloat16fromFloat32(resultValF32)
-		case DT_F32:
-			resultVal = resultValF32
-		default:
-			return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
-		}
+			val1Complex64 := val1.(complex64)
+			val2Complex64 := val2.(complex64)
 
-		if err := dst.SetItem(loc1, resultVal); err != nil {
-			return nil, err
+			resultValComplex64 := val1Complex64 * val2Complex64
+
+			if err := dst.SetItem(loc1, resultValComplex64); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return dst, nil

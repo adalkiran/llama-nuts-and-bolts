@@ -60,23 +60,29 @@ func NewTensor(name string, size []int, stride []int, dataType DataType, RawData
 	}
 }
 
-func NewEmptyTensorEx(name string, size []int, dataType DataType) *Tensor {
+func NewEmptyTensorEx(name string, size []int, dataType DataType, allocateRawData bool) *Tensor {
 	result := &Tensor{
 		Name:       name,
 		Size:       size,
 		DataType:   dataType,
 		ByteStride: calculateByteStride(size, dataType),
 	}
-	result.RawData = make([]byte, result.GetBytesCount())
+	if allocateRawData {
+		result.RawData = make([]byte, result.GetBytesCount())
+	}
 	return result
 }
 
 func NewEmptyTensor(size []int, dataType DataType) *Tensor {
-	return NewEmptyTensorEx("", size, dataType)
+	return NewEmptyTensorEx("", size, dataType, true)
+}
+
+func NewEmptyTensorLike(input *Tensor, allocateRawData bool) *Tensor {
+	return NewEmptyTensorEx(input.Name, input.Size, input.DataType, allocateRawData)
 }
 
 func DuplicateTensor(input *Tensor) *Tensor {
-	dst := NewEmptyTensorEx(input.Name, input.Size, input.DataType)
+	dst := NewEmptyTensorLike(input, true)
 	copy(dst.RawData, input.RawData)
 	return dst
 }
@@ -377,8 +383,7 @@ func (t *Tensor) Reshape(newSize []int) (*Tensor, error) {
 	if newElementCount != t.GetElementCount() {
 		return nil, fmt.Errorf("shape %v is invalid for input of element count %d", newSize, t.GetElementCount())
 	}
-	dst := NewEmptyTensorEx(t.Name, newSize, t.DataType)
-	dst.RawData = nil
+	dst := NewEmptyTensorEx(t.Name, newSize, t.DataType, false)
 	dst.RawData = t.RawData
 	return dst, nil
 }
@@ -412,4 +417,110 @@ func CheckBroadcastable(t1 *Tensor, t2 *Tensor, isCommutative bool) (refTensor *
 		return t2, t1, nil
 	}
 	return nil, nil, fmt.Errorf("two tensor shapes cannot be broadcasted: %v and %v", t1.Size, t2.Size)
+}
+
+func (t *Tensor) ToBFloat16() (*Tensor, error) {
+	if t.DataType == DT_BF16 {
+		return t, nil
+	}
+	inputItemSize := t.DataType.ItemSize()
+
+	switch t.DataType {
+	case DT_F32:
+		dst := NewEmptyTensorEx(t.Name, t.Size, DT_BF16, true)
+		dstDataType := dst.DataType
+		writeOffset := 0
+		for readOffset := 0; readOffset < t.GetBytesCount(); readOffset += inputItemSize {
+			item := t.GetItemByOffset(readOffset).(float32)
+			resultItem := dtype.BFloat16fromFloat32(item)
+			dst.SetItemByOffset(writeOffset, resultItem)
+			writeOffset += dstDataType.ItemSize()
+		}
+		return dst, nil
+	default:
+		return nil, fmt.Errorf("unsupported tensor datatype conversion from %s to %s", t.DataType, DT_BF16)
+	}
+}
+
+func (t *Tensor) ToFloat32() (*Tensor, error) {
+	if t.DataType == DT_F32 {
+		return t, nil
+	}
+	inputItemSize := t.DataType.ItemSize()
+
+	switch t.DataType {
+	case DT_BF16:
+		dst := NewEmptyTensorEx(t.Name, t.Size, DT_F32, true)
+		dstDataType := dst.DataType
+		writeOffset := 0
+		for readOffset := 0; readOffset < t.GetBytesCount(); readOffset += inputItemSize {
+			item := t.GetItemByOffset(readOffset).(dtype.BFloat16)
+			resultItem := item.Float32()
+			dst.SetItemByOffset(writeOffset, resultItem)
+			writeOffset += dstDataType.ItemSize()
+		}
+		return dst, nil
+	default:
+		return nil, fmt.Errorf("unsupported tensor datatype conversion from %s to %s", t.DataType, DT_F32)
+	}
+}
+
+func (t *Tensor) ViewAsComplex64() (*Tensor, error) {
+	// See: https://pytorch.org/docs/stable/generated/torch.view_as_complex.html
+	/*
+		Comment from Pytorch's documentation (link aboe):
+		Torch's view_as_complex() is only supported for tensors with torch.dtype torch.float64 and torch.float32.
+		The input is expected to have the last dimension of size 2. In addition, the tensor must have a stride of 1 for
+		its last dimension. The strides of all other dimensions must be even numbers.
+	*/
+	if t.DataType != DT_F32 {
+		return nil, fmt.Errorf("tensor must be in float32 data type")
+	}
+	if t.Size[len(t.Size)-1] != 2 {
+		return nil, fmt.Errorf("last dimension of size must be 2, got size %v", t.Size)
+	}
+	dstSize := t.Size[0 : len(t.Size)-1]
+	dst := NewEmptyTensorEx(t.Name, dstSize, DT_COMPLEX, false)
+	dst.RawData = t.RawData
+	return dst, nil
+}
+
+func (t *Tensor) ViewAsComplex64WithReshape() (*Tensor, error) {
+	// t example shape=[5,32,128] dtype=DT_BF16
+	newShape := append(append([]int{}, t.Size[0:len(t.Size)-1]...), t.Size[len(t.Size)-1]/2, 2)
+	t_, err := t.ToFloat32() // example shape=[5,32,128] dtype=DT_F32
+	if err != nil {
+		return nil, err
+	}
+	if t_, err = t_.Reshape(newShape); err != nil { // example shape=[5,32,64,2] dtype=DT_F32
+		return nil, err
+	}
+	if t_, err = t_.ViewAsComplex64(); err != nil { // example shape=[5,32,64] dtype=DT_COMPLEX
+		return nil, err
+	}
+	return t_, nil
+}
+
+func (t *Tensor) ViewAsFloat32() (*Tensor, error) {
+	// See: https://pytorch.org/docs/stable/generated/torch.view_as_real.html
+	if t.DataType != DT_COMPLEX {
+		return nil, fmt.Errorf("tensor must be in complex64 data type")
+	}
+	dstSize := append(t.Size, 2)
+	dst := NewEmptyTensorEx(t.Name, dstSize, DT_F32, false)
+	dst.RawData = t.RawData
+	return dst, nil
+}
+
+func (t *Tensor) ViewAsFloat32WithReshape() (*Tensor, error) {
+	// t example shape=[5,32,64] dtype=DT_COMPLEX
+	t_, err := t.ViewAsFloat32() // example shape=[5,32,64,2] dtype=DT_F32
+	if err != nil {
+		return nil, err
+	}
+	newShape := append(append([]int{}, t_.Size[0:len(t_.Size)-2]...), t_.Size[len(t_.Size)-2]*2)
+	if t_, err = t_.Reshape(newShape); err != nil { // example shape=[5,32,128] dtype=DT_F32
+		return nil, err
+	}
+	return t_, nil
 }

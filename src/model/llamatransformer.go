@@ -92,7 +92,7 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 
 func (lt *LlamaTransformer) prepare(tokens []TokenId, startPos int) (inputTensor *ml.Tensor, freqsCis *ml.Tensor, mask *ml.Tensor, err error) {
 	sequenceLength := len(tokens)
-	inp_tokens := ml.NewEmptyTensorEx("inp_tokens", []int{sequenceLength}, ml.DT_UINT16)
+	inp_tokens := ml.NewEmptyTensorEx("inp_tokens", []int{sequenceLength}, ml.DT_UINT16, true)
 
 	for i, token := range tokens {
 		if err = inp_tokens.SetItem([]int{i}, uint16(token)); err != nil {
@@ -253,6 +253,10 @@ func (lat *LlamaAttention) Forward(context *InferenceContext, x *ml.Tensor, star
 		return nil, err
 	}
 
+	if xq, xk, err = applyRotaryEmbeddings(xq, xk, freqsCis); err != nil { // example shape=[5,32,128] dtype=DT_BF16
+		return nil, err
+	}
+
 	xq = xq
 	xk = xk
 	xv = xv
@@ -382,4 +386,43 @@ func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {
 		return nil, err
 	}
 	return freqs_cis, nil
+}
+
+func applyRotaryEmbeddings(xq *ml.Tensor, xk *ml.Tensor, freqs_cis *ml.Tensor) (xqOut *ml.Tensor, xkOut *ml.Tensor, err error) {
+	// xq shape=[5,32,128] dtype=DT_BF16
+	xq_, err := xq.ViewAsComplex64WithReshape() // shape=[5,32,64] dtype=DT_COMPLEX
+	if err != nil {
+		return nil, nil, err
+	}
+	// xk shape=[5,32,128] dtype=DT_BF16
+	xk_, err := xk.ViewAsComplex64WithReshape() // shape=[5,32,64] dtype=DT_COMPLEX
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// freqs_cis shape=[5, 64] dtype=DT_COMPLEX
+	if freqs_cis, err = freqs_cis.Reshape([]int{xq_.Size[0], 1, xq_.Size[2]}); err != nil { // shape=[5,1,64] dtype=DT_COMPLEX
+		return nil, nil, err
+	}
+
+	if xqOut, err = ml.MultiplyElementwise(xq_, freqs_cis); err != nil { // shape=[5,32,64] dtype=DT_COMPLEX
+		return nil, nil, err
+	}
+	if xqOut, err = xqOut.ViewAsFloat32WithReshape(); err != nil { // shape=[5,32,128] dtype=DT_F32
+		return nil, nil, err
+	}
+	if xqOut, err = xqOut.ToBFloat16(); err != nil { // shape=[5,32,128] dtype=DT_BF16
+		return nil, nil, err
+	}
+
+	if xkOut, err = ml.MultiplyElementwise(xk_, freqs_cis); err != nil { // shape=[5,32,64] dtype=DT_COMPLEX
+		return nil, nil, err
+	}
+	if xkOut, err = xkOut.ViewAsFloat32WithReshape(); err != nil { // shape=[5,32,128] dtype=DT_F32
+		return nil, nil, err
+	}
+	if xkOut, err = xkOut.ToBFloat16(); err != nil { // shape=[5,32,128] dtype=DT_BF16
+		return nil, nil, err
+	}
+	return xqOut, xkOut, nil
 }
