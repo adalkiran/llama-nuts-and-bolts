@@ -92,7 +92,7 @@ func testTransformerBlock_AttnNorm_Forward(t *testing.T, firstLayer *LlamaTransf
 	return actualAttnNormalizedX
 }
 
-func testTransformerBlock_Attention_Forward(t *testing.T, attention *LlamaAttention, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
+func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceContext, attention *LlamaAttention, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
 	expectedXqSize := []int{5, 4096}
 	expectedXq := [][]float32{
 		{0.1157, -0.4805, -0.4180 /*...,*/, 0.6250, -0.1670, 0.1602},
@@ -490,16 +490,16 @@ func testTransformerBlock_Attention_Forward(t *testing.T, attention *LlamaAttent
 	return nil
 }
 
-func testTransformerBlock_Forward(t *testing.T, firstLayer *LlamaTransformerBlock, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
+func testTransformerBlock_Forward(t *testing.T, context *InferenceContext, firstLayer *LlamaTransformerBlock, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
 	/*
 		h, err := ltb.attention.Forward(context, normalizedX, startPos, freqsCis, mask)
 	*/
 	normalizedX := testTransformerBlock_AttnNorm_Forward(t, firstLayer, x)
-	h := testTransformerBlock_Attention_Forward(t, firstLayer.attention, normalizedX, startPos, freqsCis, mask)
+	h := testTransformerBlock_Attention_Forward(t, context, firstLayer.attention, normalizedX, startPos, freqsCis, mask)
 	return h
 }
 
-func testTransformer_Forward(t *testing.T, transformer *LlamaTransformer) {
+func testTransformer_Forward(t *testing.T, context *InferenceContext, transformer *LlamaTransformer) {
 	// tokens: "<BOS>My name is"
 	tokens := []TokenId{1, 15043, 590, 1024, 338}
 	startPos := 0
@@ -512,7 +512,7 @@ func testTransformer_Forward(t *testing.T, transformer *LlamaTransformer) {
 
 	currentTensor := actualInputTensor
 	firstLayer := transformer.Layers[0]
-	currentTensor = testTransformerBlock_Forward(t, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
+	currentTensor = testTransformerBlock_Forward(t, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
 }
 
 func TestSimulated(t *testing.T) {
@@ -526,7 +526,11 @@ func TestSimulated(t *testing.T) {
 		t.Error(err)
 	}
 
-	testTransformer_Forward(t, llamaModel.Transformer)
+	inferenceArgs := common.NewInferenceArgs()
+	inferenceArgs.Seed = 1234
+	inferenceArgs.SequenceLength = 8
+	context := NewInferenceContext(llamaModel, inferenceArgs)
+	testTransformer_Forward(t, context, llamaModel.Transformer)
 
 	llamaModel.Free()
 }

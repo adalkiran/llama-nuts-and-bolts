@@ -22,6 +22,9 @@ type ModelArgs struct {
 
 	MaxBatchSize      int
 	MaxSequenceLength int
+
+	N_Rep   int
+	HeadDim int
 }
 
 func NewModelArgs() *ModelArgs {

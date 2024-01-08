@@ -5,12 +5,16 @@ import (
 	"time"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 )
 
 type InferenceContext struct {
 	SequenceLength int // context size used during inference
 
 	randomNumberGenerator *rand.Rand
+
+	CacheK *ml.Tensor
+	CacheV *ml.Tensor
 }
 
 func NewInferenceContext(model *Model, inferenceArgs common.InferenceArgs) *InferenceContext {
@@ -25,6 +29,19 @@ func NewInferenceContext(model *Model, inferenceArgs common.InferenceArgs) *Infe
 		context.SequenceLength = model.ModelArgs.MaxSequenceLength
 	}
 	context.randomNumberGenerator = rand.New(rand.NewSource(inferenceArgs.Seed))
+
+	modelArgs := model.ModelArgs
+	context.CacheK, _ = ml.Zeros([]int{
+		modelArgs.MaxSequenceLength, // 32
+		modelArgs.N_KVHeads,         // 32
+		modelArgs.HeadDim,           // 128
+	}, ml.DT_BF16)
+
+	context.CacheV, _ = ml.Zeros([]int{
+		modelArgs.MaxSequenceLength, // 32
+		modelArgs.N_KVHeads,         // 32
+		modelArgs.HeadDim,           // 128
+	}, ml.DT_BF16)
 
 	return context
 }

@@ -30,6 +30,7 @@ type LlamaTransformerBlock struct {
 type LlamaAttention struct {
 	N_Heads   int
 	N_KVHeads int
+	N_Rep     int
 	HeadDim   int
 
 	attn_wq *ml.Tensor // Original: "layers.0.attention.wq.weight"  |  ggml: "blk.0.attn_q.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
@@ -59,6 +60,14 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 	// Compare (VocabSize, Dim) vs. "tok_embeddings.weight" tensor shape
 	dim := modelArgs.Dim             // 4096
 	vocabSize := modelArgs.VocabSize // 32000
+
+	if modelArgs.N_KVHeads < 0 {
+		modelArgs.N_KVHeads = modelArgs.N_Heads
+	}
+	modelArgs.N_Rep = int(modelArgs.N_Heads / modelArgs.N_KVHeads)
+	// Calculate dimension of each head
+	modelArgs.HeadDim = int(modelArgs.Dim / modelArgs.N_Heads) // 128
+
 	if result.tok_embd, err = getTensor(model, "tok_embeddings.weight", []int{vocabSize, dim}); err != nil {
 		return nil, err
 	}
@@ -194,12 +203,9 @@ func NewLlamaAttention(model *Model, layerIndex int) (*LlamaAttention, error) {
 
 	result.N_Heads = modelArgs.N_Heads
 	result.N_KVHeads = modelArgs.N_KVHeads
-	if result.N_KVHeads < 0 {
-		result.N_KVHeads = modelArgs.N_Heads
-	}
+	result.N_Rep = modelArgs.N_Rep
 	// Calculate dimension of each head
-	result.HeadDim = int(modelArgs.Dim / modelArgs.N_Heads) // 128
-
+	result.HeadDim = modelArgs.HeadDim                        // 128
 	normalHeadsTotalDim := modelArgs.N_Heads * result.HeadDim // 4096
 	kvHeadsTotalDim := result.N_KVHeads * result.HeadDim      // 4096
 
