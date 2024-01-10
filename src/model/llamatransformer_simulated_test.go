@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"reflect"
@@ -1686,11 +1687,12 @@ func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *Inferen
 	currentTensor := actualInputTensor
 	if onlyFirstLayer {
 		firstLayer := transformer.Layers[0]
-		testTransformerBlock_Forward(t, true, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
+		testTransformerBlock_Forward(t, false, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
 	} else {
+		fmt.Println()
 		for layerIdx, layer := range transformer.Layers {
-			t.Logf("Running transformer block layer: %d / %d", layerIdx, len(transformer.Layers))
-			currentTensor = testTransformerBlock_Forward(t, false, context, layer, currentTensor, startPos, actualFreqsCis, actualMask)
+			fmt.Printf("Running transformer block layer: %d / %d\n", layerIdx+1, len(transformer.Layers))
+			currentTensor = testTransformerBlock_Forward(t, true, context, layer, currentTensor, startPos, actualFreqsCis, actualMask)
 		}
 	}
 }
