@@ -247,6 +247,10 @@ func (lat *LlamaAttention) Forward(context *InferenceContext, x *ml.Tensor, star
 		return nil, err
 	}
 
+	/*
+		Do reshapings
+	*/
+
 	if xq, err = xq.Reshape([]int{sequenceLength, lat.N_Heads, lat.HeadDim}); err != nil {
 		return nil, err
 	}
@@ -259,14 +263,137 @@ func (lat *LlamaAttention) Forward(context *InferenceContext, x *ml.Tensor, star
 		return nil, err
 	}
 
+	/*
+		Apply rotary embeddings
+	*/
+
 	if xq, xk, err = applyRotaryEmbeddings(xq, xk, freqsCis); err != nil { // example shape=[5,32,128] dtype=DT_BF16
 		return nil, err
 	}
 
-	xq = xq
-	xk = xk
-	xv = xv
-	return nil, fmt.Errorf("NOT IMPLEMENTED")
+	/*
+		Update KV cache
+	*/
+
+	context.CacheK.SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xk)
+	context.CacheV.SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xv)
+
+	/*
+		Retrieve cached KV so far
+	*/
+
+	keys, err := context.CacheK.Slice([]int{0}, []int{startPos + sequenceLength})
+	if err != nil {
+		return nil, err
+	}
+	values, err := context.CacheV.Slice([]int{0}, []int{startPos + sequenceLength})
+	if err != nil {
+		return nil, err
+	}
+
+	/*
+		Repeat k/v heads if N_KVHeads < N_Heads
+	*/
+
+	if keys, err = attentionRepeatKV(keys, lat.N_Rep); err != nil { // example shape=[5, 32, 128] (cacheLen + sequenceLength, N_Heads, HeadDim)
+		return nil, err
+	}
+	if values, err = attentionRepeatKV(values, lat.N_Rep); err != nil { // example shape=[5, 32, 128] (cacheLen + sequenceLength, N_Heads, HeadDim)
+		return nil, err
+	}
+
+	/*
+		Do transposes
+	*/
+
+	if xq, err = xq.Transpose(0, 1); err != nil { // from [5, 32, 128] -> example shape=[32, 5, 128] (N_Heads, sequenceLength, HeadDim)
+		return nil, err
+	}
+
+	if keys, err = keys.Transpose(0, 1); err != nil { // from [5, 32, 128] -> example shape=[32, 5, 128] (N_Heads, sequenceLength, HeadDim)
+		return nil, err
+	}
+
+	if values, err = values.Transpose(0, 1); err != nil { // from [5, 32, 128] -> example shape=[32, 5, 128] (N_Heads, sequenceLength, HeadDim)
+		return nil, err
+	}
+
+	if keys, err = keys.Transpose(1, 2); err != nil { // from [32, 5, 128] -> example shape=[32, 128, 5] (N_Heads, HeadDim, sequenceLength)
+		return nil, err
+	}
+
+	/*
+		Goal in Python manner:
+		scores = torch.matmul(xq, keys.transpose(2, 3)) / math.sqrt(self.head_dim)
+	*/
+
+	xqMatMulKeys, err := ml.MatMul(xq, keys) // matmul([32,5,128], [32,128,5]) -> example shape=[32,5,5] (N_Heads, sequenceLength, sequenceLength)
+	if err != nil {
+		return nil, err
+	}
+	scores, err := ml.DivToScalar(xqMatMulKeys, dtype.BFloat16fromFloat32(float32(math.Sqrt(float64(lat.HeadDim))))) // example shape=[32,5,5]
+	if err != nil {
+		return nil, err
+	}
+
+	if mask != nil {
+		if scores, err = ml.Add(scores, mask); err != nil { // example shape=[32,5,5]
+			return nil, err
+		}
+	}
+
+	/*
+		Goal in Python manner:
+		scores = F.softmax(scores.float(), dim=-1).type_as(xq)
+	*/
+
+	scores, err = scores.ToFloat32() // example shape=[32,5,5] dtype=DT_F32
+	if err != nil {
+		return nil, err
+	}
+	if scores, err = ml.Softmax(scores, len(scores.Size)-1); err != nil { // example shape=[32,5,5] dtype=DT_F32
+		return nil, err
+	}
+	if scores, err = scores.ToBFloat16(); err != nil { // example shape=[32,5,5] (N_Heads, sequenceLength, sequenceLength) dtype=DT_BF16
+		return nil, err
+	}
+
+	/*
+		Goal in Python manner:
+		output = torch.matmul(scores, values)
+		output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
+	*/
+
+	output, err := ml.MatMul(scores, values)
+	if err != nil {
+		return nil, err
+	}
+	if output, err = output.Transpose(0, 1); err != nil {
+		return nil, err
+	}
+	outputTrailingSize := output.GetElementCount() / sequenceLength
+	if output, err = output.Reshape([]int{sequenceLength, outputTrailingSize}); err != nil {
+		return nil, err
+	}
+
+	/*
+		Apply lat.attn_wo weights to output
+	*/
+
+	// lat.attn_wo: [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
+	if output, err = ml.LinearTransformation(output, lat.attn_wo); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
+func attentionRepeatKV(x *ml.Tensor, N_Rep int) (*ml.Tensor, error) {
+	// See: https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L164
+	// repeat_kv function was not implemented because currently we support only 7B model
+	if N_Rep == 1 {
+		return x, nil
+	}
+	return nil, fmt.Errorf("currently only 7B model is supported, N_Rep > 1 case was not implemented yet, because of this")
 }
 
 func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error) {
@@ -369,19 +496,16 @@ func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("\n%s\n", freqs)
 
 	t, err := ml.ARange(0, end, 1, ml.DT_BF16)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("\n%s\n", t)
 
 	freqs, err = ml.Outer(t, freqs)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("\n%s\n", freqs)
 
 	ones, err := ml.OnesLike(freqs)
 	if err != nil {

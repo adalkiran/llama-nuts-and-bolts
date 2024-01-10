@@ -279,6 +279,9 @@ func (t *Tensor) Apply(fn func(val any) any) error {
 	for offset := 0; offset < len(t.RawData); offset += t.DataType.ItemSize() {
 		val := t.GetItemByOffset(offset)
 		val = fn(val)
+		if val == nil {
+			return fmt.Errorf("nil cannot be assigned as a tensor item but Apply function returned nil")
+		}
 		if err := t.SetItemByOffset(offset, val); err != nil {
 			return err
 		}
@@ -319,12 +322,20 @@ func (t *Tensor) Slice(locStart []int, locEnd []int) (*Tensor, error) {
 		if locStart[dimension] < 0 || locStart[dimension] >= t.Size[dimension] ||
 			locEnd[dimension] < 0 || locEnd[dimension] >= t.Size[dimension] ||
 			locEnd[dimension]-locStart[dimension] < 0 {
-			return nil, fmt.Errorf("uncompatible locStart, locEnd values and tensor")
+			return nil, fmt.Errorf("incompatible locStart, locEnd values and tensor")
 		}
 		dstSize[dimension] = locEnd[dimension] - locStart[dimension]
 	}
 	for dimension := len(locStart); dimension < len(t.Size); dimension++ {
 		dstSize[dimension] = t.Size[dimension]
+	}
+	for dimension := 0; dimension < len(dstSize)-1; dimension++ {
+		if dstSize[dimension] == 0 {
+			dstSize = dstSize[1:]
+			dimension--
+		} else {
+			break
+		}
 	}
 
 	dst := NewEmptyTensor(dstSize, t.DataType)
@@ -343,6 +354,9 @@ func sliceTensorDimension(t *Tensor, dst *Tensor, locStart []int, locEnd []int, 
 	if currentDimension < len(locStart)-1 {
 		currentDimStart := locStart[currentDimension]
 		currentDimEnd := locEnd[currentDimension]
+		if currentDimension < len(locEnd) && currentDimStart == currentDimEnd {
+			currentDimEnd++
+		}
 
 		locStartLocal := make([]int, len(locStart))
 		copy(locStartLocal, locStart)
@@ -371,6 +385,68 @@ func sliceTensorDimension(t *Tensor, dst *Tensor, locStart []int, locEnd []int, 
 		if bytesCount := copy(dst.RawData[writeOffsetStart:], t.RawData[readOffsetStart:readOffsetEnd]); bytesCount != readOffsetEnd-readOffsetStart {
 			return fmt.Errorf("error while copying bytes in sliceTensorDimension, expected: %d, actual: %d", readOffsetEnd-readOffsetStart, bytesCount)
 		}
+	}
+	return nil
+}
+
+func (t *Tensor) SetSlice(locStart []int, locEnd []int, val *Tensor) error {
+	if t.DataType != val.DataType {
+		return fmt.Errorf("incompatible tensor data types: %v and %v", t.DataType, val.DataType)
+	}
+	if len(locStart) != len(locEnd) {
+		return fmt.Errorf("locStart %d and locEnd %d don't have same dimensions", len(locStart), len(locEnd))
+	}
+	if len(locStart) == 0 || len(locStart) > len(t.Size) {
+		return fmt.Errorf("locStart %d and tensor \"%s\" %d don't have compatible dimensions", len(locStart), t.Name, len(t.Size))
+	}
+	if len(val.Size) > len(t.Size) {
+		return fmt.Errorf("tensor  \"%s\" %d and tensor \"%s\" %d don't have compatible dimensions", val.Name, len(val.Size), t.Name, len(t.Size))
+	}
+
+	//dimensionDiff := len(t.Size) - len(val.Size)
+	/*
+		if dimensionDiff != len(locStart)-1 {
+			return fmt.Errorf("tensor  \"%s\" %d and tensor \"%s\" %d don't have compatible dimensions", val.Name, len(val.Size), t.Name, len(t.Size))
+		}
+	*/
+	/*
+		for valDimension := len(val.Size) - 1; valDimension >= 0; valDimension-- {
+			if valDimension >= len(locStart) {
+				if val.Size[valDimension] != t.Size[valDimension+dimensionDiff] {
+					return fmt.Errorf("tensor  \"%s\" %d and tensor \"%s\" %d don't have compatible dimensions", val.Name, len(val.Size), t.Name, len(t.Size))
+				}
+			} else {
+				locDimSize := locEnd[valDimension] - locStart[valDimension]
+				if !(valDimension > 0 && locDimSize == 0) && (val.Size[valDimension] != locDimSize || locDimSize > t.Size[valDimension+dimensionDiff]) {
+					return fmt.Errorf("tensor  \"%s\" %d and tensor \"%s\" %d don't have compatible dimensions", val.Name, len(val.Size), t.Name, len(t.Size))
+				}
+			}
+		}
+	*/
+	for dstDimension := 0; dstDimension < len(locStart); dstDimension++ {
+		if locEnd[dstDimension] >= t.Size[dstDimension] {
+			return fmt.Errorf("tensor  \"%s\" %v and locEnd=%v are not compatible", t.Name, t.Size, locEnd)
+		}
+	}
+
+	if err := setSliceTensorDimension(val, t, nil, locStart, 0); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setSliceTensorDimension(val *Tensor, dst *Tensor, valLocStart []int, dstLocStart []int, currentDimension int) error {
+	writeLocStart := dstLocStart
+
+	for dimension := currentDimension + 1; dimension < len(dst.Size); dimension++ {
+		writeLocStart = append(writeLocStart, 0)
+	}
+
+	readOffsetStart := 0
+	readOffsetEnd := len(val.RawData)
+	writeOffsetStart := dst.calculateByteOffset(dstLocStart)
+	if bytesCount := copy(dst.RawData[writeOffsetStart:], val.RawData[readOffsetStart:readOffsetEnd]); bytesCount != readOffsetEnd-readOffsetStart {
+		return fmt.Errorf("error while copying bytes in sliceTensorDimension, expected: %d, actual: %d", readOffsetEnd-readOffsetStart, bytesCount)
 	}
 	return nil
 }
@@ -523,4 +599,113 @@ func (t *Tensor) ViewAsFloat32WithReshape() (*Tensor, error) {
 		return nil, err
 	}
 	return t_, nil
+}
+
+/*
+	func (t *Tensor) Transpose(dim1 int, dim2 int) (*Tensor, error) {
+		if dim1 < 0 || dim1 >= len(t.Size) {
+			return nil, fmt.Errorf("incompatible dimension argument %d for shape %v", dim1, t.Size)
+		}
+		if dim2 < 0 || dim2 >= len(t.Size) {
+			return nil, fmt.Errorf("incompatible dimension argument %d for shape %v", dim2, t.Size)
+		}
+		if dim1 == dim2 {
+			return nil, fmt.Errorf("dim1 and dim2 can't be equal: %d", dim1)
+		}
+		if dim1 > dim2 {
+			temp := dim1
+			dim1 = dim2
+			dim2 = temp
+		}
+		dstSize := make([]int, len(t.Size))
+		copy(dstSize, t.Size)
+		dstSize[dim1] = t.Size[dim2]
+		dstSize[dim2] = t.Size[dim1]
+		dst := NewEmptyTensor(dstSize, t.DataType)
+
+		tLoc := make([]int, len(t.Size))
+		dstLoc := make([]int, len(t.Size))
+		blockSize := 1
+		for dimension := 2; dimension < len(t.Size); dimension++ {
+			blockSize = blockSize * t.Size[dimension]
+		}
+		blockSize = blockSize * t.DataType.ItemSize()
+
+		for i := 0; i < dst.Size[0]; i++ {
+			tLoc[1] = i
+			dstLoc[0] = i
+			for j := 0; j < dst.Size[1]; j++ {
+				tLoc[0] = j
+				dstLoc[1] = j
+
+				readOffsetStart := t.calculateByteOffset(tLoc)
+				readOffsetEnd := readOffsetStart + blockSize
+				writeOffsetStart := dst.calculateByteOffset(dstLoc)
+
+				if bytesCount := copy(dst.RawData[writeOffsetStart:], t.RawData[readOffsetStart:readOffsetEnd]); bytesCount != readOffsetEnd-readOffsetStart {
+					return nil, fmt.Errorf("error while copying bytes in Transpose, expected: %d, actual: %d", readOffsetEnd-readOffsetStart, bytesCount)
+				}
+			}
+		}
+
+		return dst, nil
+	}
+*/
+
+func (t *Tensor) Transpose(dim1 int, dim2 int) (*Tensor, error) {
+	if dim1 < 0 || dim1 >= len(t.Size) {
+		return nil, fmt.Errorf("incompatible dimension argument %d for shape %v", dim1, t.Size)
+	}
+	if dim2 < 0 || dim2 >= len(t.Size) {
+		return nil, fmt.Errorf("incompatible dimension argument %d for shape %v", dim2, t.Size)
+	}
+	if dim1 == dim2 {
+		return nil, fmt.Errorf("dim1 and dim2 can't be equal: %d", dim1)
+	}
+	if dim1 > dim2 {
+		temp := dim1
+		dim1 = dim2
+		dim2 = temp
+	}
+	dstSize := make([]int, len(t.Size))
+	copy(dstSize, t.Size)
+	dstSize[dim1] = t.Size[dim2]
+	dstSize[dim2] = t.Size[dim1]
+	dst := NewEmptyTensor(dstSize, t.DataType)
+
+	tLoc := make([]int, len(t.Size))
+	dstLoc := make([]int, len(t.Size))
+	blockSize := 1
+	for dimension := dim2 + 1; dimension < len(t.Size); dimension++ {
+		blockSize = blockSize * t.Size[dimension]
+	}
+	blockSize = blockSize * t.DataType.ItemSize()
+	for iteratorFirstPart := IterateOverSize(dst.Size[0:dim1], 0); iteratorFirstPart.HasNext(); {
+		locFirstPart := iteratorFirstPart.Next()
+		copy(tLoc, locFirstPart)
+		copy(dstLoc, locFirstPart)
+		for i := 0; i < dst.Size[dim1]; i++ {
+			tLoc[dim2] = i
+			dstLoc[dim1] = i
+			for iteratorMiddlePart := IterateOverSize(dst.Size[dim1+1:dim2], 0); iteratorMiddlePart.HasNext(); {
+				locMiddlePart := iteratorMiddlePart.Next()
+				copy(tLoc[dim1+1:], locMiddlePart)
+				copy(dstLoc[dim1+1:], locMiddlePart)
+
+				for j := 0; j < dst.Size[dim2]; j++ {
+					tLoc[dim1] = j
+					dstLoc[dim2] = j
+
+					readOffsetStart := t.calculateByteOffset(tLoc)
+					readOffsetEnd := readOffsetStart + blockSize
+					writeOffsetStart := dst.calculateByteOffset(dstLoc)
+
+					if bytesCount := copy(dst.RawData[writeOffsetStart:], t.RawData[readOffsetStart:readOffsetEnd]); bytesCount != readOffsetEnd-readOffsetStart {
+						return nil, fmt.Errorf("error while copying bytes in Transpose, expected: %d, actual: %d", readOffsetEnd-readOffsetStart, bytesCount)
+					}
+				}
+			}
+		}
+	}
+	return dst, nil
 }

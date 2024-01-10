@@ -112,6 +112,12 @@ func CompareTestTensorDimension(expected interface{}, actual *Tensor, currentDim
 }
 
 func CompareTestTensor(expected interface{}, expectedSize []int, actual *Tensor, floatThreshold float64, shorten bool) error {
+	if expected == nil {
+		return fmt.Errorf("expected tensor is nil")
+	}
+	if actual == nil {
+		return fmt.Errorf("actual tensor is nil")
+	}
 	if !reflect.DeepEqual(expectedSize, actual.Size) {
 		return fmt.Errorf("expected size %v, but got %v", expectedSize, actual.Size)
 	}

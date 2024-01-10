@@ -318,6 +318,46 @@ func AddScalar(input *Tensor, scalar any) (*Tensor, error) {
 	return dst, nil
 }
 
+func DivToScalar(input *Tensor, scalar any) (*Tensor, error) {
+	switch input.DataType {
+	case DT_BF16:
+		if _, ok := scalar.(dtype.BFloat16); !ok {
+			if _, ok := scalar.(float32); !ok {
+				return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "BFloat16 or float32", scalar, reflect.TypeOf(scalar))
+			}
+		}
+	case DT_F32:
+		if _, ok := scalar.(float32); !ok {
+			return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "float32", scalar, reflect.TypeOf(scalar))
+		}
+	default:
+		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+	}
+	dst := DuplicateTensor(input)
+	var scalarF32 float32
+	switch scalar := scalar.(type) {
+	case dtype.BFloat16:
+		scalarF32 = scalar.Float32()
+	case float32:
+		scalarF32 = scalar
+	default:
+		return nil, fmt.Errorf("incompatible tensor datatype %s and scalar type %v", input.DataType, reflect.TypeOf(scalar))
+	}
+	if err := dst.Apply(func(val any) any {
+		switch val := val.(type) {
+		case dtype.BFloat16:
+			valF32 := val.Float32()
+			return dtype.BFloat16fromFloat32(valF32 / scalarF32)
+		case float32:
+			return val / scalarF32
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return dst, nil
+}
+
 func RSqrt(input *Tensor) (*Tensor, error) {
 	// See: (For formula) https://pytorch.org/docs/stable/generated/torch.rsqrt.html
 	// Returns a new tensor with the reciprocal of the square-root of each of the elements of input.
@@ -339,6 +379,94 @@ func RSqrt(input *Tensor) (*Tensor, error) {
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+	return dst, nil
+}
+
+func Add(input *Tensor, other *Tensor) (*Tensor, error) {
+	refTensor, expandingTensor, err := CheckBroadcastable(input, other, true)
+	if err != nil {
+		return nil, err
+	}
+	dst := NewEmptyTensor(refTensor.Size, refTensor.DataType)
+	if refTensor.DataType != DT_COMPLEX {
+		for iterator := IterateOverTwo(refTensor, expandingTensor, 0); iterator.HasNext(); {
+			loc1, loc2 := iterator.Next()
+			if err != nil {
+				return nil, err
+			}
+			val1, err := refTensor.GetItem(loc1)
+			if err != nil {
+				return nil, err
+			}
+			val2, err := expandingTensor.GetItem(loc2)
+			if err != nil {
+				return nil, err
+			}
+
+			var val1F32 float32
+			var val2F32 float32
+
+			switch refTensor.DataType {
+			case DT_BF16:
+				val1F32 = float32(val1.(dtype.BFloat16).Float32())
+			case DT_F32:
+				val1F32 = val1.(float32)
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", refTensor.DataType)
+			}
+
+			switch expandingTensor.DataType {
+			case DT_BF16:
+				val2F32 = float32(val2.(dtype.BFloat16).Float32())
+			case DT_F32:
+				val2F32 = val2.(float32)
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", expandingTensor.DataType)
+			}
+			resultValF32 := val1F32 + val2F32
+
+			var resultVal any
+			switch dst.DataType {
+			case DT_BF16:
+				resultVal = dtype.BFloat16fromFloat32(resultValF32)
+			case DT_F32:
+				resultVal = resultValF32
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
+			}
+
+			if err := dst.SetItem(loc1, resultVal); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		if expandingTensor.DataType != DT_COMPLEX {
+			return nil, fmt.Errorf("unsupported tensor datatypes %s and %s", refTensor.DataType, expandingTensor.DataType)
+		}
+		for iterator := IterateOverTwo(refTensor, expandingTensor, 0); iterator.HasNext(); {
+			loc1, loc2 := iterator.Next()
+			if err != nil {
+				return nil, err
+			}
+			val1, err := refTensor.GetItem(loc1)
+			if err != nil {
+				return nil, err
+			}
+			val2, err := expandingTensor.GetItem(loc2)
+			if err != nil {
+				return nil, err
+			}
+
+			val1Complex64 := val1.(complex64)
+			val2Complex64 := val2.(complex64)
+
+			resultValComplex64 := val1Complex64 + val2Complex64
+
+			if err := dst.SetItem(loc1, resultValComplex64); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return dst, nil
 }
@@ -519,5 +647,149 @@ func LinearTransformation(input *Tensor, weights *Tensor) (*Tensor, error) {
 		}
 	}
 
+	return dst, nil
+}
+
+func MatMul(input *Tensor, other *Tensor) (*Tensor, error) {
+	// See: https://pytorch.org/docs/stable/generated/torch.matmul.html
+	inputRowsSize := input.Size[len(input.Size)-2]
+	inputColsSize := input.Size[len(input.Size)-1]
+
+	otherRowsSize := other.Size[len(other.Size)-2]
+	otherColsSize := other.Size[len(other.Size)-1]
+
+	if inputColsSize != otherRowsSize {
+		return nil, fmt.Errorf("columns size %d of input tensor (%v) should be equal with rows size %d of other tensor (%v)", inputColsSize, input.Size, otherRowsSize, other.Size)
+	}
+
+	inputSizeFirstPart := input.Size[0 : len(input.Size)-2]
+	othertSizeFirstPart := other.Size[0 : len(other.Size)-2]
+
+	if !reflect.DeepEqual(inputSizeFirstPart, othertSizeFirstPart) {
+		return nil, fmt.Errorf("first parts of dimensions are not compatible;  %v of input tensor (%v) and %v of other tensor (%v)", inputSizeFirstPart, input.Size, othertSizeFirstPart, other.Size)
+	}
+
+	dst := NewEmptyTensor(append(append([]int{}, inputSizeFirstPart...), inputRowsSize, otherColsSize), input.DataType)
+
+	for iteratorFirstPart := IterateOverSize(inputSizeFirstPart, 0); iteratorFirstPart.HasNext(); {
+		locFirstPart := iteratorFirstPart.Next()
+		for inputRowIdx := 0; inputRowIdx < inputRowsSize; inputRowIdx++ {
+			for otherColIdx := 0; otherColIdx < otherColsSize; otherColIdx++ {
+				var valDstF32 float32
+				valDst, err := dst.GetItem(append(append([]int{}, locFirstPart...), []int{inputRowIdx, otherColIdx}...))
+				if err != nil {
+					return nil, err
+				}
+
+				switch dst.DataType {
+				case DT_BF16:
+					valDstF32 = float32(valDst.(dtype.BFloat16).Float32())
+				case DT_F32:
+					valDstF32 = valDst.(float32)
+				default:
+					return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
+				}
+
+				for inputColIdx := 0; inputColIdx < inputColsSize; inputColIdx++ {
+					// Goal in Python manner: dst[inputRowIdx][otherColIdx] += input[inputRowIdx][inputColIdx] * other[inputColIdx][otherColIdx]
+
+					// Getting input[inputRowIdx][inputColIdx]
+					val1, err := input.GetItem(append(append([]int{}, locFirstPart...), []int{inputRowIdx, inputColIdx}...))
+					if err != nil {
+						return nil, err
+					}
+					// Getting other[inputColIdx][otherColIdx]
+					val2, err := other.GetItem(append(append([]int{}, locFirstPart...), []int{inputColIdx, otherColIdx}...))
+					if err != nil {
+						return nil, err
+					}
+
+					var val1F32 float32
+					var val2F32 float32
+
+					switch input.DataType {
+					case DT_BF16:
+						val1F32 = float32(val1.(dtype.BFloat16).Float32())
+					case DT_F32:
+						val1F32 = val1.(float32)
+					default:
+						return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+					}
+
+					switch other.DataType {
+					case DT_BF16:
+						val2F32 = float32(val2.(dtype.BFloat16).Float32())
+					case DT_F32:
+						val2F32 = val2.(float32)
+					default:
+						return nil, fmt.Errorf("unsupported tensor datatype %s", other.DataType)
+					}
+
+					//Calculating: input[inputRowIdx][inputColIdx] * other[inputColIdx][otherColIdx]
+					multiplicationValF32 := val1F32 * val2F32
+
+					//Calculating:  dst[inputRowIdx][otherColIdx] += multiplicationValF32
+					valDstF32 += multiplicationValF32
+				}
+
+				switch dst.DataType {
+				case DT_BF16:
+					valDst = dtype.BFloat16fromFloat32(valDstF32)
+				case DT_F32:
+					valDst = valDstF32
+				default:
+					return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
+				}
+
+				if err := dst.SetItem(append(append([]int{}, locFirstPart...), []int{inputRowIdx, otherColIdx}...), valDst); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return dst, nil
+}
+
+func Softmax(input *Tensor, dim int) (*Tensor, error) {
+	// See: https://pytorch.org/docs/stable/generated/torch.nn.Softmax.html
+	if dim != len(input.Size)-1 {
+		return nil, fmt.Errorf("currenlty Softmax supports only last dimension of input tensor as dim argument")
+	}
+	dst := NewEmptyTensorLike(input, true)
+	inputSizeFirstPart := input.Size[0 : len(input.Size)-1]
+	inputItemSize := input.DataType.ItemSize()
+	blockSize := input.Size[dim] * inputItemSize
+	for iteratorFirstPart := IterateOverSize(inputSizeFirstPart, 0); iteratorFirstPart.HasNext(); {
+		locFirstPart := append(iteratorFirstPart.Next(), 0)
+		startOffset := input.calculateByteOffset(locFirstPart)
+		endOffset := startOffset + blockSize
+
+		rowExpSum := float64(0)
+		for offset := startOffset; offset < endOffset; offset += inputItemSize {
+			item := input.GetItemByOffset(offset)
+			switch item := item.(type) {
+			case dtype.BFloat16:
+				rowExpSum += math.Exp(item.Float64())
+			case float32:
+				rowExpSum += math.Exp(float64(item))
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+			}
+		}
+
+		for offset := startOffset; offset < endOffset; offset += inputItemSize {
+			item := input.GetItemByOffset(offset)
+			switch item := item.(type) {
+			case dtype.BFloat16:
+				dstVal := dtype.BFloat16fromFloat32(float32(math.Exp(item.Float64()) / rowExpSum))
+				dst.SetItemByOffset(offset, dstVal)
+			case float32:
+				dstVal := float32(math.Exp(float64(item)) / rowExpSum)
+				dst.SetItemByOffset(offset, dstVal)
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+			}
+		}
+	}
 	return dst, nil
 }

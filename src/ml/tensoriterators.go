@@ -11,6 +11,10 @@ type OneTensorIterator struct {
 }
 
 func (it *OneTensorIterator) Next() (loc []int) {
+	if len(it.size) == 0 {
+		it.currentIndex = it.itemCount
+		return it.loc
+	}
 	for dimension := it.maxMeaningfulDim; dimension >= 0; dimension-- {
 		if it.loc[dimension] < it.size[dimension]-1 {
 			it.loc[dimension]++
@@ -63,14 +67,16 @@ func calculateIteratorLimits(size []int) (maxMeaningfulDim int, itemCount int64)
 	return
 }
 
-func IterateOver(tensor *Tensor, ignoreTrailingDimensions int) *OneTensorIterator {
-	maxMeaningfulDim, itemCount := calculateIteratorLimits(tensor.Size[0 : len(tensor.Size)-ignoreTrailingDimensions])
-	loc := make([]int, len(tensor.Size))
-	loc[maxMeaningfulDim] = -1
+func IterateOverSize(size []int, ignoreTrailingDimensions int) *OneTensorIterator {
+	maxMeaningfulDim, itemCount := calculateIteratorLimits(size[0 : len(size)-ignoreTrailingDimensions])
+	loc := make([]int, len(size))
+	if len(size) > 0 {
+		loc[maxMeaningfulDim] = -1
+	}
 
 	return &OneTensorIterator{
 		loc:                      loc,
-		size:                     tensor.Size,
+		size:                     size,
 		ignoreTrailingDimensions: ignoreTrailingDimensions,
 		maxMeaningfulDim:         maxMeaningfulDim,
 		currentIndex:             -1,
@@ -78,10 +84,18 @@ func IterateOver(tensor *Tensor, ignoreTrailingDimensions int) *OneTensorIterato
 	}
 }
 
-func IterateOverTwo(refTensor *Tensor, expandingTensor *Tensor, ignoreTrailingDimensions int) *TwoTensorIterator {
+func IterateOver(tensor *Tensor, ignoreTrailingDimensions int) *OneTensorIterator {
+	return IterateOverSize(tensor.Size, ignoreTrailingDimensions)
+}
+
+func IterateOverTwoSize(refSize []int, expandingSize []int, ignoreTrailingDimensions int) *TwoTensorIterator {
 	return &TwoTensorIterator{
-		refTensorIterator:        IterateOver(refTensor, ignoreTrailingDimensions),
-		size:                     expandingTensor.Size,
+		refTensorIterator:        IterateOverSize(refSize, ignoreTrailingDimensions),
+		size:                     expandingSize,
 		ignoreTrailingDimensions: ignoreTrailingDimensions,
 	}
+}
+
+func IterateOverTwo(refTensor *Tensor, expandingTensor *Tensor, ignoreTrailingDimensions int) *TwoTensorIterator {
+	return IterateOverTwoSize(refTensor.Size, expandingTensor.Size, ignoreTrailingDimensions)
 }
