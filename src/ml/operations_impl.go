@@ -254,7 +254,6 @@ func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
 	inputLastSize := input.Size[len(input.Size)-1]
 	inputStride := inputLastSize * itemSize
 
-	fmt.Println()
 	dstOffset := 0
 	for readGroupOffset := 0; readGroupOffset < input.GetBytesCount(); readGroupOffset += inputStride {
 		groupSum := float32(0)

@@ -209,14 +209,6 @@ func TestTranspose_Simple(t *testing.T) {
 		t.Error(err)
 	}
 
-	/*
-		fmt.Println("ACTUAL:")
-		for offset := 0; offset < len(actual.RawData); offset += actual.DataType.ItemSize() {
-			val := actual.GetItemByOffset(offset)
-			fmt.Printf("%d %v\n", offset, val)
-		}
-	*/
-
 	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_EXACT, false); err != nil {
 		t.Error(err)
 	}

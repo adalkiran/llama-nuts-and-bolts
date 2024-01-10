@@ -142,7 +142,8 @@ func (lt *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId,
 	}
 
 	currentTensor := inputTensor
-	for _, layer := range lt.Layers {
+	for layerIdx, layer := range lt.Layers {
+		fmt.Printf("Running transformer block layer: %d / %d\n", layerIdx, len(lt.Layers))
 		if currentTensor, err = layer.Forward(context, currentTensor, startPos, freqsCis, mask); err != nil {
 			return nil, err
 		}
@@ -191,8 +192,25 @@ func (ltb *LlamaTransformerBlock) Forward(context *InferenceContext, x *ml.Tenso
 	if err != nil {
 		return nil, err
 	}
-	h = h
-	return nil, fmt.Errorf("NOT IMPLEMENTED")
+	if h, err = ml.Add(x, h); err != nil {
+		return nil, err
+	}
+
+	normalizedH, err := ltb.ffn_norm.Forward(context, h)
+	if err != nil {
+		return nil, err
+	}
+	ffnOutput, err := ltb.feedForward.Forward(normalizedH)
+	if err != nil {
+		return nil, err
+	}
+
+	output, err := ml.Add(h, ffnOutput)
+	if err != nil {
+		return nil, err
+	}
+
+	return output, nil
 }
 
 func NewLlamaAttention(model *Model, layerIndex int) (*LlamaAttention, error) {
@@ -426,6 +444,34 @@ func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error
 	}
 
 	return result, nil
+}
+
+func (lff *LlamaFeedForward) Forward(x *ml.Tensor) (*ml.Tensor, error) {
+	/*
+		Goal in Python manner:
+		self.w2(F.silu(self.w1(x)) * self.w3(x))
+		-->
+		self.ffn_down(F.silu(self.ffn_gate(x)) * self.ffn_up(x))
+	*/
+	h, err := ml.LinearTransformation(x, lff.ffn_gate)
+	if err != nil {
+		return nil, err
+	}
+	if h, err = ml.Silu(h); err != nil {
+		return nil, err
+	}
+	ffnUpX, err := ml.LinearTransformation(x, lff.ffn_up)
+	if err != nil {
+		return nil, err
+	}
+	if h, err = ml.MultiplyElementwise(h, ffnUpX); err != nil {
+		return nil, err
+	}
+	output, err := ml.LinearTransformation(h, lff.ffn_down)
+	if err != nil {
+		return nil, err
+	}
+	return output, nil
 }
 
 func NewRMSNorm(epsilon float32, weights *ml.Tensor) *RMSNorm {

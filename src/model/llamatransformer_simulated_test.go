@@ -1,7 +1,6 @@
 package model
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"reflect"
@@ -40,7 +39,7 @@ func testTransformer_Prepare(t *testing.T, actualInputTensor *ml.Tensor, actualF
 		{0, 0, 0, 0, 0},
 	}
 
-	if err := ml.CompareTestTensor(expectedInputTensorShortened, expectedInputTensorSize, actualInputTensor, common.THRESHOLD_F32, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(false, expectedInputTensorShortened, expectedInputTensorSize, actualInputTensor, common.THRESHOLD_F32, true); err != nil {
 		t.Error(err)
 	}
 
@@ -48,12 +47,12 @@ func testTransformer_Prepare(t *testing.T, actualInputTensor *ml.Tensor, actualF
 		t.Errorf("expected size %v, but got %v", expectedFreqsCisSize, actualFreqsCis.Size)
 	}
 
-	if err := ml.CompareTestTensor(expectedMask, expectedMaskSize, actualMask, common.THRESHOLD_F32, false); err != nil {
+	if err := ml.CompareTestTensorSkippable(false, expectedMask, expectedMaskSize, actualMask, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
 }
 
-func testTransformerBlock_AttnNorm_Forward(t *testing.T, firstLayer *LlamaTransformerBlock, x *ml.Tensor) *ml.Tensor {
+func testTransformerBlock_AttnNorm_Forward(t *testing.T, skipCompareTestTensor bool, transformerBlock *LlamaTransformerBlock, x *ml.Tensor) *ml.Tensor {
 	/*
 		normalizedX, err := ltb.attn_norm.Forward(context, x)
 	*/
@@ -75,25 +74,25 @@ func testTransformerBlock_AttnNorm_Forward(t *testing.T, firstLayer *LlamaTransf
 		{-1.5991e-02, 1.6632e-03, 1.6174e-03 /*...,*/, 1.1292e-02, -4.7302e-03, -4.6387e-03},
 	}
 
-	actualAttnNormPart, err := firstLayer.attn_norm.doNormalization(x)
+	actualAttnNormPart, err := transformerBlock.attn_norm.doNormalization(x)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedAttnNormPart, expectedAttnNormPartSize, actualAttnNormPart, 2*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedAttnNormPart, expectedAttnNormPartSize, actualAttnNormPart, 2*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
-	actualAttnNormalizedX, err := ml.MultiplyElementwise(actualAttnNormPart, firstLayer.attn_norm.weights)
+	actualAttnNormalizedX, err := ml.MultiplyElementwise(actualAttnNormPart, transformerBlock.attn_norm.weights)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedAttnNormalizedX, expectedAttnNormalizedXSize, actualAttnNormalizedX, common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedAttnNormalizedX, expectedAttnNormalizedXSize, actualAttnNormalizedX, common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 	return actualAttnNormalizedX
 }
 
-func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceContext, attention *LlamaAttention, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
+func testTransformerBlock_Attention_Forward(t *testing.T, skipCompareTestTensor bool, context *InferenceContext, attention *LlamaAttention, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
 	expectedXqSize := []int{5, 4096}
 	expectedXq := [][]float32{
 		{0.1157, -0.4805, -0.4180 /*...,*/, 0.6250, -0.1670, 0.1602},
@@ -129,7 +128,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 		t.Fatal(err)
 	}
 
-	if err := ml.CompareTestTensor(expectedXq, expectedXqSize, actualXq, 2*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXq, expectedXqSize, actualXq, 2*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -139,7 +138,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 		t.Fatal(err)
 	}
 
-	if err := ml.CompareTestTensor(expectedXk, expectedXkSize, actualXk, 2*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXk, expectedXkSize, actualXk, 2*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -149,7 +148,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 		t.Fatal(err)
 	}
 
-	if err := ml.CompareTestTensor(expectedXv, expectedXvSize, actualXv, 2*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXv, expectedXvSize, actualXv, 2*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -349,15 +348,15 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 		t.Fatal(err)
 	}
 
-	if err := ml.CompareTestTensor(expectedXqRs, expectedXqRsSize, actualXq, 4*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXqRs, expectedXqRsSize, actualXq, 4*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ml.CompareTestTensor(expectedXkRs, expectedXkRsSize, actualXk, 4*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXkRs, expectedXkRsSize, actualXk, 4*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ml.CompareTestTensor(expectedXvRs, expectedXvRsSize, actualXv, 4*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXvRs, expectedXvRsSize, actualXv, 4*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -466,11 +465,11 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 		return nil
 	}
 
-	if err := ml.CompareTestTensor(expectedXqRotary, expectedXqRotarySize, actualXq, 4*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXqRotary, expectedXqRotarySize, actualXq, 4*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ml.CompareTestTensor(expectedXkRotary, expectedXkRotarySize, actualXk, 4*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXkRotary, expectedXkRotarySize, actualXk, 4*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -509,11 +508,11 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 
 	if startPos == 0 {
 		// For startPos=0 and N_Rep=1 case, retrieved "keys" and "values" variables from KV Cache are same with "actualXk" and "actualXV" values
-		if err := ml.CompareTestTensor(expectedXkRotary, expectedXkRotarySize, actualXk, 4*common.THRESHOLD_BF16, true); err != nil {
+		if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXkRotary, expectedXkRotarySize, actualXk, 4*common.THRESHOLD_BF16, true); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := ml.CompareTestTensor(expectedXvRs, expectedXvRsSize, actualXv, 4*common.THRESHOLD_BF16, true); err != nil {
+		if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXvRs, expectedXvRsSize, actualXv, 4*common.THRESHOLD_BF16, true); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -572,7 +571,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 	if actualXq, err = actualXq.Transpose(0, 1); err != nil { // from [5, 32, 128] -> shape=[32, 5, 128] (N_Heads, sequenceLength, HeadDim)
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedXqTranspose, expectedXqTransposeSize, actualXq, 4*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedXqTranspose, expectedXqTransposeSize, actualXq, 4*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -626,7 +625,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 	if actualKeys, err = actualKeys.Transpose(0, 1); err != nil { // from [5, 32, 128] -> shape=[32, 5, 128] (N_Heads, sequenceLength, HeadDim)
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedKeysTransposeDims0_1, expectedKeysTransposeDims0_1_Size, actualKeys, 4*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedKeysTransposeDims0_1, expectedKeysTransposeDims0_1_Size, actualKeys, 4*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -680,7 +679,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 	if actualValues, err = actualValues.Transpose(0, 1); err != nil { // from [5, 32, 128] -> shape=[32, 5, 128] (N_Heads, sequenceLength, HeadDim)
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedValuesTranspose, expectedValuesTransposeSize, actualValues, common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedValuesTranspose, expectedValuesTransposeSize, actualValues, common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -746,7 +745,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 	if actualKeys, err = actualKeys.Transpose(1, 2); err != nil { // from [32, 5, 128] -> shape=[32, 128, 5] (N_Heads, HeadDim, sequenceLength)
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedKeysTransposeDims1_2, expectedKeysTransposeDims1_2_Size, actualKeys, 4*common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedKeysTransposeDims1_2, expectedKeysTransposeDims1_2_Size, actualKeys, 4*common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -991,7 +990,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedScores, expectedScoresSize, actualScores, 30*common.THRESHOLD_BF16, false); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedScores, expectedScoresSize, actualScores, 30*common.THRESHOLD_BF16, false); err != nil {
 		t.Fatal(err)
 	}
 	negInf := float32(math.Inf(-1))
@@ -1258,7 +1257,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 		if actualScores, err = ml.Add(actualScores, mask); err != nil { // shape=[32,5,5]
 			t.Fatal(err)
 		}
-		if err := ml.CompareTestTensor(expectedScoresPlusMask, expectedScoresPlusMaskSize, actualScores, 30*common.THRESHOLD_BF16, false); err != nil {
+		if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedScoresPlusMask, expectedScoresPlusMaskSize, actualScores, 30*common.THRESHOLD_BF16, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1537,7 +1536,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 	if actualScores, err = actualScores32.ToBFloat16(); err != nil { // shape=[32,5,5] (N_Heads, sequenceLength, sequenceLength) dtype=DT_BF16
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedScoresSoftmax, expectedScoresSoftmaxSize, actualScores, 2*common.THRESHOLD_BF16, false); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedScoresSoftmax, expectedScoresSoftmaxSize, actualScores, 2*common.THRESHOLD_BF16, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1567,7 +1566,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 	if actualOutput, err = actualOutput.Reshape([]int{sequenceLength, outputTrailingSize}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedOutputBeforeWeights, expectedOutputBeforeWeightsSize, actualOutput, common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedOutputBeforeWeights, expectedOutputBeforeWeightsSize, actualOutput, common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1588,23 +1587,92 @@ func testTransformerBlock_Attention_Forward(t *testing.T, context *InferenceCont
 	if actualOutput, err = ml.LinearTransformation(actualOutput, attention.attn_wo); err != nil {
 		t.Fatal(err)
 	}
-	if err := ml.CompareTestTensor(expectedOutputAfterWeights, expectedOutputAfterWeightsSize, actualOutput, common.THRESHOLD_BF16, true); err != nil {
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedOutputAfterWeights, expectedOutputAfterWeightsSize, actualOutput, common.THRESHOLD_BF16, true); err != nil {
 		t.Fatal(err)
 	}
 
 	return actualOutput
 }
 
-func testTransformerBlock_Forward(t *testing.T, context *InferenceContext, firstLayer *LlamaTransformerBlock, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
+func testTransformerBlock_FeedForward_Forward(t *testing.T, skipCompareTestTensor bool, context *InferenceContext, feedForward *LlamaFeedForward, x *ml.Tensor) *ml.Tensor {
+	/*
+		Goal in Python manner:
+		self.w2(F.silu(self.w1(x)) * self.w3(x))
+		-->
+		self.ffn_down(F.silu(self.ffn_gate(x)) * self.ffn_up(x))
+	*/
+	h, err := ml.LinearTransformation(x, feedForward.ffn_gate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h, err = ml.Silu(h); err != nil {
+		t.Fatal(err)
+	}
+	ffnUpX, err := ml.LinearTransformation(x, feedForward.ffn_up)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h, err = ml.MultiplyElementwise(h, ffnUpX); err != nil {
+		t.Fatal(err)
+	}
+	actualOutput, err := ml.LinearTransformation(h, feedForward.ffn_down)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return actualOutput
+}
+
+func testTransformerBlock_Forward(t *testing.T, skipCompareTestTensor bool, context *InferenceContext, transformerBlock *LlamaTransformerBlock, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
 	/*
 		h, err := ltb.attention.Forward(context, normalizedX, startPos, freqsCis, mask)
 	*/
-	normalizedX := testTransformerBlock_AttnNorm_Forward(t, firstLayer, x)
-	h := testTransformerBlock_Attention_Forward(t, context, firstLayer.attention, normalizedX, startPos, freqsCis, mask)
-	return h
+	normalizedX := testTransformerBlock_AttnNorm_Forward(t, skipCompareTestTensor, transformerBlock, x)
+	h := testTransformerBlock_Attention_Forward(t, skipCompareTestTensor, context, transformerBlock.attention, normalizedX, startPos, freqsCis, mask)
+
+	expectedHBeforeFeedForwardSize := []int{5, 4096}
+	expectedHBeforeFeedForward := [][]float32{
+		{-0.0256, -0.0447, -0.0189 /*...,*/, 0.0045, -0.0018, 0.0265},
+		{0.0120, -0.0104, -0.0103 /*...,*/, -0.0036, -0.0031, 0.0254},
+		{-0.0294, -0.0220, 0.0102 /*...,*/, 0.0183, -0.0242, 0.0245},
+		{-0.0145, -0.0143, -0.0183 /*...,*/, 0.0023, -0.0066, -0.0017},
+		{-0.0206, -0.0097, 0.0013 /*...,*/, 0.0114, 0.0045, 0.0116},
+	}
+
+	var err error
+	if h, err = ml.Add(x, h); err != nil {
+		t.Fatal(err)
+	}
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedHBeforeFeedForward, expectedHBeforeFeedForwardSize, h, common.THRESHOLD_BF16, true); err != nil {
+		t.Error(err)
+	}
+
+	/*
+		h, err = ltb.ffn_norm.Forward(context, h)
+	*/
+	expectedOutputSize := []int{5, 4096}
+	expectedOutput := [][]float32{
+		{-0.0308, 0.0505, -0.0298 /*...,*/, -0.0136, -0.0266, 0.0674},
+		{0.0486, 0.0176, -0.0102 /*...,*/, 0.0339, -0.0004, 0.0342},
+		{-0.0299, -0.0190, 0.0240 /*...,*/, 0.0243, -0.0422, 0.0386},
+		{-0.0120, -0.0110, -0.0449 /*...,*/, 0.0095, 0.0035, -0.0093},
+		{-0.0146, -0.0078, 0.0127 /*...,*/, 0.0147, 0.0116, 0.0124},
+	}
+	normalizedH, err := transformerBlock.ffn_norm.Forward(context, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ffnOutput := testTransformerBlock_FeedForward_Forward(t, skipCompareTestTensor, context, transformerBlock.feedForward, normalizedH)
+	actualOutput, err := ml.Add(h, ffnOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedOutput, expectedOutputSize, actualOutput, common.THRESHOLD_BF16, true); err != nil {
+		t.Error(err)
+	}
+	return actualOutput
 }
 
-func testTransformer_Forward(t *testing.T, context *InferenceContext, transformer *LlamaTransformer) {
+func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *InferenceContext, transformer *LlamaTransformer) {
 	// tokens: "<BOS>My name is"
 	tokens := []TokenId{1, 15043, 590, 1024, 338}
 	startPos := 0
@@ -1616,14 +1684,21 @@ func testTransformer_Forward(t *testing.T, context *InferenceContext, transforme
 	testTransformer_Prepare(t, actualInputTensor, actualFreqsCis, actualMask)
 
 	currentTensor := actualInputTensor
-	firstLayer := transformer.Layers[0]
-	currentTensor = testTransformerBlock_Forward(t, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
+	if onlyFirstLayer {
+		firstLayer := transformer.Layers[0]
+		testTransformerBlock_Forward(t, true, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
+	} else {
+		for layerIdx, layer := range transformer.Layers {
+			t.Logf("Running transformer block layer: %d / %d", layerIdx, len(transformer.Layers))
+			currentTensor = testTransformerBlock_Forward(t, false, context, layer, currentTensor, startPos, actualFreqsCis, actualMask)
+		}
+	}
 }
 
-func TestSimulated(t *testing.T) {
+func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
 	modelFilePath := "../../models-original/7B/consolidated.00.pth"
 	if _, err := os.Stat(modelFilePath); err != nil {
-		fmt.Printf("\nModel file \"%s\" is not found, passing this test: %s", modelFilePath, "TestSimulated")
+		t.Skipf("Model file \"%s\" is not found, passing this test: %s", modelFilePath, "TestSimulated")
 		return
 	}
 	llamaModel, err := LoadModel(modelFilePath)
@@ -1635,7 +1710,19 @@ func TestSimulated(t *testing.T) {
 	inferenceArgs.Seed = 1234
 	inferenceArgs.SequenceLength = 8
 	context := NewInferenceContext(llamaModel, inferenceArgs)
-	testTransformer_Forward(t, context, llamaModel.Transformer)
-
+	testTransformer_Forward(t, onlyFirstLayer, context, llamaModel.Transformer)
 	llamaModel.Free()
+}
+
+func TestSimulatedOnlyFirstLayer(t *testing.T) {
+	testSimulatedInternal(t, true)
+}
+
+const runTestSimulatedFull = false
+
+func TestSimulatedFull(t *testing.T) {
+	if !runTestSimulatedFull {
+		t.Skip("Skipping TestSimulatedFull because runTestSimulatedFull is set to false")
+	}
+	testSimulatedInternal(t, false)
 }

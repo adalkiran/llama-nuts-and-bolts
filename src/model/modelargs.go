@@ -2,7 +2,6 @@ package model
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 )
@@ -50,9 +49,8 @@ func (ma ModelArgs) String() string {
 
 func loadModelArgsFromFile(configFilePath string) (*ModelArgs, error) {
 	jsonFile, err := os.Open(configFilePath)
-	// if we os.Open returns an error then handle it
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
 	defer jsonFile.Close()
 	byteValue, _ := io.ReadAll(jsonFile)

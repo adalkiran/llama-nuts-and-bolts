@@ -111,6 +111,13 @@ func CompareTestTensorDimension(expected interface{}, actual *Tensor, currentDim
 	return nil
 }
 
+func CompareTestTensorSkippable(skip bool, expected interface{}, expectedSize []int, actual *Tensor, floatThreshold float64, shorten bool) error {
+	if skip {
+		return nil
+	}
+	return CompareTestTensor(expected, expectedSize, actual, floatThreshold, shorten)
+}
+
 func CompareTestTensor(expected interface{}, expectedSize []int, actual *Tensor, floatThreshold float64, shorten bool) error {
 	if expected == nil {
 		return fmt.Errorf("expected tensor is nil")
