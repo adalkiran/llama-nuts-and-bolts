@@ -17,7 +17,7 @@ import (
 	(until only first attention layer).
 */
 
-func testTransformer_Prepare(t *testing.T, actualInputTensor *ml.Tensor, actualFreqsCis *ml.Tensor, actualMask *ml.Tensor) {
+func testTransformer_Prepare(t *testing.T, transformer *LlamaTransformer, inputTokens *ml.Tensor, startPos int) (actualInputTensor *ml.Tensor, actualFreqsCis *ml.Tensor, actualMask *ml.Tensor) {
 	expectedInputTensorSize := []int{5, 4096}
 	// Shortened form as corresponding indices [0, 1, 2, 4093, 4094, 4095]
 	expectedInputTensorShortened := [][]float32{
@@ -39,6 +39,10 @@ func testTransformer_Prepare(t *testing.T, actualInputTensor *ml.Tensor, actualF
 		{0, 0, 0, 0, negInf},
 		{0, 0, 0, 0, 0},
 	}
+	var err error
+	if actualInputTensor, actualFreqsCis, actualMask, err = transformer.prepare(inputTokens, startPos); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := ml.CompareTestTensorSkippable(false, expectedInputTensorShortened, expectedInputTensorSize, actualInputTensor, common.THRESHOLD_F32, true); err != nil {
 		t.Error(err)
@@ -51,6 +55,7 @@ func testTransformer_Prepare(t *testing.T, actualInputTensor *ml.Tensor, actualF
 	if err := ml.CompareTestTensorSkippable(false, expectedMask, expectedMaskSize, actualMask, common.THRESHOLD_F32, false); err != nil {
 		t.Error(err)
 	}
+	return
 }
 
 func testTransformerBlock_AttnNorm_Forward(t *testing.T, skipCompareTestTensor bool, transformerBlock *LlamaTransformerBlock, x *ml.Tensor) *ml.Tensor {
@@ -1673,21 +1678,15 @@ func testTransformerBlock_Forward(t *testing.T, skipCompareTestTensor bool, cont
 	return actualOutput
 }
 
-func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *InferenceContext, transformer *LlamaTransformer) {
-	// tokens: "<BOS>My name is"
-	tokens := []TokenId{1, 15043, 590, 1024, 338}
-	startPos := 0
-
-	actualInputTensor, actualFreqsCis, actualMask, err := transformer.prepare(tokens, startPos)
-	if err != nil {
-		t.Error(err)
-	}
-	testTransformer_Prepare(t, actualInputTensor, actualFreqsCis, actualMask)
+func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *InferenceContext, transformer *LlamaTransformer, inputTokens *ml.Tensor, startPos int) *ml.Tensor {
+	var err error
+	actualInputTensor, actualFreqsCis, actualMask := testTransformer_Prepare(t, transformer, inputTokens, startPos)
 
 	currentTensor := actualInputTensor
 	if onlyFirstLayer {
 		firstLayer := transformer.Layers[0]
-		testTransformerBlock_Forward(t, false, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
+		currentTensor = testTransformerBlock_Forward(t, false, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
+		//return nil
 	} else {
 		fmt.Println()
 		for layerIdx, layer := range transformer.Layers {
@@ -1695,6 +1694,17 @@ func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *Inferen
 			currentTensor = testTransformerBlock_Forward(t, true, context, layer, currentTensor, startPos, actualFreqsCis, actualMask)
 		}
 	}
+	if currentTensor, err = transformer.output_norm.Forward(context, currentTensor); err != nil {
+		t.Fatal(err)
+	}
+	output, err := ml.LinearTransformation(currentTensor, transformer.output)
+	if err != nil {
+		t.Error(err)
+	}
+	if output, err = output.ToFloat32(); err != nil {
+		t.Error(err)
+	}
+	return output
 }
 
 func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
@@ -1703,17 +1713,58 @@ func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
 		t.Skipf("Model file \"%s\" is not found, passing this test: %s", modelFilePath, "TestSimulated")
 		return
 	}
+
 	llamaModel, err := LoadModel(modelFilePath)
 	if err != nil {
 		t.Error(err)
 	}
+	defer llamaModel.Free()
+
+	// promptTokens: "<BOS>My name is"
+	promptTokens := []TokenId{1, 15043, 590, 1024, 338}
 
 	inferenceArgs := common.NewInferenceArgs()
 	inferenceArgs.Seed = 1234
 	inferenceArgs.SequenceLength = 8
 	context := NewInferenceContext(llamaModel, inferenceArgs)
-	testTransformer_Forward(t, onlyFirstLayer, context, llamaModel.Transformer)
-	llamaModel.Free()
+
+	inputTokens, err := ml.Full([]int{context.SequenceLength}, ml.DT_UINT16, uint16(llamaModel.Vocabulary.PadId))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, token := range promptTokens {
+		if err := inputTokens.SetItem([]int{i}, uint16(token)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	prevPos := 0
+	minPromptLength := len(promptTokens)
+	curPos := minPromptLength
+	inputTokensSlice, err := inputTokens.Slice([]int{prevPos}, []int{curPos})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	actualLogits := testTransformer_Forward(t, onlyFirstLayer, context, llamaModel.Transformer, inputTokensSlice, prevPos)
+	if onlyFirstLayer {
+		// Although it is a valid and significant output as a tensor, it isn't a meaningful outcome,
+		// because while producing this output, only first attention layer was run, not completely 32 of them.
+		// But it is valuable to validate the whole model flow mathematically,
+		// even if we had some precision differences between ours and original LLaMA Python code.
+
+		expectedLogitsOnlyFirstLayerSize := []int{5, 32000}
+		expectedLogitsOnlyFirstLayer := [][]float32{
+			{1.8438, 8.6250, 1.0391 /*...,*/, 1.2266, 1.2188, -1.6797},
+			{1.2578, -1.3438, -3.6875 /*...,*/, -2.6875, 0.7852, 0.0908},
+			{0.3828, 0.5625, -2.3438 /*...,*/, -0.9336, 3.3281, -2.0781},
+			{0.3594, -0.2559, -3.0469 /*...,*/, -1.5156, 2.7344, -1.7969},
+			{-0.7070, -2.2188, -0.5234 /*...,*/, -2.3750, 2.4062, -1.3125},
+		}
+		if err := ml.CompareTestTensorSkippable(!onlyFirstLayer, expectedLogitsOnlyFirstLayer, expectedLogitsOnlyFirstLayerSize, actualLogits, 30*common.THRESHOLD_BF16, true); err != nil {
+			t.Error(err)
+		}
+	}
 }
 
 func TestSimulatedOnlyFirstLayer(t *testing.T) {

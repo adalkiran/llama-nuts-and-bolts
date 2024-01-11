@@ -2,6 +2,7 @@ package inference
 
 import (
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/model"
 )
 
@@ -18,41 +19,33 @@ func NewInferenceEngine(model *model.Model, inferenceArgs common.InferenceArgs) 
 }
 
 func (ie *InferenceEngine) Generate(promptTokens []model.TokenId) ([]model.TokenId, error) {
-	context := model.NewInferenceContext(ie.model, ie.inferenceArgs)
+	context := ie.CreateInferenceContext()
 
-	sequence, minPromptLength, sequenceLength := ie.createTokenSequence(context, promptTokens)
+	inputTokens, err := ml.Full([]int{context.SequenceLength}, ml.DT_UINT16, uint16(ie.model.Vocabulary.PadId))
+	if err != nil {
+		return nil, err
+	}
+	for i, token := range promptTokens {
+		if err := inputTokens.SetItem([]int{i}, uint16(token)); err != nil {
+			return nil, err
+		}
+	}
 	prevPos := 0
-	for curPos := minPromptLength; curPos < sequenceLength; curPos++ {
-		input := make([]model.TokenId, len(sequence))
-		input = sequence[prevPos:curPos]
-
-		/*logits := */
-		_, err := ie.model.Transformer.Forward(context, input, prevPos)
+	minPromptLength := len(promptTokens)
+	for curPos := minPromptLength; curPos < context.SequenceLength; curPos++ {
+		inputTokensSlice, err := inputTokens.Slice([]int{prevPos}, []int{curPos})
 		if err != nil {
 			return nil, err
 		}
+		logits, err := ie.model.Transformer.Forward(context, inputTokensSlice, prevPos)
+		if err != nil {
+			return nil, err
+		}
+		logits = logits
 	}
 	return nil, nil
 }
 
-func (ie *InferenceEngine) createInferenceContext() *model.InferenceContext {
-	return &model.InferenceContext{}
-}
-
-func (ie *InferenceEngine) createTokenSequence(context *model.InferenceContext, promptTokens []model.TokenId) (result []model.TokenId, minBatchLength int, sequenceLength int) {
-	// This part was planned to process token batches (multiple prompts at a time), but currently reverted.
-	sequenceLength = context.SequenceLength
-	minBatchLength = len(promptTokens)
-	batch := createEmptyTokenBatch(sequenceLength, ie.model.Vocabulary.PadId)
-	copy(batch[:len(promptTokens)], promptTokens)
-	result = batch
-	return
-}
-
-func createEmptyTokenBatch(sequenceLength int, padId model.TokenId) []model.TokenId {
-	result := make([]model.TokenId, sequenceLength)
-	for i := 0; i < sequenceLength; i++ {
-		result[i] = padId
-	}
-	return result
+func (ie *InferenceEngine) CreateInferenceContext() *model.InferenceContext {
+	return model.NewInferenceContext(ie.model, ie.inferenceArgs)
 }

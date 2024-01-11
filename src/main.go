@@ -20,6 +20,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer llamaModel.Free()
 
 	inferenceArgs := common.NewInferenceArgs()
 	inferenceArgs.Seed = 1234
@@ -29,7 +30,6 @@ func main() {
 
 	tokens, err := engine.Tokenize(prompt, true)
 	if err != nil {
-		llamaModel.Free()
 		log.Fatal(err)
 	}
 
@@ -41,6 +41,4 @@ func main() {
 		log.Fatal(err)
 	}
 	generatedTokens = generatedTokens
-
-	llamaModel.Free()
 }

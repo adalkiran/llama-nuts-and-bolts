@@ -99,17 +99,9 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 	return result, nil
 }
 
-func (lt *LlamaTransformer) prepare(tokens []TokenId, startPos int) (inputTensor *ml.Tensor, freqsCis *ml.Tensor, mask *ml.Tensor, err error) {
-	sequenceLength := len(tokens)
-	inp_tokens := ml.NewEmptyTensorEx("inp_tokens", []int{sequenceLength}, ml.DT_UINT16, true)
-
-	for i, token := range tokens {
-		if err = inp_tokens.SetItem([]int{i}, uint16(token)); err != nil {
-			return
-		}
-	}
-
-	inputTensor, err = ml.Fwd_Get_Rows(lt.tok_embd, inp_tokens)
+func (lt *LlamaTransformer) prepare(inputTokens *ml.Tensor, startPos int) (inputTensor *ml.Tensor, freqsCis *ml.Tensor, mask *ml.Tensor, err error) {
+	sequenceLength := inputTokens.Size[0]
+	inputTensor, err = ml.Fwd_Get_Rows(lt.tok_embd, inputTokens)
 	if err != nil {
 		return
 	}
@@ -131,12 +123,12 @@ func (lt *LlamaTransformer) prepare(tokens []TokenId, startPos int) (inputTensor
 	return
 }
 
-func (lt *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId, startPos int) ([]TokenId, error) {
-	if len(tokens) == 0 {
+func (lt *LlamaTransformer) Forward(context *InferenceContext, inputTokens *ml.Tensor, startPos int) (*ml.Tensor, error) {
+	if inputTokens.Size[0] == 0 {
 		return nil, fmt.Errorf("empty token array")
 	}
 
-	inputTensor, freqsCis, mask, err := lt.prepare(tokens, startPos)
+	inputTensor, freqsCis, mask, err := lt.prepare(inputTokens, startPos)
 	if err != nil {
 		return nil, err
 	}
@@ -148,8 +140,17 @@ func (lt *LlamaTransformer) Forward(context *InferenceContext, tokens []TokenId,
 			return nil, err
 		}
 	}
-
-	return nil, fmt.Errorf("NOT IMPLEMENTED")
+	if currentTensor, err = lt.output_norm.Forward(context, currentTensor); err != nil {
+		return nil, err
+	}
+	output, err := ml.LinearTransformation(currentTensor, lt.output)
+	if err != nil {
+		return nil, err
+	}
+	if output, err = output.ToFloat32(); err != nil {
+		return nil, err
+	}
+	return output, nil
 }
 
 func NewLlamaTransformerBlock(model *Model, layerIndex int) (*LlamaTransformerBlock, error) {
