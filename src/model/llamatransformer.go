@@ -20,6 +20,8 @@ type LlamaTransformer struct {
 }
 
 type LlamaTransformerBlock struct {
+	LayerIndex int
+
 	attn_norm *RMSNorm // Weights Original: "layers.0.attention_norm.weight"  |  ggml: "blk.0.attn_norm.weight" | shape: [4096] -> [Dim]
 	ffn_norm  *RMSNorm // Weights Original: "layers.0.ffn_norm.weight"  |  ggml: "blk.0.ffn_norm.weight" | shape: [4096] -> [Dim]
 
@@ -28,6 +30,8 @@ type LlamaTransformerBlock struct {
 }
 
 type LlamaAttention struct {
+	LayerIndex int
+
 	N_Heads   int
 	N_KVHeads int
 	N_Rep     int
@@ -74,12 +78,12 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 
 	result.Layers = make([]*LlamaTransformerBlock, modelArgs.N_Layers)
 
-	for i := 0; i < modelArgs.N_Layers; i++ {
+	for layerIdx := 0; layerIdx < modelArgs.N_Layers; layerIdx++ {
 		var layer *LlamaTransformerBlock
-		if layer, err = NewLlamaTransformerBlock(model, i); err != nil {
+		if layer, err = NewLlamaTransformerBlock(model, layerIdx); err != nil {
 			return nil, err
 		}
-		result.Layers[i] = layer
+		result.Layers[layerIdx] = layer
 	}
 
 	output_norm_weights, err := getTensor(model, "norm.weight", []int{dim})
@@ -154,7 +158,9 @@ func (lt *LlamaTransformer) Forward(context *InferenceContext, inputTokens *ml.T
 }
 
 func NewLlamaTransformerBlock(model *Model, layerIndex int) (*LlamaTransformerBlock, error) {
-	result := &LlamaTransformerBlock{}
+	result := &LlamaTransformerBlock{
+		LayerIndex: layerIndex,
+	}
 	modelArgs := model.ModelArgs
 	dim := modelArgs.Dim // 4096
 	var err error
@@ -215,7 +221,9 @@ func (ltb *LlamaTransformerBlock) Forward(context *InferenceContext, x *ml.Tenso
 }
 
 func NewLlamaAttention(model *Model, layerIndex int) (*LlamaAttention, error) {
-	result := &LlamaAttention{}
+	result := &LlamaAttention{
+		LayerIndex: layerIndex,
+	}
 	modelArgs := model.ModelArgs
 	dim := modelArgs.Dim // 4096
 	var err error
@@ -294,18 +302,18 @@ func (lat *LlamaAttention) Forward(context *InferenceContext, x *ml.Tensor, star
 		Update KV cache
 	*/
 
-	context.CacheK.SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xk)
-	context.CacheV.SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xv)
+	context.CacheK[lat.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xk)
+	context.CacheV[lat.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xv)
 
 	/*
 		Retrieve cached KV so far
 	*/
 
-	keys, err := context.CacheK.Slice([]int{0}, []int{startPos + sequenceLength})
+	keys, err := context.CacheK[lat.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
 	if err != nil {
 		return nil, err
 	}
-	values, err := context.CacheV.Slice([]int{0}, []int{startPos + sequenceLength})
+	values, err := context.CacheV[lat.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
 	if err != nil {
 		return nil, err
 	}
