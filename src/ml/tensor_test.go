@@ -121,6 +121,53 @@ func TestReshape(t *testing.T) {
 	}
 }
 
+func TestSlice(t *testing.T) {
+	// We create a float32 input tensor, because BFloat16 doesn't support high values for integral part.
+	// Even, only 400 is a high value as integral part to store in BFloat16 data type.
+	input, err := createTestInputTensorEx([]int{5, 100}, DT_F32)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Case 1: locStart: {4, 0}, locEnd: {5, 100}
+	// means that, we want complete row data of the row at 4th index, as 2D tensor with size {1, 100}
+	// because we specified start index=4 and end index=5 for first dimension, first dimension of result's size will be 5-4=1,
+	// so the result will have 2 dimensions.
+
+	expected2dSize := []int{1, 100}
+	expected2d := [][]float32{
+		{401., 402., 403., 498., 499., 500.},
+	}
+	rowsSize := input.Size[0]
+	colsSize := input.Size[1]
+
+	actualSlice2d, err := input.Slice([]int{rowsSize - 1, 0}, []int{rowsSize, colsSize})
+	if err != nil {
+		t.Error(err)
+	}
+	if err := CompareTestTensor(expected2d, expected2dSize, actualSlice2d, common.THRESHOLD_EXACT, true); err != nil {
+		t.Error(err)
+	}
+
+	// Case 2: locStart: {4, 0}, locEnd: {4, 100}
+	// means that, we want complete row data of the row at 4th index, as 1D tensor with size {100}
+	// because we specified start index=4 and end index=4 for first dimension, first dimension of result's size will be 4-4=0,
+	// so, first dimension of size will be ignored, the result will have 1 dimensions.
+
+	expected1dSize := []int{100}
+	expected1d := []float32{
+		401., 402., 403., 498., 499., 500.,
+	}
+	actualSlice1d, err := input.Slice([]int{rowsSize - 1, 0}, []int{rowsSize - 1, input.Size[1]})
+	if err != nil {
+		t.Error(err)
+	}
+	if err := CompareTestTensor(expected1d, expected1dSize, actualSlice1d, common.THRESHOLD_EXACT, true); err != nil {
+		t.Error(err)
+	}
+
+}
+
 func TestSetSlice(t *testing.T) {
 	input, err := createTestInputTensor([]int{4, 5})
 	if err != nil {

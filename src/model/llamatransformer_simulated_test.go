@@ -17,7 +17,7 @@ import (
 	(until only first attention layer).
 */
 
-func testTransformer_Prepare(t *testing.T, transformer *LlamaTransformer, inputTokens *ml.Tensor, startPos int) (actualInputTensor *ml.Tensor, actualFreqsCis *ml.Tensor, actualMask *ml.Tensor) {
+func testTransformer_Prepare(t *testing.T, skipCompareTestTensor bool, transformer *LlamaTransformer, inputTokens *ml.Tensor, startPos int) (actualInputTensor *ml.Tensor, actualFreqsCis *ml.Tensor, actualMask *ml.Tensor) {
 	expectedInputTensorSize := []int{5, 4096}
 	// Shortened form as corresponding indices [0, 1, 2, 4093, 4094, 4095]
 	expectedInputTensorShortened := [][]float32{
@@ -44,16 +44,16 @@ func testTransformer_Prepare(t *testing.T, transformer *LlamaTransformer, inputT
 		t.Fatal(err)
 	}
 
-	if err := ml.CompareTestTensorSkippable(false, expectedInputTensorShortened, expectedInputTensorSize, actualInputTensor, common.THRESHOLD_F32, true); err != nil {
-		t.Error(err)
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedInputTensorShortened, expectedInputTensorSize, actualInputTensor, common.THRESHOLD_F32, true); err != nil {
+		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(expectedFreqsCisSize, actualFreqsCis.Size) {
-		t.Errorf("expected size %v, but got %v", expectedFreqsCisSize, actualFreqsCis.Size)
+	if !skipCompareTestTensor && !reflect.DeepEqual(expectedFreqsCisSize, actualFreqsCis.Size) {
+		t.Fatalf("expected size %v, but got %v", expectedFreqsCisSize, actualFreqsCis.Size)
 	}
 
-	if err := ml.CompareTestTensorSkippable(false, expectedMask, expectedMaskSize, actualMask, common.THRESHOLD_F32, false); err != nil {
-		t.Error(err)
+	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedMask, expectedMaskSize, actualMask, common.THRESHOLD_F32, false); err != nil {
+		t.Fatal(err)
 	}
 	return
 }
@@ -1649,7 +1649,7 @@ func testTransformerBlock_Forward(t *testing.T, skipCompareTestTensor bool, cont
 		t.Fatal(err)
 	}
 	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedHBeforeFeedForward, expectedHBeforeFeedForwardSize, h, common.THRESHOLD_BF16, true); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	/*
@@ -1673,20 +1673,20 @@ func testTransformerBlock_Forward(t *testing.T, skipCompareTestTensor bool, cont
 		t.Fatal(err)
 	}
 	if err := ml.CompareTestTensorSkippable(skipCompareTestTensor, expectedOutput, expectedOutputSize, actualOutput, common.THRESHOLD_BF16, true); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	return actualOutput
 }
 
 func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *InferenceContext, transformer *LlamaTransformer, inputTokens *ml.Tensor, startPos int) *ml.Tensor {
+	skipCompareTestTensor := !onlyFirstLayer || startPos > 0
 	var err error
-	actualInputTensor, actualFreqsCis, actualMask := testTransformer_Prepare(t, transformer, inputTokens, startPos)
+	actualInputTensor, actualFreqsCis, actualMask := testTransformer_Prepare(t, skipCompareTestTensor, transformer, inputTokens, startPos)
 
 	currentTensor := actualInputTensor
 	if onlyFirstLayer {
 		firstLayer := transformer.Layers[0]
-		currentTensor = testTransformerBlock_Forward(t, false, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
-		//return nil
+		currentTensor = testTransformerBlock_Forward(t, skipCompareTestTensor, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
 	} else {
 		fmt.Println()
 		for layerIdx, layer := range transformer.Layers {
@@ -1699,10 +1699,10 @@ func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *Inferen
 	}
 	output, err := ml.LinearTransformation(currentTensor, transformer.output)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if output, err = output.ToFloat32(); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	return output
 }
@@ -1716,7 +1716,7 @@ func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
 
 	llamaModel, err := LoadModel(modelFilePath)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	defer llamaModel.Free()
 
@@ -1728,46 +1728,111 @@ func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
 	inferenceArgs.SequenceLength = 8
 	context := NewInferenceContext(llamaModel, inferenceArgs)
 
-	inputTokens, err := ml.Full([]int{context.SequenceLength}, ml.DT_UINT16, uint16(llamaModel.Vocabulary.PadId))
+	tokens, err := ml.Full([]int{context.SequenceLength}, ml.DT_INT32, int32(llamaModel.Vocabulary.PadId))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i, token := range promptTokens {
-		if err := inputTokens.SetItem([]int{i}, uint16(token)); err != nil {
+		if err := tokens.SetItem([]int{i}, int32(token)); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	prevPos := 0
 	minPromptLength := len(promptTokens)
-	curPos := minPromptLength
-	inputTokensSlice, err := inputTokens.Slice([]int{prevPos}, []int{curPos})
-	if err != nil {
-		t.Fatal(err)
+	isFirstIteration := true
+	for curPos := minPromptLength; curPos < context.SequenceLength; curPos++ {
+		inputTokensSlice, err := tokens.Slice([]int{prevPos}, []int{curPos})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		actualLogits := testTransformer_Forward(t, onlyFirstLayer, context, llamaModel.Transformer, inputTokensSlice, prevPos)
+		if onlyFirstLayer && isFirstIteration {
+			// Although it is a valid and significant output as a tensor, it isn't a meaningful outcome,
+			// because while producing this output, only first attention layer was run, not completely 32 of them.
+			// But it is valuable to validate the whole model flow mathematically,
+			// even if we had some precision differences between ours and original LLaMA Python code.
+
+			expectedLogitsOnlyFirstLayerSize := []int{5, 32000}
+			expectedLogitsOnlyFirstLayer := [][]float32{
+				{1.8438, 8.6250, 1.0391 /*...,*/, 1.2266, 1.2188, -1.6797},
+				{1.2578, -1.3438, -3.6875 /*...,*/, -2.6875, 0.7852, 0.0908},
+				{0.3828, 0.5625, -2.3438 /*...,*/, -0.9336, 3.3281, -2.0781},
+				{0.3594, -0.2559, -3.0469 /*...,*/, -1.5156, 2.7344, -1.7969},
+				{-0.7070, -2.2188, -0.5234 /*...,*/, -2.3750, 2.4062, -1.3125},
+			}
+			if err := ml.CompareTestTensorSkippable(!onlyFirstLayer, expectedLogitsOnlyFirstLayer, expectedLogitsOnlyFirstLayerSize, actualLogits, 30*common.THRESHOLD_BF16, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if actualLogits, err = actualLogits.Slice([]int{actualLogits.Size[0] - 1}, []int{actualLogits.Size[0]}); err != nil {
+			t.Fatal(err)
+		}
+		if onlyFirstLayer && isFirstIteration {
+			expectedLogitsLastRowOnlyFirstLayerSize := []int{1, 32000}
+			expectedLogitsLastRowOnlyFirstLayer := [][]float32{
+				{-0.7070, -2.2188, -0.5234 /*...,*/, -2.3750, 2.4062, -1.3125},
+			}
+			if err := ml.CompareTestTensorSkippable(!onlyFirstLayer, expectedLogitsLastRowOnlyFirstLayer, expectedLogitsLastRowOnlyFirstLayerSize, actualLogits, 30*common.THRESHOLD_BF16, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+		actualNextToken, err := ml.Argmax(actualLogits, len(actualLogits.Size)-1) // shape=[1,1] dtype=DT_INT32
+		if err != nil {
+			t.Fatal(err)
+		}
+		if onlyFirstLayer && isFirstIteration {
+			expectedNextTokenOnlyFirstLayerSize := []int{1}
+			expectedNextTokenOnlyFirstLayer := []float32{
+				593,
+			}
+			if err := ml.CompareTestTensorSkippable(!onlyFirstLayer, expectedNextTokenOnlyFirstLayer, expectedNextTokenOnlyFirstLayerSize, actualNextToken, common.THRESHOLD_EXACT, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+		actualNextTokenId := TokenId(actualNextToken.Item().(int32))
+		// Comment in original Python code: only replace token if prompt has already been generated
+		existingToken, err := tokens.GetItem([]int{curPos})
+		if err != nil {
+			t.Fatal(err)
+		}
+		existingTokenId := TokenId(existingToken.(int32))
+		if existingTokenId != llamaModel.Vocabulary.PadId {
+			actualNextTokenId = existingTokenId
+		}
+		if err = tokens.SetItem([]int{curPos}, int32(actualNextTokenId)); err != nil {
+			t.Fatal(err)
+		}
+		actualEosReached := actualNextTokenId == llamaModel.Vocabulary.EndOfSentenceId
+		if onlyFirstLayer && isFirstIteration {
+			expectedEosReached := false
+			if actualEosReached != expectedEosReached {
+				t.Fatalf("expected eosReached %v, but got %v", expectedEosReached, actualEosReached)
+			}
+		}
+		prevPos = curPos
+		isFirstIteration = false
 	}
 
-	actualLogits := testTransformer_Forward(t, onlyFirstLayer, context, llamaModel.Transformer, inputTokensSlice, prevPos)
 	if onlyFirstLayer {
-		// Although it is a valid and significant output as a tensor, it isn't a meaningful outcome,
-		// because while producing this output, only first attention layer was run, not completely 32 of them.
-		// But it is valuable to validate the whole model flow mathematically,
-		// even if we had some precision differences between ours and original LLaMA Python code.
-
-		expectedLogitsOnlyFirstLayerSize := []int{5, 32000}
-		expectedLogitsOnlyFirstLayer := [][]float32{
-			{1.8438, 8.6250, 1.0391 /*...,*/, 1.2266, 1.2188, -1.6797},
-			{1.2578, -1.3438, -3.6875 /*...,*/, -2.6875, 0.7852, 0.0908},
-			{0.3828, 0.5625, -2.3438 /*...,*/, -0.9336, 3.3281, -2.0781},
-			{0.3594, -0.2559, -3.0469 /*...,*/, -1.5156, 2.7344, -1.7969},
-			{-0.7070, -2.2188, -0.5234 /*...,*/, -2.3750, 2.4062, -1.3125},
+		expectedOutputTokenIds := []TokenId{593, 21961, 6604}
+		actualOutputTokenIds := make([]TokenId, 0)
+		for i := minPromptLength; i < context.SequenceLength; i++ {
+			tokenItem, err := tokens.GetItem([]int{i})
+			if err != nil {
+				t.Fatal(err)
+			}
+			actualOutputTokenIds = append(actualOutputTokenIds, TokenId(tokenItem.(int32)))
 		}
-		if err := ml.CompareTestTensorSkippable(!onlyFirstLayer, expectedLogitsOnlyFirstLayer, expectedLogitsOnlyFirstLayerSize, actualLogits, 30*common.THRESHOLD_BF16, true); err != nil {
-			t.Error(err)
+		if !reflect.DeepEqual(expectedOutputTokenIds, actualOutputTokenIds) {
+			t.Fatalf("expected actualOutputTokenIds %v, but got %v", expectedOutputTokenIds, actualOutputTokenIds)
 		}
 	}
 }
 
 func TestSimulatedOnlyFirstLayer(t *testing.T) {
+	t.Setenv("test.timeout", "10m")
 	testSimulatedInternal(t, true)
 }
 

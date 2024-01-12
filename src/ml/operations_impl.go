@@ -161,8 +161,8 @@ func Fwd_Get_Rows(embedding *Tensor, tokens *Tensor) (*Tensor, error) {
 		return nil, err
 	}
 
-	if tokens.DataType != DT_UINT16 {
-		return nil, fmt.Errorf("tensor is not in data type %s: \"%s\" is %s", DT_UINT16, tokens.Name, tokens.DataType)
+	if tokens.DataType != DT_INT32 {
+		return nil, fmt.Errorf("tensor is not in data type %s: \"%s\" is %s", DT_INT32, tokens.Name, tokens.DataType)
 	}
 
 	sequenceLength := tokens.Size[0]
@@ -176,7 +176,7 @@ func Fwd_Get_Rows(embedding *Tensor, tokens *Tensor) (*Tensor, error) {
 		if err != nil {
 			return nil, err
 		}
-		row := int(rowVal.(uint16))
+		row := int(rowVal.(int32))
 		readOffsetStart := embedding.calculateByteOffset([]int{row, 0})
 		readOffsetEnd := embedding.calculateByteOffset([]int{row + 1, 0})
 		rowBytes := embedding.RawData[readOffsetStart:readOffsetEnd]
@@ -224,11 +224,15 @@ func Pow(input *Tensor, power float64) (*Tensor, error) {
 		case DT_BF16:
 			item := item.(dtype.BFloat16)
 			resultItem := float32(math.Pow(item.Float64(), power))
-			dst.SetItemByOffset(writeOffset, resultItem)
+			if err := dst.SetItemByOffset(writeOffset, resultItem); err != nil {
+				return nil, err
+			}
 		case DT_F32:
 			item := item.(float32)
 			resultItem := float32(math.Pow(float64(item), power))
-			dst.SetItemByOffset(writeOffset, resultItem)
+			if err := dst.SetItemByOffset(writeOffset, resultItem); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
 		}
@@ -788,6 +792,49 @@ func Softmax(input *Tensor, dim int) (*Tensor, error) {
 			default:
 				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
 			}
+		}
+	}
+	return dst, nil
+}
+
+func Argmax(input *Tensor, dim int) (*Tensor, error) {
+	// See: https://pytorch.org/docs/stable/generated/torch.argmax.html
+	if dim != len(input.Size)-1 {
+		return nil, fmt.Errorf("currenlty Argmax supports only last dimension of input tensor as dim argument")
+	}
+	dstSize := make([]int, len(input.Size)-1)
+	copy(dstSize, input.Size[0:len(input.Size)-1])
+	dst := NewEmptyTensor(dstSize, DT_INT32)
+	inputItemSize := input.DataType.ItemSize()
+	blockSize := input.Size[dim] * inputItemSize
+	for iteratorDst := IterateOver(dst, 0); iteratorDst.HasNext(); {
+		locDst := iteratorDst.Next()
+		locFirstPart := append(locDst, 0)
+		readOffsetStart := input.calculateByteOffset(locFirstPart)
+		readOffsetEnd := readOffsetStart + blockSize
+
+		maxValue := float32(-math.MaxFloat32)
+		maxIdx := -1
+		idx := -1
+		for offset := readOffsetStart; offset < readOffsetEnd; offset += inputItemSize {
+			idx++
+			item := input.GetItemByOffset(offset)
+			var itemF32 float32
+			switch item := item.(type) {
+			case dtype.BFloat16:
+				itemF32 = item.Float32()
+			case float32:
+				itemF32 = item
+			default:
+				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+			}
+			if maxValue < itemF32 {
+				maxValue = itemF32
+				maxIdx = idx
+			}
+		}
+		if err := dst.SetItem(locDst, int32(maxIdx)); err != nil {
+			return nil, err
 		}
 	}
 	return dst, nil

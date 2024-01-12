@@ -63,6 +63,10 @@ func CompareTestTensorDimension(expected interface{}, actual *Tensor, currentDim
 						actualItemTyped = actualItem.Float32()
 					case float32:
 						actualItemTyped = actualItem
+					case uint16:
+						actualItemTyped = float32(actualItem)
+					case int32:
+						actualItemTyped = float32(actualItem)
 					default:
 						return fmt.Errorf("unsupported tensor datatype %s in compareTestTensorDimension function", reflect.TypeOf(actualItem))
 					}

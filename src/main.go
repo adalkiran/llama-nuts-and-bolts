@@ -33,12 +33,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println()
-	fmt.Print(engine.TokenBatchToString(tokens))
-
 	generatedTokens, err := engine.Generate(tokens)
 	if err != nil {
 		log.Fatal(err)
 	}
-	generatedTokens = generatedTokens
+
+	fmt.Println()
+	fmt.Print(engine.TokenBatchToString(tokens))
+	fmt.Print(engine.TokenBatchToString(generatedTokens))
 }

@@ -19,6 +19,7 @@ var (
 	DT_BF16    = UnquantizedDataType{"BF16", reflect.TypeOf(dtype.BFloat16(0))}
 	DT_F32     = DataType{"Float32", reflect.TypeOf(float32(0))}
 	DT_UINT16  = DataType{"UInt16", reflect.TypeOf(uint16(0))}
+	DT_INT32   = DataType{"Int32", reflect.TypeOf(int32(0))}
 	DT_COMPLEX = DataType{"Complex", reflect.TypeOf(complex64(complex(0.0, 0.0)))}
 )
 
@@ -223,6 +224,8 @@ func (t *Tensor) GetItemByOffset(offset int) any {
 		return dtype.ReadBFloat16LittleEndian(t.RawData[offset:])
 	case DT_UINT16:
 		return binary.LittleEndian.Uint16(t.RawData[offset:])
+	case DT_INT32:
+		return int32(binary.LittleEndian.Uint32(t.RawData[offset:]))
 	case DT_F32:
 		return math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset:]))
 	case DT_COMPLEX:
@@ -238,21 +241,29 @@ func (t *Tensor) SetItemByOffset(offset int, val any) error {
 	case DT_BF16:
 		convVal, ok := val.(dtype.BFloat16)
 		if !ok {
-			return fmt.Errorf("uncompatible types BFloat16 and %v", reflect.TypeOf(val))
+			return fmt.Errorf("incompatible types BFloat16 and %v", reflect.TypeOf(val))
 		}
 		dtype.WriteBFloat16LittleEndian(t.RawData[offset:], convVal)
 		return nil
 	case DT_UINT16:
 		convVal, ok := val.(uint16)
 		if !ok {
-			return fmt.Errorf("uncompatible types uint16 and %v", reflect.TypeOf(val))
+			return fmt.Errorf("incompatible types uint16 and %v", reflect.TypeOf(val))
 		}
 		binary.LittleEndian.PutUint16(t.RawData[offset:], convVal)
 		return nil
+	case DT_INT32:
+		convVal, ok := val.(int32)
+		if !ok {
+			return fmt.Errorf("incompatible types int32 and %v", reflect.TypeOf(val))
+		}
+		binary.LittleEndian.PutUint32(t.RawData[offset:], uint32(convVal))
+		return nil
+
 	case DT_F32:
 		convVal, ok := val.(float32)
 		if !ok {
-			return fmt.Errorf("uncompatible types float32 and %v", reflect.TypeOf(val))
+			return fmt.Errorf("incompatible types float32 and %v", reflect.TypeOf(val))
 		}
 		binary.LittleEndian.PutUint32(t.RawData[offset:], math.Float32bits(convVal))
 		return nil
@@ -260,7 +271,7 @@ func (t *Tensor) SetItemByOffset(offset int, val any) error {
 	case DT_COMPLEX:
 		convVal, ok := val.(complex64)
 		if !ok {
-			return fmt.Errorf("uncompatible types complex64 and %v", reflect.TypeOf(val))
+			return fmt.Errorf("incompatible types complex64 and %v", reflect.TypeOf(val))
 		}
 		realPartBits := math.Float32bits(real(convVal))
 		imagPartBits := math.Float32bits(imag(convVal))
@@ -319,8 +330,8 @@ func (t *Tensor) Slice(locStart []int, locEnd []int) (*Tensor, error) {
 	}
 	dstSize := make([]int, len(t.Size))
 	for dimension := 0; dimension < len(locStart); dimension++ {
-		if locStart[dimension] < 0 || locStart[dimension] >= t.Size[dimension] ||
-			locEnd[dimension] < 0 || locEnd[dimension] >= t.Size[dimension] ||
+		if locStart[dimension] < 0 || locStart[dimension] > t.Size[dimension] ||
+			locEnd[dimension] < 0 || locEnd[dimension] > t.Size[dimension] ||
 			locEnd[dimension]-locStart[dimension] < 0 {
 			return nil, fmt.Errorf("incompatible locStart, locEnd values and tensor")
 		}

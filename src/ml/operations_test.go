@@ -1,6 +1,7 @@
 package ml
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -21,7 +22,16 @@ func createTestInputTensorDimension(tensor *Tensor, currentDimension int, loc []
 	} else {
 		for i := 0; i < tensor.Size[currentDimension]; i++ {
 			loc[currentDimension] = i
-			if err := tensor.SetItem(loc, dtype.BFloat16fromFloat32(*cnt)); err != nil {
+			var val any
+			switch tensor.DataType {
+			case DT_BF16:
+				val = dtype.BFloat16fromFloat32(*cnt)
+			case DT_F32:
+				val = *cnt
+			default:
+				return fmt.Errorf("unsupported tensor datatype %s", tensor.DataType)
+			}
+			if err := tensor.SetItem(loc, val); err != nil {
 				return err
 			}
 			*cnt++
@@ -30,13 +40,17 @@ func createTestInputTensorDimension(tensor *Tensor, currentDimension int, loc []
 	return nil
 }
 
-func createTestInputTensor(size []int) (*Tensor, error) {
-	tensor := NewEmptyTensor(size, DT_BF16)
+func createTestInputTensorEx(size []int, dataType DataType) (*Tensor, error) {
+	tensor := NewEmptyTensor(size, dataType)
 	cnt := float32(1)
 	if err := createTestInputTensorDimension(tensor, 0, []int{}, &cnt); err != nil {
 		return nil, err
 	}
 	return tensor, nil
+}
+
+func createTestInputTensor(size []int) (*Tensor, error) {
+	return createTestInputTensorEx(size, DT_BF16)
 }
 
 func TestARangeStep1BF16(t *testing.T) {
