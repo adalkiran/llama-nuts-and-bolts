@@ -236,6 +236,14 @@ func (t *Tensor) GetItemByOffset(offset int) any {
 	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
 }
 
+func (t *Tensor) GetItemByOffset_BF16(offset int) dtype.BFloat16 {
+	return dtype.ReadBFloat16LittleEndian(t.RawData[offset:])
+}
+
+func (t *Tensor) GetItemByOffset_F32(offset int) float32 {
+	return math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset:]))
+}
+
 func (t *Tensor) SetItemByOffset(offset int, val any) error {
 	switch t.DataType {
 	case DT_BF16:
@@ -280,6 +288,16 @@ func (t *Tensor) SetItemByOffset(offset int, val any) error {
 		return nil
 	}
 	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
+}
+
+func (t *Tensor) SetItemByOffset_BF16(offset int, val dtype.BFloat16) error {
+	dtype.WriteBFloat16LittleEndian(t.RawData[offset:], val)
+	return nil
+}
+
+func (t *Tensor) SetItemByOffset_F32(offset int, val float32) error {
+	binary.LittleEndian.PutUint32(t.RawData[offset:], math.Float32bits(val))
+	return nil
 }
 
 func (t *Tensor) Item() any {
@@ -518,9 +536,9 @@ func (t *Tensor) ToBFloat16() (*Tensor, error) {
 		dstDataType := dst.DataType
 		writeOffset := 0
 		for readOffset := 0; readOffset < t.GetBytesCount(); readOffset += inputItemSize {
-			item := t.GetItemByOffset(readOffset).(float32)
+			item := t.GetItemByOffset_F32(readOffset)
 			resultItem := dtype.BFloat16fromFloat32(item)
-			dst.SetItemByOffset(writeOffset, resultItem)
+			dst.SetItemByOffset_BF16(writeOffset, resultItem)
 			writeOffset += dstDataType.ItemSize()
 		}
 		return dst, nil
@@ -541,9 +559,9 @@ func (t *Tensor) ToFloat32() (*Tensor, error) {
 		dstDataType := dst.DataType
 		writeOffset := 0
 		for readOffset := 0; readOffset < t.GetBytesCount(); readOffset += inputItemSize {
-			item := t.GetItemByOffset(readOffset).(dtype.BFloat16)
+			item := t.GetItemByOffset_BF16(readOffset)
 			resultItem := item.Float32()
-			dst.SetItemByOffset(writeOffset, resultItem)
+			dst.SetItemByOffset_F32(writeOffset, resultItem)
 			writeOffset += dstDataType.ItemSize()
 		}
 		return dst, nil

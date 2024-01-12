@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"time"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 )
@@ -562,71 +563,38 @@ func MultiplyElementwise(input *Tensor, other *Tensor) (*Tensor, error) {
 	return dst, nil
 }
 
-func LinearTransformation(input *Tensor, weights *Tensor) (*Tensor, error) {
+func linearTransformation_BF16(input *Tensor, weights *Tensor) (*Tensor, error) {
 	rowsSize := input.Size[0]
-	colsSize := input.Size[1]
 
 	// Linear unit weights size: [out_features, in_features]
 	weightsOutputSize := weights.Size[0]
 	weightsInputSize := weights.Size[1]
 
-	if colsSize != weightsInputSize {
-		return nil, fmt.Errorf("columns size %d of input tensor (%v) should be equal with %d input features count of weights tensor (%v)", colsSize, input.Size, weightsInputSize, weights.Size)
-	}
+	dstF32 := NewEmptyTensor([]int{rowsSize, weightsOutputSize}, DT_F32)
 
-	dst := NewEmptyTensor([]int{rowsSize, weightsOutputSize}, input.DataType)
+	inputItemSize := input.DataType.ItemSize()
+	dstItemSize := dstF32.DataType.ItemSize()
+
 	for rowIdx := 0; rowIdx < rowsSize; rowIdx++ {
+		inputRowOffset := input.calculateByteOffset([]int{rowIdx, 0})
+		dstRowOffset := dstF32.calculateByteOffset([]int{rowIdx, 0})
 		for wOutIdx := 0; wOutIdx < weightsOutputSize; wOutIdx++ {
-			var valDstF32 float32
+			weightsWOutOffset := weights.calculateByteOffset([]int{wOutIdx, 0})
 
-			valDst, err := dst.GetItem([]int{rowIdx, wOutIdx})
-			if err != nil {
-				return nil, err
-			}
-
-			switch dst.DataType {
-			case DT_BF16:
-				valDstF32 = float32(valDst.(dtype.BFloat16).Float32())
-			case DT_F32:
-				valDstF32 = valDst.(float32)
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
-			}
+			// location: {rowIdx, wOutIdx}
+			dstItemOffset := dstRowOffset + wOutIdx*dstItemSize
+			valDstF32 := dstF32.GetItemByOffset_F32(dstItemOffset)
 
 			for wInIdx := 0; wInIdx < weightsInputSize; wInIdx++ {
 				// Goal in Python manner: dst[rowIdx][wOutIdx] += input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
 
 				// Getting input[rowIdx][wInIdx]
-				val1, err := input.GetItem([]int{rowIdx, wInIdx})
-				if err != nil {
-					return nil, err
-				}
+				// location: {rowIdx, wInIdx}
+				val1F32 := input.GetItemByOffset_BF16(inputRowOffset + wInIdx*inputItemSize).Float32()
+
 				// Getting weights[wOutIdx][wInIdx]
-				val2, err := weights.GetItem([]int{wOutIdx, wInIdx})
-				if err != nil {
-					return nil, err
-				}
-
-				var val1F32 float32
-				var val2F32 float32
-
-				switch input.DataType {
-				case DT_BF16:
-					val1F32 = float32(val1.(dtype.BFloat16).Float32())
-				case DT_F32:
-					val1F32 = val1.(float32)
-				default:
-					return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
-				}
-
-				switch weights.DataType {
-				case DT_BF16:
-					val2F32 = float32(val2.(dtype.BFloat16).Float32())
-				case DT_F32:
-					val2F32 = val2.(float32)
-				default:
-					return nil, fmt.Errorf("unsupported tensor datatype %s", weights.DataType)
-				}
+				// location: {wOutIdx, wInIdx}
+				val2F32 := weights.GetItemByOffset_BF16(weightsWOutOffset + wInIdx*inputItemSize).Float32()
 
 				//Calculating: input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
 				multiplicationValF32 := val1F32 * val2F32
@@ -635,31 +603,212 @@ func LinearTransformation(input *Tensor, weights *Tensor) (*Tensor, error) {
 				valDstF32 += multiplicationValF32
 			}
 
-			switch dst.DataType {
-			case DT_BF16:
-				valDst = dtype.BFloat16fromFloat32(valDstF32)
-			case DT_F32:
-				valDst = valDstF32
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
-			}
-
-			if err := dst.SetItem([]int{rowIdx, wOutIdx}, valDst); err != nil {
+			// location: {rowIdx, wOutIdx}
+			if err := dstF32.SetItemByOffset_F32(dstItemOffset, valDstF32); err != nil {
 				return nil, err
 			}
 		}
 	}
+	return dstF32.ToBFloat16()
+}
 
-	return dst, nil
+func linearTransformation_F32(input *Tensor, weights *Tensor) (*Tensor, error) {
+	rowsSize := input.Size[0]
+
+	// Linear unit weights size: [out_features, in_features]
+	weightsOutputSize := weights.Size[0]
+	weightsInputSize := weights.Size[1]
+
+	dstF32 := NewEmptyTensor([]int{rowsSize, weightsOutputSize}, DT_F32)
+
+	inputItemSize := input.DataType.ItemSize()
+	dstItemSize := dstF32.DataType.ItemSize()
+
+	for rowIdx := 0; rowIdx < rowsSize; rowIdx++ {
+		inputRowOffset := input.calculateByteOffset([]int{rowIdx, 0})
+		dstRowOffset := dstF32.calculateByteOffset([]int{rowIdx, 0})
+		for wOutIdx := 0; wOutIdx < weightsOutputSize; wOutIdx++ {
+			weightsWOutOffset := weights.calculateByteOffset([]int{wOutIdx, 0})
+
+			// location: {rowIdx, wOutIdx}
+			valDstF32 := dstF32.GetItemByOffset_F32(dstRowOffset + wOutIdx*dstItemSize)
+
+			for wInIdx := 0; wInIdx < weightsInputSize; wInIdx++ {
+				// Goal in Python manner: dst[rowIdx][wOutIdx] += input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
+
+				// Getting input[rowIdx][wInIdx], location: {rowIdx, wInIdx}
+				val1F32 := input.GetItemByOffset_F32(inputRowOffset + wInIdx*inputItemSize)
+				// Getting weights[wOutIdx][wInIdx], location: {wOutIdx, wInIdx}
+				val2F32 := weights.GetItemByOffset_F32(weightsWOutOffset + wInIdx*inputItemSize)
+				//Calculating: input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
+				multiplicationValF32 := val1F32 * val2F32
+				//Calculating:  dst[rowIdx][wOutIdx] += multiplicationValF32
+				valDstF32 += multiplicationValF32
+			}
+
+			// location: {rowIdx, wOutIdx}
+			if err := dstF32.SetItemByOffset_F32(dstRowOffset+wOutIdx*dstItemSize, valDstF32); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return dstF32, nil
+}
+
+func LinearTransformation(input *Tensor, weights *Tensor) (*Tensor, error) {
+	if err := checkSameDataType(input, weights); err != nil {
+		return nil, err
+	}
+	startTime := time.Now()
+
+	defer func() {
+		endTime := time.Now()
+		duration := endTime.Sub(startTime)
+		fmt.Printf("Function LinearTransformation with %v and %v took %v\n", input.Size, weights.Size, duration)
+	}()
+
+	colsSize := input.Size[1]
+	// Linear unit weights size: [out_features, in_features]
+	weightsInputSize := weights.Size[1]
+
+	if colsSize != weightsInputSize {
+		return nil, fmt.Errorf("columns size %d of input tensor (%v) should be equal with %d input features count of weights tensor (%v)", colsSize, input.Size, weightsInputSize, weights.Size)
+	}
+
+	switch input.DataType {
+	case DT_BF16:
+		return linearTransformation_BF16(input, weights)
+	case DT_F32:
+		return linearTransformation_F32(input, weights)
+	default:
+		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+	}
+}
+
+func matMul_BF16(input *Tensor, other *Tensor) (*Tensor, error) {
+	inputRowsSize := input.Size[len(input.Size)-2]
+	inputColsSize := input.Size[len(input.Size)-1]
+
+	otherColsSize := other.Size[len(other.Size)-1]
+
+	inputSizeFirstPart := input.Size[0 : len(input.Size)-2]
+	dstF32 := NewEmptyTensor(append(append([]int{}, inputSizeFirstPart...), inputRowsSize, otherColsSize), DT_F32)
+
+	inputItemSize := input.DataType.ItemSize()
+	dstItemSize := dstF32.DataType.ItemSize()
+
+	for iteratorFirstPart := IterateOverSize(inputSizeFirstPart, 0); iteratorFirstPart.HasNext(); {
+		locFirstPart := iteratorFirstPart.Next()
+		for rowIdx := 0; rowIdx < inputRowsSize; rowIdx++ {
+			// location: {locFirstPart, rowIdx, 0}
+			rowLocStart := append(append([]int{}, locFirstPart...), []int{rowIdx, 0}...)
+			inputRowOffset := input.calculateByteOffset(rowLocStart)
+			dstRowOffset := dstF32.calculateByteOffset(rowLocStart)
+
+			for otherColIdx := 0; otherColIdx < otherColsSize; otherColIdx++ {
+				// location: {locFirstPart, rowIdx, otherColIdx}
+				dstItemOffset := dstRowOffset + otherColIdx*dstItemSize
+				valDstF32 := dstF32.GetItemByOffset_F32(dstItemOffset)
+
+				for inputColIdx := 0; inputColIdx < inputColsSize; inputColIdx++ {
+					// Goal in Python manner: dst[rowIdx][otherColIdx] += input[rowIdx][inputColIdx] * other[inputColIdx][otherColIdx]
+
+					// location: {locFirstPart, inputColIdx, 0}
+					otherInputColOffset := other.calculateByteOffset(append(append([]int{}, locFirstPart...), []int{inputColIdx, 0}...))
+
+					// Getting input[rowIdx][inputColIdx], location: {locFirstPart, rowIdx, inputColIdx}
+					val1F32 := input.GetItemByOffset_BF16(inputRowOffset + inputColIdx*inputItemSize).Float32()
+
+					// Getting other[inputColIdx][otherColIdx], location: {locFirstPart, inputColIdx, otherColIdx}
+					val2F32 := other.GetItemByOffset_BF16(otherInputColOffset + otherColIdx*inputItemSize).Float32()
+
+					//Calculating: input[rowIdx][inputColIdx] * other[inputColIdx][otherColIdx]
+					multiplicationValF32 := val1F32 * val2F32
+
+					//Calculating:  dst[rowIdx][otherColIdx] += multiplicationValF32
+					valDstF32 += multiplicationValF32
+				}
+
+				// location: {locFirstPart, rowIdx, otherColIdx}
+				if err := dstF32.SetItemByOffset_F32(dstItemOffset, valDstF32); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return dstF32.ToBFloat16()
+}
+
+func matMul_F32(input *Tensor, other *Tensor) (*Tensor, error) {
+	inputRowsSize := input.Size[len(input.Size)-2]
+	inputColsSize := input.Size[len(input.Size)-1]
+
+	otherColsSize := other.Size[len(other.Size)-1]
+
+	inputSizeFirstPart := input.Size[0 : len(input.Size)-2]
+	dstF32 := NewEmptyTensor(append(append([]int{}, inputSizeFirstPart...), inputRowsSize, otherColsSize), DT_F32)
+
+	inputItemSize := input.DataType.ItemSize()
+	dstItemSize := dstF32.DataType.ItemSize()
+
+	for iteratorFirstPart := IterateOverSize(inputSizeFirstPart, 0); iteratorFirstPart.HasNext(); {
+		locFirstPart := iteratorFirstPart.Next()
+		for rowIdx := 0; rowIdx < inputRowsSize; rowIdx++ {
+			// location: {locFirstPart, rowIdx, 0}
+			rowLocStart := append(append([]int{}, locFirstPart...), []int{rowIdx, 0}...)
+			inputRowOffset := input.calculateByteOffset(rowLocStart)
+			dstRowOffset := dstF32.calculateByteOffset(rowLocStart)
+
+			for otherColIdx := 0; otherColIdx < otherColsSize; otherColIdx++ {
+				// location: {locFirstPart, rowIdx, otherColIdx}
+				dstItemOffset := dstRowOffset + otherColIdx*dstItemSize
+				valDstF32 := dstF32.GetItemByOffset_F32(dstItemOffset)
+
+				for inputColIdx := 0; inputColIdx < inputColsSize; inputColIdx++ {
+					// Goal in Python manner: dst[rowIdx][otherColIdx] += input[rowIdx][inputColIdx] * other[inputColIdx][otherColIdx]
+
+					// location: {locFirstPart, inputColIdx, 0}
+					inputColOffset := input.calculateByteOffset(append(append([]int{}, locFirstPart...), []int{inputColIdx, 0}...))
+
+					// Getting input[rowIdx][inputColIdx], location: {locFirstPart, rowIdx, inputColIdx}
+					val1F32 := input.GetItemByOffset_F32(inputRowOffset + inputColIdx*inputItemSize)
+
+					// Getting other[inputColIdx][otherColIdx], location: {locFirstPart, inputColIdx, otherColIdx}
+					val2F32 := other.GetItemByOffset_F32(inputColOffset + inputColIdx*inputItemSize)
+
+					//Calculating: input[rowIdx][inputColIdx] * other[inputColIdx][otherColIdx]
+					multiplicationValF32 := val1F32 * val2F32
+
+					//Calculating:  dst[rowIdx][otherColIdx] += multiplicationValF32
+					valDstF32 += multiplicationValF32
+				}
+
+				// location: {locFirstPart, rowIdx, otherColIdx}
+				if err := dstF32.SetItemByOffset_F32(dstItemOffset, valDstF32); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return dstF32, nil
 }
 
 func MatMul(input *Tensor, other *Tensor) (*Tensor, error) {
 	// See: https://pytorch.org/docs/stable/generated/torch.matmul.html
-	inputRowsSize := input.Size[len(input.Size)-2]
+	if err := checkSameDataType(input, other); err != nil {
+		return nil, err
+	}
+	startTime := time.Now()
+
+	defer func() {
+		endTime := time.Now()
+		duration := endTime.Sub(startTime)
+		fmt.Printf("Function MatMul with %v and %v took %v\n", input.Size, other.Size, duration)
+	}()
+
 	inputColsSize := input.Size[len(input.Size)-1]
 
 	otherRowsSize := other.Size[len(other.Size)-2]
-	otherColsSize := other.Size[len(other.Size)-1]
 
 	if inputColsSize != otherRowsSize {
 		return nil, fmt.Errorf("columns size %d of input tensor (%v) should be equal with rows size %d of other tensor (%v)", inputColsSize, input.Size, otherRowsSize, other.Size)
@@ -672,85 +821,14 @@ func MatMul(input *Tensor, other *Tensor) (*Tensor, error) {
 		return nil, fmt.Errorf("first parts of dimensions are not compatible;  %v of input tensor (%v) and %v of other tensor (%v)", inputSizeFirstPart, input.Size, othertSizeFirstPart, other.Size)
 	}
 
-	dst := NewEmptyTensor(append(append([]int{}, inputSizeFirstPart...), inputRowsSize, otherColsSize), input.DataType)
-
-	for iteratorFirstPart := IterateOverSize(inputSizeFirstPart, 0); iteratorFirstPart.HasNext(); {
-		locFirstPart := iteratorFirstPart.Next()
-		for inputRowIdx := 0; inputRowIdx < inputRowsSize; inputRowIdx++ {
-			for otherColIdx := 0; otherColIdx < otherColsSize; otherColIdx++ {
-				var valDstF32 float32
-				valDst, err := dst.GetItem(append(append([]int{}, locFirstPart...), []int{inputRowIdx, otherColIdx}...))
-				if err != nil {
-					return nil, err
-				}
-
-				switch dst.DataType {
-				case DT_BF16:
-					valDstF32 = float32(valDst.(dtype.BFloat16).Float32())
-				case DT_F32:
-					valDstF32 = valDst.(float32)
-				default:
-					return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
-				}
-
-				for inputColIdx := 0; inputColIdx < inputColsSize; inputColIdx++ {
-					// Goal in Python manner: dst[inputRowIdx][otherColIdx] += input[inputRowIdx][inputColIdx] * other[inputColIdx][otherColIdx]
-
-					// Getting input[inputRowIdx][inputColIdx]
-					val1, err := input.GetItem(append(append([]int{}, locFirstPart...), []int{inputRowIdx, inputColIdx}...))
-					if err != nil {
-						return nil, err
-					}
-					// Getting other[inputColIdx][otherColIdx]
-					val2, err := other.GetItem(append(append([]int{}, locFirstPart...), []int{inputColIdx, otherColIdx}...))
-					if err != nil {
-						return nil, err
-					}
-
-					var val1F32 float32
-					var val2F32 float32
-
-					switch input.DataType {
-					case DT_BF16:
-						val1F32 = float32(val1.(dtype.BFloat16).Float32())
-					case DT_F32:
-						val1F32 = val1.(float32)
-					default:
-						return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
-					}
-
-					switch other.DataType {
-					case DT_BF16:
-						val2F32 = float32(val2.(dtype.BFloat16).Float32())
-					case DT_F32:
-						val2F32 = val2.(float32)
-					default:
-						return nil, fmt.Errorf("unsupported tensor datatype %s", other.DataType)
-					}
-
-					//Calculating: input[inputRowIdx][inputColIdx] * other[inputColIdx][otherColIdx]
-					multiplicationValF32 := val1F32 * val2F32
-
-					//Calculating:  dst[inputRowIdx][otherColIdx] += multiplicationValF32
-					valDstF32 += multiplicationValF32
-				}
-
-				switch dst.DataType {
-				case DT_BF16:
-					valDst = dtype.BFloat16fromFloat32(valDstF32)
-				case DT_F32:
-					valDst = valDstF32
-				default:
-					return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
-				}
-
-				if err := dst.SetItem(append(append([]int{}, locFirstPart...), []int{inputRowIdx, otherColIdx}...), valDst); err != nil {
-					return nil, err
-				}
-			}
-		}
+	switch input.DataType {
+	case DT_BF16:
+		return matMul_BF16(input, other)
+	case DT_F32:
+		return matMul_F32(input, other)
+	default:
+		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
 	}
-	return dst, nil
 }
 
 func Softmax(input *Tensor, dim int) (*Tensor, error) {
