@@ -483,18 +483,18 @@ func testTransformerBlock_Attention_Forward(t *testing.T, skipCompareTestTensor 
 		Update KV cache
 	*/
 
-	context.CacheK.SetSlice([]int{startPos}, []int{startPos + sequenceLength}, actualXk)
-	context.CacheV.SetSlice([]int{startPos}, []int{startPos + sequenceLength}, actualXv)
+	context.CacheK[attention.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, actualXk)
+	context.CacheV[attention.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, actualXv)
 
 	/*
 		Retrieve cached KV so far
 	*/
 
-	actualKeys, err := context.CacheK.Slice([]int{0}, []int{startPos + sequenceLength})
+	actualKeys, err := context.CacheK[attention.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
 	if err != nil {
 		t.Fatal(err)
 	}
-	actualValues, err := context.CacheV.Slice([]int{0}, []int{startPos + sequenceLength})
+	actualValues, err := context.CacheV[attention.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
 	if err != nil {
 		t.Fatal(err)
 	}
