@@ -24,21 +24,32 @@ func main() {
 
 	inferenceArgs := common.NewInferenceArgs()
 	inferenceArgs.Seed = 1234
-	inferenceArgs.SequenceLength = 8
+	inferenceArgs.SequenceLength = 20
 
-	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs)
+	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn)
 
 	tokens, err := engine.Tokenize(prompt, true)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	generatedTokens, err := engine.Generate(tokens)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	fmt.Println()
 	fmt.Print(engine.TokenBatchToString(tokens))
-	fmt.Print(engine.TokenBatchToString(generatedTokens))
+
+	generatedTokensCh, errorCh := engine.Generate(tokens)
+	for {
+		select {
+		case generatedToken, ok := <-generatedTokensCh:
+			if !ok {
+				return
+			}
+			fmt.Print(engine.TokenToString(generatedToken))
+		case err := <-errorCh:
+			log.Fatal(err)
+		}
+	}
+}
+
+func logFn(format string, v ...any) {
+	log.Printf(format, v...)
 }

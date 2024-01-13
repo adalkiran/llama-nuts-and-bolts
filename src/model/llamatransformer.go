@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
@@ -139,10 +140,12 @@ func (lt *LlamaTransformer) Forward(context *InferenceContext, inputTokens *ml.T
 
 	currentTensor := inputTensor
 	for layerIdx, layer := range lt.Layers {
-		fmt.Printf("Running transformer block layer: %d / %d\n", layerIdx, len(lt.Layers))
+		startTime := time.Now()
+		context.Logf("Running transformer block layer: %d / %d...", layerIdx, len(lt.Layers))
 		if currentTensor, err = layer.Forward(context, currentTensor, startPos, freqsCis, mask); err != nil {
 			return nil, err
 		}
+		context.Logf(" took %.4fs\n", time.Since(startTime).Seconds())
 	}
 	if currentTensor, err = lt.output_norm.Forward(context, currentTensor); err != nil {
 		return nil, err

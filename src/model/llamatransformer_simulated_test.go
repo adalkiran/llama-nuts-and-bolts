@@ -1688,9 +1688,8 @@ func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *Inferen
 		firstLayer := transformer.Layers[0]
 		currentTensor = testTransformerBlock_Forward(t, skipCompareTestTensor, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
 	} else {
-		fmt.Println()
 		for layerIdx, layer := range transformer.Layers {
-			fmt.Printf("Running transformer block layer: %d / %d\n", layerIdx+1, len(transformer.Layers))
+			context.Logf("Running transformer block layer: %d / %d\n", layerIdx+1, len(transformer.Layers))
 			currentTensor = testTransformerBlock_Forward(t, true, context, layer, currentTensor, startPos, actualFreqsCis, actualMask)
 		}
 	}
@@ -1705,6 +1704,10 @@ func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *Inferen
 		t.Fatal(err)
 	}
 	return output
+}
+
+func testSimulatedLog(format string, v ...any) {
+	fmt.Printf(format, v...)
 }
 
 func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
@@ -1726,7 +1729,7 @@ func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
 	inferenceArgs := common.NewInferenceArgs()
 	inferenceArgs.Seed = 1234
 	inferenceArgs.SequenceLength = 8
-	context := NewInferenceContext(llamaModel, inferenceArgs)
+	context := NewInferenceContext(llamaModel, inferenceArgs, testSimulatedLog)
 
 	tokens, err := ml.Full([]int{context.SequenceLength}, ml.DT_INT32, int32(llamaModel.Vocabulary.PadId))
 	if err != nil {
@@ -1836,7 +1839,7 @@ func TestSimulatedOnlyFirstLayer(t *testing.T) {
 	testSimulatedInternal(t, true)
 }
 
-const runTestSimulatedFull = false
+const runTestSimulatedFull = true
 
 func TestSimulatedFull(t *testing.T) {
 	if !runTestSimulatedFull {

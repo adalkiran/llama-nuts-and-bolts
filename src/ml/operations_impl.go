@@ -1,10 +1,11 @@
 package ml
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"reflect"
-	"time"
+	"sync"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 )
@@ -563,7 +564,20 @@ func MultiplyElementwise(input *Tensor, other *Tensor) (*Tensor, error) {
 	return dst, nil
 }
 
+func waitGroupDone(wg *sync.WaitGroup) chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	return done
+}
+
 func linearTransformation_BF16(input *Tensor, weights *Tensor) (*Tensor, error) {
+	// Create a cancellation context and wait group for synchronization
+	ctx, cancel := context.WithCancelCause(context.Background())
+	var wg sync.WaitGroup
+
 	rowsSize := input.Size[0]
 
 	// Linear unit weights size: [out_features, in_features]
@@ -576,40 +590,64 @@ func linearTransformation_BF16(input *Tensor, weights *Tensor) (*Tensor, error) 
 	dstItemSize := dstF32.DataType.ItemSize()
 
 	for rowIdx := 0; rowIdx < rowsSize; rowIdx++ {
-		inputRowOffset := input.calculateByteOffset([]int{rowIdx, 0})
-		dstRowOffset := dstF32.calculateByteOffset([]int{rowIdx, 0})
-		for wOutIdx := 0; wOutIdx < weightsOutputSize; wOutIdx++ {
-			weightsWOutOffset := weights.calculateByteOffset([]int{wOutIdx, 0})
+		wg.Add(1)
+		go func(rowIdx int, ctx context.Context) {
+			defer wg.Done()
 
-			// location: {rowIdx, wOutIdx}
-			dstItemOffset := dstRowOffset + wOutIdx*dstItemSize
-			valDstF32 := dstF32.GetItemByOffset_F32(dstItemOffset)
-
-			for wInIdx := 0; wInIdx < weightsInputSize; wInIdx++ {
-				// Goal in Python manner: dst[rowIdx][wOutIdx] += input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
-
-				// Getting input[rowIdx][wInIdx]
-				// location: {rowIdx, wInIdx}
-				val1F32 := input.GetItemByOffset_BF16(inputRowOffset + wInIdx*inputItemSize).Float32()
-
-				// Getting weights[wOutIdx][wInIdx]
-				// location: {wOutIdx, wInIdx}
-				val2F32 := weights.GetItemByOffset_BF16(weightsWOutOffset + wInIdx*inputItemSize).Float32()
-
-				//Calculating: input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
-				multiplicationValF32 := val1F32 * val2F32
-
-				//Calculating:  dst[rowIdx][wOutIdx] += multiplicationValF32
-				valDstF32 += multiplicationValF32
+			if ctx.Err() != nil {
+				return
 			}
+			inputRowOffset := input.calculateByteOffset([]int{rowIdx, 0})
+			dstRowOffset := dstF32.calculateByteOffset([]int{rowIdx, 0})
+			for wOutIdx := 0; wOutIdx < weightsOutputSize; wOutIdx++ {
+				wg.Add(1)
+				go func(wOutIdx int, ctx context.Context) {
+					defer wg.Done()
 
-			// location: {rowIdx, wOutIdx}
-			if err := dstF32.SetItemByOffset_F32(dstItemOffset, valDstF32); err != nil {
-				return nil, err
+					if ctx.Err() != nil {
+						return
+					}
+					weightsWOutOffset := weights.calculateByteOffset([]int{wOutIdx, 0})
+
+					// location: {rowIdx, wOutIdx}
+					dstItemOffset := dstRowOffset + wOutIdx*dstItemSize
+					valDstF32 := dstF32.GetItemByOffset_F32(dstItemOffset)
+
+					for wInIdx := 0; wInIdx < weightsInputSize; wInIdx++ {
+						// Goal in Python manner: dst[rowIdx][wOutIdx] += input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
+
+						// Getting input[rowIdx][wInIdx]
+						// location: {rowIdx, wInIdx}
+						val1F32 := input.GetItemByOffset_BF16(inputRowOffset + wInIdx*inputItemSize).Float32()
+
+						// Getting weights[wOutIdx][wInIdx]
+						// location: {wOutIdx, wInIdx}
+						val2F32 := weights.GetItemByOffset_BF16(weightsWOutOffset + wInIdx*inputItemSize).Float32()
+
+						//Calculating: input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
+						multiplicationValF32 := val1F32 * val2F32
+
+						//Calculating:  dst[rowIdx][wOutIdx] += multiplicationValF32
+						valDstF32 += multiplicationValF32
+					}
+
+					// location: {rowIdx, wOutIdx}
+					if err := dstF32.SetItemByOffset_F32(dstItemOffset, valDstF32); err != nil {
+						cancel(err)
+						return
+					}
+				}(wOutIdx, ctx)
 			}
-		}
+		}(rowIdx, ctx)
 	}
-	return dstF32.ToBFloat16()
+
+	select {
+	case <-ctx.Done():
+		// Cancellation signal received, one of the goroutines encountered an error
+		return nil, context.Cause(ctx)
+	case <-waitGroupDone(&wg):
+		return dstF32.ToBFloat16()
+	}
 }
 
 func linearTransformation_F32(input *Tensor, weights *Tensor) (*Tensor, error) {
@@ -659,13 +697,15 @@ func LinearTransformation(input *Tensor, weights *Tensor) (*Tensor, error) {
 	if err := checkSameDataType(input, weights); err != nil {
 		return nil, err
 	}
-	startTime := time.Now()
+	/*
+		startTime := time.Now()
 
-	defer func() {
-		endTime := time.Now()
-		duration := endTime.Sub(startTime)
-		fmt.Printf("Function LinearTransformation with %v and %v took %v\n", input.Size, weights.Size, duration)
-	}()
+		defer func() {
+			endTime := time.Now()
+			duration := endTime.Sub(startTime)
+			fmt.Printf("Function LinearTransformation with %v and %v took %v\n", input.Size, weights.Size, duration)
+		}()
+	*/
 
 	colsSize := input.Size[1]
 	// Linear unit weights size: [out_features, in_features]
@@ -798,13 +838,15 @@ func MatMul(input *Tensor, other *Tensor) (*Tensor, error) {
 	if err := checkSameDataType(input, other); err != nil {
 		return nil, err
 	}
-	startTime := time.Now()
+	/*
+		startTime := time.Now()
 
-	defer func() {
-		endTime := time.Now()
-		duration := endTime.Sub(startTime)
-		fmt.Printf("Function MatMul with %v and %v took %v\n", input.Size, other.Size, duration)
-	}()
+		defer func() {
+				endTime := time.Now()
+				duration := endTime.Sub(startTime)
+				fmt.Printf("Function MatMul with %v and %v took %v\n", input.Size, other.Size, duration)
+			}()
+	*/
 
 	inputColsSize := input.Size[len(input.Size)-1]
 
