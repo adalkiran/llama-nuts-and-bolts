@@ -51,3 +51,11 @@ func WriteBFloat16LittleEndian(b []byte, v BFloat16) {
 func WriteBFloat16BigEndian(b []byte, v BFloat16) {
 	binary.BigEndian.PutUint16(b, v.Bits())
 }
+
+func BFloat16bitsToFloat32(b16 uint16) float32 {
+	return math.Float32frombits(uint32(b16) << 16)
+}
+
+func Float32ToBFloat16bits(f32 float32) uint16 {
+	return uint16(math.Float32bits(f32) >> 16)
+}

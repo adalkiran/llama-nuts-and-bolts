@@ -533,13 +533,16 @@ func (t *Tensor) ToBFloat16() (*Tensor, error) {
 	switch t.DataType {
 	case DT_F32:
 		dst := NewEmptyTensorEx(t.Name, t.Size, DT_BF16, true)
-		dstDataType := dst.DataType
+		dstItemSize := dst.DataType.ItemSize()
+
+		tPtr := unsafe.Pointer(&t.RawData[0])
+		dstPtr := unsafe.Pointer(&dst.RawData[0])
+
 		writeOffset := 0
 		for readOffset := 0; readOffset < t.GetBytesCount(); readOffset += inputItemSize {
-			item := t.GetItemByOffset_F32(readOffset)
-			resultItem := dtype.BFloat16fromFloat32(item)
-			dst.SetItemByOffset_BF16(writeOffset, resultItem)
-			writeOffset += dstDataType.ItemSize()
+			resultItemBits := dtype.Float32ToBFloat16bits(*(*float32)(unsafe.Add(tPtr, readOffset)))
+			*(*uint16)(unsafe.Add(dstPtr, writeOffset)) = resultItemBits
+			writeOffset += dstItemSize
 		}
 		return dst, nil
 	default:
@@ -556,13 +559,16 @@ func (t *Tensor) ToFloat32() (*Tensor, error) {
 	switch t.DataType {
 	case DT_BF16:
 		dst := NewEmptyTensorEx(t.Name, t.Size, DT_F32, true)
-		dstDataType := dst.DataType
+		dstItemSize := dst.DataType.ItemSize()
+
+		tPtr := unsafe.Pointer(&t.RawData[0])
+		dstPtr := unsafe.Pointer(&dst.RawData[0])
+
 		writeOffset := 0
 		for readOffset := 0; readOffset < t.GetBytesCount(); readOffset += inputItemSize {
-			item := t.GetItemByOffset_BF16(readOffset)
-			resultItem := item.Float32()
-			dst.SetItemByOffset_F32(writeOffset, resultItem)
-			writeOffset += dstDataType.ItemSize()
+			resultItem := dtype.BFloat16bitsToFloat32(*(*uint16)(unsafe.Add(tPtr, readOffset)))
+			*(*float32)(unsafe.Add(dstPtr, writeOffset)) = resultItem
+			writeOffset += dstItemSize
 		}
 		return dst, nil
 	default:

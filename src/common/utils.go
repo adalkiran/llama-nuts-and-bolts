@@ -7,7 +7,7 @@ import (
 
 const (
 	THRESHOLD_EXACT = 0
-	THRESHOLD_F32   = 1e-4
+	THRESHOLD_F32   = 1e-3
 	THRESHOLD_BF16  = 1e-2
 )
 

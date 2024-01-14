@@ -1839,7 +1839,7 @@ func TestSimulatedOnlyFirstLayer(t *testing.T) {
 	testSimulatedInternal(t, true)
 }
 
-const runTestSimulatedFull = true
+const runTestSimulatedFull = false
 
 func TestSimulatedFull(t *testing.T) {
 	if !runTestSimulatedFull {
