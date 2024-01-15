@@ -1,8 +1,10 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
@@ -128,7 +130,7 @@ func (lt *LlamaTransformer) prepare(inputTokens *ml.Tensor, startPos int) (input
 	return
 }
 
-func (lt *LlamaTransformer) Forward(context *InferenceContext, inputTokens *ml.Tensor, startPos int) (*ml.Tensor, error) {
+func (lt *LlamaTransformer) Forward(infContext *InferenceContext, inputTokens *ml.Tensor, startPos int) (*ml.Tensor, error) {
 	if inputTokens.Size[0] == 0 {
 		return nil, fmt.Errorf("empty token array")
 	}
@@ -141,13 +143,12 @@ func (lt *LlamaTransformer) Forward(context *InferenceContext, inputTokens *ml.T
 	currentTensor := inputTensor
 	for layerIdx, layer := range lt.Layers {
 		startTime := time.Now()
-		context.Logf("Running transformer block layer: %d / %d...", layerIdx, len(lt.Layers))
-		if currentTensor, err = layer.Forward(context, currentTensor, startPos, freqsCis, mask); err != nil {
+		if currentTensor, err = layer.Forward(infContext, currentTensor, startPos, freqsCis, mask); err != nil {
 			return nil, err
 		}
-		context.Logf(" took %.4fs\n", time.Since(startTime).Seconds())
+		infContext.Logf("Transformer block layer: %d / %d was run, took %.4f sec(s)", layerIdx, len(lt.Layers), time.Since(startTime).Seconds())
 	}
-	if currentTensor, err = lt.output_norm.Forward(context, currentTensor); err != nil {
+	if currentTensor, err = lt.output_norm.Forward(infContext, currentTensor); err != nil {
 		return nil, err
 	}
 	output, err := ml.LinearTransformation(currentTensor, lt.output)
@@ -193,12 +194,12 @@ func NewLlamaTransformerBlock(model *Model, layerIndex int) (*LlamaTransformerBl
 	return result, nil
 }
 
-func (ltb *LlamaTransformerBlock) Forward(context *InferenceContext, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) (*ml.Tensor, error) {
-	normalizedX, err := ltb.attn_norm.Forward(context, x)
+func (ltb *LlamaTransformerBlock) Forward(infContext *InferenceContext, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) (*ml.Tensor, error) {
+	normalizedX, err := ltb.attn_norm.Forward(infContext, x)
 	if err != nil {
 		return nil, err
 	}
-	h, err := ltb.attention.Forward(context, normalizedX, startPos, freqsCis, mask)
+	h, err := ltb.attention.Forward(infContext, normalizedX, startPos, freqsCis, mask)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +207,7 @@ func (ltb *LlamaTransformerBlock) Forward(context *InferenceContext, x *ml.Tenso
 		return nil, err
 	}
 
-	normalizedH, err := ltb.ffn_norm.Forward(context, h)
+	normalizedH, err := ltb.ffn_norm.Forward(infContext, h)
 	if err != nil {
 		return nil, err
 	}
@@ -256,31 +257,79 @@ func NewLlamaAttention(model *Model, layerIndex int) (*LlamaAttention, error) {
 	return result, nil
 }
 
-func (lat *LlamaAttention) Forward(context *InferenceContext, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) (*ml.Tensor, error) {
+func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) (*ml.Tensor, error) {
 	sequenceLength := x.Size[0]
 
-	// lat.attn_wq: [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
-	xq, err := ml.LinearTransformation(x, lat.attn_wq)
-	if err != nil {
-		return nil, err
+	ctx, cancel := context.WithCancelCause(context.Background())
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	parallelResults := make(map[string]*ml.Tensor)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if ctx.Err() != nil {
+			return
+		}
+		// lat.attn_wq: [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
+		xq, err := ml.LinearTransformation(x, lat.attn_wq)
+		if err != nil {
+			cancel(err)
+			return
+		}
+		mu.Lock()
+		parallelResults["xq"] = xq
+		mu.Unlock()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if ctx.Err() != nil {
+			return
+		}
+		// lat.attn_wk: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+		xk, err := ml.LinearTransformation(x, lat.attn_wk)
+		if err != nil {
+			cancel(err)
+			return
+		}
+		mu.Lock()
+		parallelResults["xk"] = xk
+		mu.Unlock()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if ctx.Err() != nil {
+			return
+		}
+		// lat.attn_wv: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+		xv, err := ml.LinearTransformation(x, lat.attn_wv)
+		if err != nil {
+			cancel(err)
+			return
+		}
+		mu.Lock()
+		parallelResults["xv"] = xv
+		mu.Unlock()
+	}()
+
+	wg.Wait()
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
-	// lat.attn_wk: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
-	xk, err := ml.LinearTransformation(x, lat.attn_wk)
-	if err != nil {
-		return nil, err
-	}
-
-	// lat.attn_wv: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
-	xv, err := ml.LinearTransformation(x, lat.attn_wv)
-	if err != nil {
-		return nil, err
-	}
+	xq := parallelResults["xq"]
+	xv := parallelResults["xv"]
+	xk := parallelResults["xk"]
 
 	/*
 		Do reshapings
 	*/
-
+	var err error
 	if xq, err = xq.Reshape([]int{sequenceLength, lat.N_Heads, lat.HeadDim}); err != nil {
 		return nil, err
 	}
@@ -305,18 +354,18 @@ func (lat *LlamaAttention) Forward(context *InferenceContext, x *ml.Tensor, star
 		Update KV cache
 	*/
 
-	context.CacheK[lat.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xk)
-	context.CacheV[lat.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xv)
+	infContext.CacheK[lat.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xk)
+	infContext.CacheV[lat.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, xv)
 
 	/*
 		Retrieve cached KV so far
 	*/
 
-	keys, err := context.CacheK[lat.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
+	keys, err := infContext.CacheK[lat.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
 	if err != nil {
 		return nil, err
 	}
-	values, err := context.CacheV[lat.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
+	values, err := infContext.CacheV[lat.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
 	if err != nil {
 		return nil, err
 	}
@@ -493,7 +542,7 @@ func NewRMSNorm(epsilon float32, weights *ml.Tensor) *RMSNorm {
 	}
 }
 
-func (rms *RMSNorm) Forward(context *InferenceContext, x *ml.Tensor) (*ml.Tensor, error) {
+func (rms *RMSNorm) Forward(infContext *InferenceContext, x *ml.Tensor) (*ml.Tensor, error) {
 	h, err := rms.doNormalization(x)
 	if err != nil {
 		return nil, err

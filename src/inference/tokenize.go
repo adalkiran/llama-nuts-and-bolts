@@ -17,7 +17,6 @@ func (ie *InferenceEngine) Tokenize(text string, addBeginOfSentence bool) ([]mod
 	result := make([]model.TokenId, 0)
 	vocabulary := ie.model.Vocabulary
 
-	text = " " + text
 	text = escapeWhitespace(text)
 
 	if addBeginOfSentence && vocabulary.BeginOfSentenceId != -1 {
@@ -40,19 +39,19 @@ func (ie *InferenceEngine) TokenizeBatch(texts []string, addBeginOfSentence bool
 	return result, nil
 }
 
-func (ie *InferenceEngine) TokenToString(tokenId model.TokenId) string {
+func (ie *InferenceEngine) TokenToString(tokenId model.TokenId) (sentencepiece.SentencePiece, string) {
 	vocabulary := ie.model.Vocabulary
 	if tokenId < 0 || int(tokenId) >= len(vocabulary.IdToToken) {
-		return unknownOutputToken
+		return sentencepiece.SentencePiece{PieceType: sentencepiece.UNKNOWN}, unknownOutputToken
 	}
 	token := vocabulary.IdToToken[tokenId]
 	switch token.PieceType {
 	case sentencepiece.CONTROL:
 		// Do nothing
 	case sentencepiece.NORMAL:
-		return unescapeWhitespace(token.Piece)
+		return token, unescapeWhitespace(token.Piece)
 	}
-	return ""
+	return sentencepiece.SentencePiece{PieceType: sentencepiece.UNKNOWN}, ""
 }
 
 func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) string {
@@ -61,7 +60,8 @@ func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) stri
 		if tokenId == ie.model.Vocabulary.PadId {
 			break
 		}
-		result += ie.TokenToString(tokenId)
+		_, tokenStr := ie.TokenToString(tokenId)
+		result += tokenStr
 	}
 	return result
 }

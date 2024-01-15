@@ -35,9 +35,9 @@ func (ie *InferenceEngine) Generate(promptTokens []model.TokenId) (<-chan model.
 }
 
 func (ie *InferenceEngine) generateInternal(promptTokens []model.TokenId, generatedTokensCh chan<- model.TokenId, errorCh chan<- error) {
-	context := ie.CreateInferenceContext()
+	infContext := ie.CreateInferenceContext()
 
-	tokens, err := ml.Full([]int{context.SequenceLength}, ml.DT_INT32, int32(ie.model.Vocabulary.PadId))
+	tokens, err := ml.Full([]int{infContext.SequenceLength}, ml.DT_INT32, int32(ie.model.Vocabulary.PadId))
 	if err != nil {
 		errorCh <- err
 		return
@@ -50,13 +50,13 @@ func (ie *InferenceEngine) generateInternal(promptTokens []model.TokenId, genera
 	}
 	prevPos := 0
 	minPromptLength := len(promptTokens)
-	for curPos := minPromptLength; curPos < context.SequenceLength; curPos++ {
+	for curPos := minPromptLength; curPos < infContext.SequenceLength; curPos++ {
 		inputTokensSlice, err := tokens.Slice([]int{prevPos}, []int{curPos})
 		if err != nil {
 			errorCh <- err
 			return
 		}
-		logits, err := ie.model.Transformer.Forward(context, inputTokensSlice, prevPos)
+		logits, err := ie.model.Transformer.Forward(infContext, inputTokensSlice, prevPos)
 		if err != nil {
 			errorCh <- err
 			return

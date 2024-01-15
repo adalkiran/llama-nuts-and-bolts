@@ -140,7 +140,7 @@ func linearTransformation_General(input *Tensor, weights *Tensor, wOutFn linearT
 
 	dstValChan := make(chan DstVal, 3000)
 
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 100; i++ {
 		go linearTransformation_ProcessRowChan(dstF32Ptr, dstValChan)
 	}
 

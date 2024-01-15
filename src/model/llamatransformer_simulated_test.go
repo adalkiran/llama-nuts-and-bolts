@@ -60,7 +60,7 @@ func testTransformer_Prepare(t *testing.T, skipCompareTestTensor bool, transform
 
 func testTransformerBlock_AttnNorm_Forward(t *testing.T, skipCompareTestTensor bool, transformerBlock *LlamaTransformerBlock, x *ml.Tensor) *ml.Tensor {
 	/*
-		normalizedX, err := ltb.attn_norm.Forward(context, x)
+		normalizedX, err := ltb.attn_norm.Forward(infContext, x)
 	*/
 	expectedAttnNormPartSize := []int{5, 4096}
 	expectedAttnNormPart := [][]float32{
@@ -98,7 +98,7 @@ func testTransformerBlock_AttnNorm_Forward(t *testing.T, skipCompareTestTensor b
 	return actualAttnNormalizedX
 }
 
-func testTransformerBlock_Attention_Forward(t *testing.T, skipCompareTestTensor bool, context *InferenceContext, attention *LlamaAttention, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
+func testTransformerBlock_Attention_Forward(t *testing.T, skipCompareTestTensor bool, infContext *InferenceContext, attention *LlamaAttention, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
 	expectedXqSize := []int{5, 4096}
 	expectedXq := [][]float32{
 		{0.1157, -0.4805, -0.4180 /*...,*/, 0.6250, -0.1670, 0.1602},
@@ -483,18 +483,18 @@ func testTransformerBlock_Attention_Forward(t *testing.T, skipCompareTestTensor 
 		Update KV cache
 	*/
 
-	context.CacheK[attention.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, actualXk)
-	context.CacheV[attention.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, actualXv)
+	infContext.CacheK[attention.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, actualXk)
+	infContext.CacheV[attention.LayerIndex].SetSlice([]int{startPos}, []int{startPos + sequenceLength}, actualXv)
 
 	/*
 		Retrieve cached KV so far
 	*/
 
-	actualKeys, err := context.CacheK[attention.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
+	actualKeys, err := infContext.CacheK[attention.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
 	if err != nil {
 		t.Fatal(err)
 	}
-	actualValues, err := context.CacheV[attention.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
+	actualValues, err := infContext.CacheV[attention.LayerIndex].Slice([]int{0}, []int{startPos + sequenceLength})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1600,7 +1600,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, skipCompareTestTensor 
 	return actualOutput
 }
 
-func testTransformerBlock_FeedForward_Forward(t *testing.T, skipCompareTestTensor bool, context *InferenceContext, feedForward *LlamaFeedForward, x *ml.Tensor) *ml.Tensor {
+func testTransformerBlock_FeedForward_Forward(t *testing.T, skipCompareTestTensor bool, infContext *InferenceContext, feedForward *LlamaFeedForward, x *ml.Tensor) *ml.Tensor {
 	/*
 		Goal in Python manner:
 		self.w2(F.silu(self.w1(x)) * self.w3(x))
@@ -1628,12 +1628,12 @@ func testTransformerBlock_FeedForward_Forward(t *testing.T, skipCompareTestTenso
 	return actualOutput
 }
 
-func testTransformerBlock_Forward(t *testing.T, skipCompareTestTensor bool, context *InferenceContext, transformerBlock *LlamaTransformerBlock, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
+func testTransformerBlock_Forward(t *testing.T, skipCompareTestTensor bool, infContext *InferenceContext, transformerBlock *LlamaTransformerBlock, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) *ml.Tensor {
 	/*
-		h, err := ltb.attention.Forward(context, normalizedX, startPos, freqsCis, mask)
+		h, err := ltb.attention.Forward(infContext, normalizedX, startPos, freqsCis, mask)
 	*/
 	normalizedX := testTransformerBlock_AttnNorm_Forward(t, skipCompareTestTensor, transformerBlock, x)
-	h := testTransformerBlock_Attention_Forward(t, skipCompareTestTensor, context, transformerBlock.attention, normalizedX, startPos, freqsCis, mask)
+	h := testTransformerBlock_Attention_Forward(t, skipCompareTestTensor, infContext, transformerBlock.attention, normalizedX, startPos, freqsCis, mask)
 
 	expectedHBeforeFeedForwardSize := []int{5, 4096}
 	expectedHBeforeFeedForward := [][]float32{
@@ -1663,11 +1663,11 @@ func testTransformerBlock_Forward(t *testing.T, skipCompareTestTensor bool, cont
 		{-0.0120, -0.0110, -0.0449 /*...,*/, 0.0095, 0.0035, -0.0093},
 		{-0.0146, -0.0078, 0.0127 /*...,*/, 0.0147, 0.0116, 0.0124},
 	}
-	normalizedH, err := transformerBlock.ffn_norm.Forward(context, h)
+	normalizedH, err := transformerBlock.ffn_norm.Forward(infContext, h)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ffnOutput := testTransformerBlock_FeedForward_Forward(t, skipCompareTestTensor, context, transformerBlock.feedForward, normalizedH)
+	ffnOutput := testTransformerBlock_FeedForward_Forward(t, skipCompareTestTensor, infContext, transformerBlock.feedForward, normalizedH)
 	actualOutput, err := ml.Add(h, ffnOutput)
 	if err != nil {
 		t.Fatal(err)
@@ -1678,7 +1678,7 @@ func testTransformerBlock_Forward(t *testing.T, skipCompareTestTensor bool, cont
 	return actualOutput
 }
 
-func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *InferenceContext, transformer *LlamaTransformer, inputTokens *ml.Tensor, startPos int) *ml.Tensor {
+func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, infContext *InferenceContext, transformer *LlamaTransformer, inputTokens *ml.Tensor, startPos int) *ml.Tensor {
 	skipCompareTestTensor := !onlyFirstLayer || startPos > 0
 	var err error
 	actualInputTensor, actualFreqsCis, actualMask := testTransformer_Prepare(t, skipCompareTestTensor, transformer, inputTokens, startPos)
@@ -1686,14 +1686,14 @@ func testTransformer_Forward(t *testing.T, onlyFirstLayer bool, context *Inferen
 	currentTensor := actualInputTensor
 	if onlyFirstLayer {
 		firstLayer := transformer.Layers[0]
-		currentTensor = testTransformerBlock_Forward(t, skipCompareTestTensor, context, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
+		currentTensor = testTransformerBlock_Forward(t, skipCompareTestTensor, infContext, firstLayer, currentTensor, startPos, actualFreqsCis, actualMask)
 	} else {
 		for layerIdx, layer := range transformer.Layers {
-			context.Logf("Running transformer block layer: %d / %d\n", layerIdx+1, len(transformer.Layers))
-			currentTensor = testTransformerBlock_Forward(t, true, context, layer, currentTensor, startPos, actualFreqsCis, actualMask)
+			infContext.Logf("Running transformer block layer: %d / %d\n", layerIdx+1, len(transformer.Layers))
+			currentTensor = testTransformerBlock_Forward(t, true, infContext, layer, currentTensor, startPos, actualFreqsCis, actualMask)
 		}
 	}
-	if currentTensor, err = transformer.output_norm.Forward(context, currentTensor); err != nil {
+	if currentTensor, err = transformer.output_norm.Forward(infContext, currentTensor); err != nil {
 		t.Fatal(err)
 	}
 	output, err := ml.LinearTransformation(currentTensor, transformer.output)
@@ -1729,9 +1729,9 @@ func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
 	inferenceArgs := common.NewInferenceArgs()
 	inferenceArgs.Seed = 1234
 	inferenceArgs.SequenceLength = 8
-	context := NewInferenceContext(llamaModel, inferenceArgs, testSimulatedLog)
+	infContext := NewInferenceContext(llamaModel, inferenceArgs, testSimulatedLog)
 
-	tokens, err := ml.Full([]int{context.SequenceLength}, ml.DT_INT32, int32(llamaModel.Vocabulary.PadId))
+	tokens, err := ml.Full([]int{infContext.SequenceLength}, ml.DT_INT32, int32(llamaModel.Vocabulary.PadId))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1744,13 +1744,13 @@ func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
 	prevPos := 0
 	minPromptLength := len(promptTokens)
 	isFirstIteration := true
-	for curPos := minPromptLength; curPos < context.SequenceLength; curPos++ {
+	for curPos := minPromptLength; curPos < infContext.SequenceLength; curPos++ {
 		inputTokensSlice, err := tokens.Slice([]int{prevPos}, []int{curPos})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		actualLogits := testTransformer_Forward(t, onlyFirstLayer, context, llamaModel.Transformer, inputTokensSlice, prevPos)
+		actualLogits := testTransformer_Forward(t, onlyFirstLayer, infContext, llamaModel.Transformer, inputTokensSlice, prevPos)
 		if onlyFirstLayer && isFirstIteration {
 			// Although it is a valid and significant output as a tensor, it isn't a meaningful outcome,
 			// because while producing this output, only first attention layer was run, not completely 32 of them.
@@ -1821,7 +1821,7 @@ func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
 	if onlyFirstLayer {
 		expectedOutputTokenIds := []TokenId{593, 21961, 6604}
 		actualOutputTokenIds := make([]TokenId, 0)
-		for i := minPromptLength; i < context.SequenceLength; i++ {
+		for i := minPromptLength; i < infContext.SequenceLength; i++ {
 			tokenItem, err := tokens.GetItem([]int{i})
 			if err != nil {
 				t.Fatal(err)
