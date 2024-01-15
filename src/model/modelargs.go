@@ -19,7 +19,6 @@ type ModelArgs struct {
 	FFNDimMultiplier float64 `json:"ffn_dim_multiplier"` // Optional
 	NormEpsilon      float32 `json:"norm_eps"`
 
-	MaxBatchSize      int
 	MaxSequenceLength int
 
 	N_Rep   int
@@ -37,8 +36,7 @@ func NewModelArgs() *ModelArgs {
 
 		FFNDimMultiplier:  -1,
 		NormEpsilon:       1e-5,
-		MaxBatchSize:      32,
-		MaxSequenceLength: 32,
+		MaxSequenceLength: 4096,
 	}
 }
 

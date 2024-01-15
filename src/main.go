@@ -64,7 +64,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	generatedText += engine.TokenBatchToString(tokens)
+	generatedText += fmt.Sprintf("%c[1mPrompt:%c[0m ", esc, esc) + engine.TokenBatchToString(tokens)
+	generatedText += fmt.Sprintf("\n%c[1mAssistant:%c[0m ", esc, esc)
 
 	promptTokenCount := len(tokens)
 	generatedTokenCount := 0
@@ -89,6 +90,7 @@ func main() {
 			updateOutput()
 			startTimeToken = time.Now()
 		case err := <-errorCh:
+			fmt.Println()
 			log.Fatal(err)
 		}
 	}
@@ -112,23 +114,39 @@ func generateProgressText(promptTokenCount int, generatedTokenCount int, sequenc
 
 func updateOutput() {
 	// See: https://github.com/apoorvam/goterminal/blob/master/writer_posix.go
-	lineCount := 4
+	lineCount := 5
 
+	totalElapsedStr := "..:.."
+	nextTokenElapsedStr := "..:.."
+	if startTimeTotal.Year() > 1 {
+		// See: https://stackoverflow.com/questions/47341278/how-to-format-a-duration
+		totalElapsed := time.Since(startTimeTotal).Round(time.Second)
+		totalElapsedHourPart := totalElapsed / time.Hour
+		totalElapsed -= totalElapsedHourPart * time.Minute
+		totalElapsedMinPart := totalElapsed / time.Minute
+		totalElapsed -= totalElapsedMinPart * time.Minute
+		totalElapsedSecPart := totalElapsed / time.Second
+		totalElapsedStr = fmt.Sprintf("%02dh:%02dm:%02ds", totalElapsedHourPart, totalElapsedMinPart, totalElapsedSecPart)
+
+		nextTokenElapsedStr = fmt.Sprintf("%.4f sec(s)", time.Since(startTimeToken).Seconds())
+	}
 	if generatedText != "" {
 		for i := 0; i < lineCount; i++ {
 			fmt.Printf("%c[2K\r", esc)   // Clear current line
 			fmt.Printf("%c[%dA", esc, 1) // Move cursor 1 upper line
 		}
 		fmt.Printf("%c[2K\r", esc) // Clear current line
-	} else {
-		generatedText = " "
 	}
 	if latestLogText == "" {
 		latestLogText = "..."
 	}
 	fmt.Println(progressText)
-	fmt.Printf("Total elapsed: %c[1m%.4f sec(s)%c[0m, elapsed for next token: %c[1m%.4f sec(s)%c[0m\n", esc, time.Since(startTimeTotal).Seconds(), esc, esc, time.Since(startTimeToken).Seconds(), esc)
+	fmt.Printf("Total elapsed: %c[1m%s%c[0m, elapsed for next token: %c[1m%s%c[0m\n", esc, totalElapsedStr, esc, esc, nextTokenElapsedStr, esc)
 	fmt.Println("Running for next token: " + latestLogText)
 	fmt.Println()
-	fmt.Print(generatedText)
+	if generatedText != "" {
+		fmt.Print(generatedText)
+	} else {
+		fmt.Print("...")
+	}
 }

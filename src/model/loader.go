@@ -121,7 +121,6 @@ func printMeta(model *Model) {
 	fmt.Printf("\nProperties from model configuration:\n")
 
 	fmt.Printf("%-60s = %d\n", "VocabSize (tokenizer length)", model.ModelArgs.VocabSize)
-	fmt.Printf("%-60s = %d\n", "MaxBatchSize (max batch size)", model.ModelArgs.MaxBatchSize)
 	fmt.Printf("%-60s = %d\n", "MaxSequenceLength (max context length)", model.ModelArgs.MaxSequenceLength)
 	fmt.Printf("%-60s = %d\n", "Dim (embedding dimension)", model.ModelArgs.Dim)
 	fmt.Printf("%-60s = %d\n", "N_Heads (attention head count)", model.ModelArgs.N_Heads)

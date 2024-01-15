@@ -1,6 +1,8 @@
 package inference
 
 import (
+	"fmt"
+
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/model"
@@ -37,6 +39,12 @@ func (ie *InferenceEngine) Generate(promptTokens []model.TokenId) (<-chan model.
 func (ie *InferenceEngine) generateInternal(promptTokens []model.TokenId, generatedTokensCh chan<- model.TokenId, errorCh chan<- error) {
 	infContext := ie.CreateInferenceContext()
 
+	promptLength := len(promptTokens)
+	if promptLength >= infContext.SequenceLength {
+		errorCh <- fmt.Errorf("context SequenceLength %d must be higher than prompt tokens length %d", infContext.SequenceLength, promptLength)
+		return
+	}
+
 	tokens, err := ml.Full([]int{infContext.SequenceLength}, ml.DT_INT32, int32(ie.model.Vocabulary.PadId))
 	if err != nil {
 		errorCh <- err
@@ -49,8 +57,7 @@ func (ie *InferenceEngine) generateInternal(promptTokens []model.TokenId, genera
 		}
 	}
 	prevPos := 0
-	minPromptLength := len(promptTokens)
-	for curPos := minPromptLength; curPos < infContext.SequenceLength; curPos++ {
+	for curPos := promptLength; curPos < infContext.SequenceLength; curPos++ {
 		inputTokensSlice, err := tokens.Slice([]int{prevPos}, []int{curPos})
 		if err != nil {
 			errorCh <- err

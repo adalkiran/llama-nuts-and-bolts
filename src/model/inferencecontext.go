@@ -39,15 +39,15 @@ func NewInferenceContext(model *Model, inferenceArgs common.InferenceArgs, logFn
 	context.CacheV = make([]*ml.Tensor, modelArgs.N_Layers)
 	for layerIdx := 0; layerIdx < modelArgs.N_Layers; layerIdx++ {
 		context.CacheK[layerIdx], _ = ml.Zeros([]int{
-			modelArgs.MaxSequenceLength, // 32
-			modelArgs.N_KVHeads,         // 32
-			modelArgs.HeadDim,           // 128
+			inferenceArgs.SequenceLength, // specified argument value (default 4096)
+			modelArgs.N_KVHeads,          // 32
+			modelArgs.HeadDim,            // 128
 		}, ml.DT_BF16)
 
 		context.CacheV[layerIdx], _ = ml.Zeros([]int{
-			modelArgs.MaxSequenceLength, // 32
-			modelArgs.N_KVHeads,         // 32
-			modelArgs.HeadDim,           // 128
+			inferenceArgs.SequenceLength, // specified argument value (default 4096)
+			modelArgs.N_KVHeads,          // 32
+			modelArgs.HeadDim,            // 128
 		}, ml.DT_BF16)
 	}
 
