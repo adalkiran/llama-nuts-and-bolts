@@ -54,16 +54,18 @@ func (ie *InferenceEngine) TokenToString(tokenId model.TokenId) (sentencepiece.S
 	return sentencepiece.SentencePiece{PieceType: sentencepiece.UNKNOWN}, ""
 }
 
-func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) string {
-	result := ""
+func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) ([]sentencepiece.SentencePiece, string) {
+	resultTokens := make([]sentencepiece.SentencePiece, 0)
+	resultStr := ""
 	for _, tokenId := range tokenIdBatch {
 		if tokenId == ie.model.Vocabulary.PadId {
 			break
 		}
-		_, tokenStr := ie.TokenToString(tokenId)
-		result += tokenStr
+		token, tokenStr := ie.TokenToString(tokenId)
+		resultTokens = append(resultTokens, token)
+		resultStr += tokenStr
 	}
-	return result
+	return resultTokens, resultStr
 }
 
 func separatePieces(text string, vocabulary *model.Vocabulary) []model.TokenId {

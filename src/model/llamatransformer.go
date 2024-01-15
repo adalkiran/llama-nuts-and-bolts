@@ -146,7 +146,7 @@ func (lt *LlamaTransformer) Forward(infContext *InferenceContext, inputTokens *m
 		if currentTensor, err = layer.Forward(infContext, currentTensor, startPos, freqsCis, mask); err != nil {
 			return nil, err
 		}
-		infContext.Logf("Transformer block layer: %d / %d was run, took %.4f sec(s)", layerIdx, len(lt.Layers), time.Since(startTime).Seconds())
+		infContext.Logf("Transformer block layer: %d / %d were run, took %.4f sec(s)", layerIdx+1, len(lt.Layers), time.Since(startTime).Seconds())
 	}
 	if currentTensor, err = lt.output_norm.Forward(infContext, currentTensor); err != nil {
 		return nil, err
