@@ -596,9 +596,8 @@ func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = freqs.Apply(func(val any) any {
-		f16val := val.(dtype.BFloat16)
-		return dtype.BFloat16fromFloat32(float32(1.0 / math.Pow(theta, float64(f16val.Float32()/dimFloat))))
+	err = freqs.Apply_AsFloat32(func(val float32) float32 {
+		return float32(1.0 / math.Pow(theta, float64(val/dimFloat)))
 	})
 	if err != nil {
 		return nil, err

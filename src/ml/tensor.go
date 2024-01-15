@@ -236,6 +236,20 @@ func (t *Tensor) GetItemByOffset(offset int) any {
 	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
 }
 
+func (t *Tensor) GetItemByOffset_AsFloat32(offset int) (float32, error) {
+	switch t.DataType {
+	case DT_BF16:
+		return dtype.ReadBFloat16LittleEndian(t.RawData[offset:]).Float32(), nil
+	case DT_UINT16:
+		return float32(binary.LittleEndian.Uint16(t.RawData[offset:])), nil
+	case DT_INT32:
+		return float32(int32(binary.LittleEndian.Uint32(t.RawData[offset:]))), nil
+	case DT_F32:
+		return math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset:])), nil
+	}
+	return 0, fmt.Errorf("unsupported tensor datatype %s", t.DataType)
+}
+
 func (t *Tensor) GetItemByOffset_BF16(offset int) dtype.BFloat16 {
 	return dtype.ReadBFloat16LittleEndian(t.RawData[offset:])
 }
@@ -290,6 +304,25 @@ func (t *Tensor) SetItemByOffset(offset int, val any) error {
 	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
 }
 
+func (t *Tensor) SetItemByOffset_FromFloat32(offset int, val float32) error {
+	switch t.DataType {
+	case DT_BF16:
+		dtype.WriteBFloat16LittleEndian(t.RawData[offset:], dtype.BFloat16fromFloat32(val))
+		return nil
+	case DT_UINT16:
+		binary.LittleEndian.PutUint16(t.RawData[offset:], uint16(val))
+		return nil
+	case DT_INT32:
+		binary.LittleEndian.PutUint32(t.RawData[offset:], uint32(int32(val)))
+		return nil
+
+	case DT_F32:
+		binary.LittleEndian.PutUint32(t.RawData[offset:], math.Float32bits(val))
+		return nil
+	}
+	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
+}
+
 func (t *Tensor) SetItemByOffset_BF16(offset int, val dtype.BFloat16) error {
 	dtype.WriteBFloat16LittleEndian(t.RawData[offset:], val)
 	return nil
@@ -298,6 +331,16 @@ func (t *Tensor) SetItemByOffset_BF16(offset int, val dtype.BFloat16) error {
 func (t *Tensor) SetItemByOffset_F32(offset int, val float32) error {
 	binary.LittleEndian.PutUint32(t.RawData[offset:], math.Float32bits(val))
 	return nil
+}
+
+func (t *Tensor) GetItem_AsFloat32(loc []int) (float32, error) {
+	offset := t.calculateByteOffset(loc)
+	return t.GetItemByOffset_AsFloat32(offset)
+}
+
+func (t *Tensor) SetItem_FromFloat32(loc []int, val float32) error {
+	offset := t.calculateByteOffset(loc)
+	return t.SetItemByOffset_FromFloat32(offset, val)
 }
 
 func (t *Tensor) Item() any {
@@ -312,6 +355,20 @@ func (t *Tensor) Apply(fn func(val any) any) error {
 			return fmt.Errorf("nil cannot be assigned as a tensor item but Apply function returned nil")
 		}
 		if err := t.SetItemByOffset(offset, val); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *Tensor) Apply_AsFloat32(fn func(val float32) float32) error {
+	for offset := 0; offset < len(t.RawData); offset += t.DataType.ItemSize() {
+		val, err := t.GetItemByOffset_AsFloat32(offset)
+		if err != nil {
+			return err
+		}
+		val = fn(val)
+		if err := t.SetItemByOffset_FromFloat32(offset, val); err != nil {
 			return err
 		}
 	}

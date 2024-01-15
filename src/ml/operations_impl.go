@@ -16,16 +16,7 @@ func ARange(start int, end int, step int, dataType DataType) (*Tensor, error) {
 	result := NewEmptyTensor([]int{int(math.Ceil(float64(end-start) / float64(step)))}, dataType)
 	i := 0
 	for val := start; val < end; val += step {
-		var valConv any
-		switch result.DataType {
-		case DT_BF16:
-			valConv = dtype.BFloat16fromFloat32(float32(val))
-		case DT_F32:
-			valConv = float32(val)
-		default:
-			return nil, fmt.Errorf("unsupported tensor datatype %s", result.DataType)
-		}
-		if err := result.SetItem([]int{i}, valConv); err != nil {
+		if err := result.SetItem_FromFloat32([]int{i}, float32(val)); err != nil {
 			return nil, err
 		}
 		i++
@@ -44,19 +35,19 @@ func Outer(vec1 *Tensor, vec2 *Tensor) (*Tensor, error) {
 	itemSize := vec1.DataType.ItemSize()
 	result := NewEmptyTensor([]int{vec1.Size[0], vec2.Size[0]}, vec1.DataType)
 	for i := 0; i < vec1.Size[0]; i++ {
-		rowVal := vec1.GetItemByOffset(i * itemSize)
-		switch result.DataType {
-		case DT_BF16:
-			row := rowVal.(dtype.BFloat16)
-			for j := 0; j < vec2.Size[0]; j++ {
-				col := vec2.GetItemByOffset(j * itemSize).(dtype.BFloat16)
-				val := dtype.BFloat16fromFloat32(row.Float32() * col.Float32())
-				if err := result.SetItem([]int{i, j}, val); err != nil {
-					return nil, err
-				}
+		rowValF32, err := vec1.GetItemByOffset_AsFloat32(i * itemSize)
+		if err != nil {
+			return nil, err
+		}
+		for j := 0; j < vec2.Size[0]; j++ {
+			colValF32, err := vec2.GetItemByOffset_AsFloat32(j * itemSize)
+			if err != nil {
+				return nil, err
 			}
-		default:
-			return nil, fmt.Errorf("unsupported tensor datatype %s", result.DataType)
+			valF32 := rowValF32 * colValF32
+			if err := result.SetItem_FromFloat32([]int{i, j}, valF32); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return result, nil
@@ -120,36 +111,31 @@ func Polar(abs *Tensor, angle *Tensor) (*Tensor, error) {
 	}
 
 	dst := NewEmptyTensor(abs.Size, DT_COMPLEX)
-	for i := 0; i < dst.Size[0]; i++ {
-		for j := 0; j < dst.Size[1]; j++ {
-			absItem, err := abs.GetItem([]int{i, j})
-			if err != nil {
-				return nil, err
-			}
-			angleItem, err := angle.GetItem([]int{i, j})
-			if err != nil {
-				return nil, err
-			}
-			var absItemConv float64
-			var angleItemConv float64
-			switch abs.DataType {
-			case DT_BF16:
-				absItemConv = absItem.(dtype.BFloat16).Float64()
-				angleItemConv = angleItem.(dtype.BFloat16).Float64()
-			case DT_F32:
-				absItemConv = float64(absItem.(float32))
-				angleItemConv = float64(angleItem.(float32))
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", abs.DataType)
-			}
 
-			realPart := absItemConv * math.Cos(angleItemConv)
-			imagPart := absItemConv * math.Sin(angleItemConv)
-			resultItem := complex64(complex(realPart, imagPart))
-			if err := dst.SetItem([]int{i, j}, resultItem); err != nil {
-				return nil, err
-			}
+	absItemSize := abs.DataType.ItemSize()
+	dstItemSize := dst.DataType.ItemSize()
+
+	writeOffset := 0
+	for readOffset := 0; readOffset < abs.GetBytesCount(); readOffset += absItemSize {
+		absItemF32, err := abs.GetItemByOffset_AsFloat32(readOffset)
+		if err != nil {
+			return nil, err
 		}
+		angleItemF32, err := angle.GetItemByOffset_AsFloat32(readOffset)
+		if err != nil {
+			return nil, err
+		}
+
+		absItemF64 := float64(absItemF32)
+		angleItemF64 := float64(angleItemF32)
+
+		realPart := absItemF64 * math.Cos(angleItemF64)
+		imagPart := absItemF64 * math.Sin(angleItemF64)
+		resultItem := complex64(complex(realPart, imagPart))
+		if err := dst.SetItemByOffset(writeOffset, resultItem); err != nil {
+			return nil, err
+		}
+		writeOffset += dstItemSize
 	}
 	return dst, nil
 }
@@ -216,28 +202,17 @@ func Pow(input *Tensor, power float64) (*Tensor, error) {
 		dstDataType = DT_F32
 	}
 	inputItemSize := input.DataType.ItemSize()
+	dstItemSize := dstDataType.ItemSize()
 
 	dst := NewEmptyTensor(input.Size, dstDataType)
 	writeOffset := 0
 	for readOffset := 0; readOffset < input.GetBytesCount(); readOffset += inputItemSize {
-		item := input.GetItemByOffset(readOffset)
-		switch input.DataType {
-		case DT_BF16:
-			item := item.(dtype.BFloat16)
-			resultItem := float32(math.Pow(item.Float64(), power))
-			if err := dst.SetItemByOffset(writeOffset, resultItem); err != nil {
-				return nil, err
-			}
-		case DT_F32:
-			item := item.(float32)
-			resultItem := float32(math.Pow(float64(item), power))
-			if err := dst.SetItemByOffset(writeOffset, resultItem); err != nil {
-				return nil, err
-			}
-		default:
-			return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+		itemF32, err := input.GetItemByOffset_AsFloat32(readOffset)
+		if err != nil {
+			return nil, err
 		}
-		writeOffset += dstDataType.ItemSize()
+		dst.SetItemByOffset_FromFloat32(writeOffset, float32(math.Pow(float64(itemF32), power)))
+		writeOffset += dstItemSize
 	}
 	return dst, nil
 }
@@ -263,28 +238,14 @@ func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
 	for readGroupOffset := 0; readGroupOffset < input.GetBytesCount(); readGroupOffset += inputStride {
 		groupSum := float32(0)
 		for groupItemIdx := 0; groupItemIdx < inputLastSize; groupItemIdx++ {
-			var itemF32 float32
-			item := input.GetItemByOffset(readGroupOffset + groupItemIdx*itemSize)
-			switch input.DataType {
-			case DT_BF16:
-				itemF32 = item.(dtype.BFloat16).Float32()
-			case DT_F32:
-				itemF32 = item.(float32)
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+			itemF32, err := input.GetItemByOffset_AsFloat32(readGroupOffset + groupItemIdx*itemSize)
+			if err != nil {
+				return nil, err
 			}
 			groupSum += itemF32
 		}
 		groupMeanF32 := groupSum / float32(inputLastSize)
-		var groupMean any
-		switch input.DataType {
-		case DT_BF16:
-			groupMean = dtype.BFloat16fromFloat32(groupMeanF32)
-		case DT_F32:
-			groupMean = groupMeanF32
-		}
-
-		if err := dst.SetItemByOffset(dstOffset, groupMean); err != nil {
+		if err := dst.SetItemByOffset_FromFloat32(dstOffset, groupMeanF32); err != nil {
 			return nil, err
 		}
 		dstOffset += itemSize
@@ -293,29 +254,26 @@ func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
 }
 
 func AddScalar(input *Tensor, scalar any) (*Tensor, error) {
+	var scalarF32 float32
 	switch input.DataType {
 	case DT_BF16:
-		if _, ok := scalar.(dtype.BFloat16); !ok {
+		scalarVal, ok := scalar.(dtype.BFloat16)
+		if !ok {
 			return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "BFloat16", scalar, reflect.TypeOf(scalar))
 		}
+		scalarF32 = scalarVal.Float32()
 	case DT_F32:
-		if _, ok := scalar.(float32); !ok {
+		scalarVal, ok := scalar.(float32)
+		if !ok {
 			return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "float32", scalar, reflect.TypeOf(scalar))
 		}
+		scalarF32 = scalarVal
 	default:
 		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
 	}
 	dst := DuplicateTensor(input)
-	if err := dst.Apply(func(val any) any {
-		switch scalar := scalar.(type) {
-		case dtype.BFloat16:
-			val := val.(dtype.BFloat16)
-			return val + scalar
-		case float32:
-			val := val.(float32)
-			return val + scalar
-		}
-		return nil
+	if err := dst.Apply_AsFloat32(func(val float32) float32 {
+		return val + scalarF32
 	}); err != nil {
 		return nil, err
 	}
@@ -323,39 +281,32 @@ func AddScalar(input *Tensor, scalar any) (*Tensor, error) {
 }
 
 func DivToScalar(input *Tensor, scalar any) (*Tensor, error) {
+	var scalarF32 float32
 	switch input.DataType {
 	case DT_BF16:
-		if _, ok := scalar.(dtype.BFloat16); !ok {
-			if _, ok := scalar.(float32); !ok {
+		scalarVal, ok := scalar.(dtype.BFloat16)
+		if !ok {
+			scalarVal, ok := scalar.(float32)
+			if !ok {
 				return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "BFloat16 or float32", scalar, reflect.TypeOf(scalar))
 			}
+			scalarF32 = scalarVal
+		} else {
+			scalarF32 = scalarVal.Float32()
 		}
+
 	case DT_F32:
-		if _, ok := scalar.(float32); !ok {
+		scalarVal, ok := scalar.(float32)
+		if !ok {
 			return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "float32", scalar, reflect.TypeOf(scalar))
 		}
+		scalarF32 = scalarVal
 	default:
 		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
 	}
 	dst := DuplicateTensor(input)
-	var scalarF32 float32
-	switch scalar := scalar.(type) {
-	case dtype.BFloat16:
-		scalarF32 = scalar.Float32()
-	case float32:
-		scalarF32 = scalar
-	default:
-		return nil, fmt.Errorf("incompatible tensor datatype %s and scalar type %v", input.DataType, reflect.TypeOf(scalar))
-	}
-	if err := dst.Apply(func(val any) any {
-		switch val := val.(type) {
-		case dtype.BFloat16:
-			valF32 := val.Float32()
-			return dtype.BFloat16fromFloat32(valF32 / scalarF32)
-		case float32:
-			return val / scalarF32
-		}
-		return nil
+	if err := dst.Apply_AsFloat32(func(val float32) float32 {
+		return val / scalarF32
 	}); err != nil {
 		return nil, err
 	}
@@ -373,14 +324,8 @@ func RSqrt(input *Tensor) (*Tensor, error) {
 	}
 
 	dst := DuplicateTensor(input)
-	if err := dst.Apply(func(val any) any {
-		switch val := val.(type) {
-		case dtype.BFloat16:
-			return dtype.BFloat16fromFloat32(float32(float64(1) / math.Sqrt(val.Float64())))
-		case float32:
-			return float32(float64(1) / math.Sqrt(float64(val)))
-		}
-		return nil
+	if err := dst.Apply_AsFloat32(func(val float32) float32 {
+		return float32(float64(1) / math.Sqrt(float64(val)))
 	}); err != nil {
 		return nil, err
 	}
@@ -399,48 +344,20 @@ func Add(input *Tensor, other *Tensor) (*Tensor, error) {
 			if err != nil {
 				return nil, err
 			}
-			val1, err := refTensor.GetItem(loc1)
+
+			val1F32, err := refTensor.GetItem_AsFloat32(loc1)
 			if err != nil {
 				return nil, err
 			}
-			val2, err := expandingTensor.GetItem(loc2)
+
+			val2F32, err := expandingTensor.GetItem_AsFloat32(loc2)
 			if err != nil {
 				return nil, err
 			}
 
-			var val1F32 float32
-			var val2F32 float32
-
-			switch refTensor.DataType {
-			case DT_BF16:
-				val1F32 = float32(val1.(dtype.BFloat16).Float32())
-			case DT_F32:
-				val1F32 = val1.(float32)
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", refTensor.DataType)
-			}
-
-			switch expandingTensor.DataType {
-			case DT_BF16:
-				val2F32 = float32(val2.(dtype.BFloat16).Float32())
-			case DT_F32:
-				val2F32 = val2.(float32)
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", expandingTensor.DataType)
-			}
 			resultValF32 := val1F32 + val2F32
 
-			var resultVal any
-			switch dst.DataType {
-			case DT_BF16:
-				resultVal = dtype.BFloat16fromFloat32(resultValF32)
-			case DT_F32:
-				resultVal = resultValF32
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
-			}
-
-			if err := dst.SetItem(loc1, resultVal); err != nil {
+			if err := dst.SetItem_FromFloat32(loc1, resultValF32); err != nil {
 				return nil, err
 			}
 		}
@@ -487,48 +404,20 @@ func MultiplyElementwise(input *Tensor, other *Tensor) (*Tensor, error) {
 			if err != nil {
 				return nil, err
 			}
-			val1, err := refTensor.GetItem(loc1)
+
+			val1F32, err := refTensor.GetItem_AsFloat32(loc1)
 			if err != nil {
 				return nil, err
 			}
-			val2, err := expandingTensor.GetItem(loc2)
+
+			val2F32, err := expandingTensor.GetItem_AsFloat32(loc2)
 			if err != nil {
 				return nil, err
 			}
 
-			var val1F32 float32
-			var val2F32 float32
-
-			switch refTensor.DataType {
-			case DT_BF16:
-				val1F32 = float32(val1.(dtype.BFloat16).Float32())
-			case DT_F32:
-				val1F32 = val1.(float32)
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", refTensor.DataType)
-			}
-
-			switch expandingTensor.DataType {
-			case DT_BF16:
-				val2F32 = float32(val2.(dtype.BFloat16).Float32())
-			case DT_F32:
-				val2F32 = val2.(float32)
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", expandingTensor.DataType)
-			}
 			resultValF32 := val1F32 * val2F32
 
-			var resultVal any
-			switch dst.DataType {
-			case DT_BF16:
-				resultVal = dtype.BFloat16fromFloat32(resultValF32)
-			case DT_F32:
-				resultVal = resultValF32
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", dst.DataType)
-			}
-
-			if err := dst.SetItem(loc1, resultVal); err != nil {
+			if err := dst.SetItem_FromFloat32(loc1, resultValF32); err != nil {
 				return nil, err
 			}
 		}
@@ -765,10 +654,10 @@ func Softmax(input *Tensor, dim int) (*Tensor, error) {
 			switch item := item.(type) {
 			case dtype.BFloat16:
 				dstVal := dtype.BFloat16fromFloat32(float32(math.Exp(item.Float64()) / rowExpSum))
-				dst.SetItemByOffset(offset, dstVal)
+				dst.SetItemByOffset_BF16(offset, dstVal)
 			case float32:
 				dstVal := float32(math.Exp(float64(item)) / rowExpSum)
-				dst.SetItemByOffset(offset, dstVal)
+				dst.SetItemByOffset_F32(offset, dstVal)
 			default:
 				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
 			}
@@ -798,15 +687,9 @@ func Argmax(input *Tensor, dim int) (*Tensor, error) {
 		idx := -1
 		for offset := readOffsetStart; offset < readOffsetEnd; offset += inputItemSize {
 			idx++
-			item := input.GetItemByOffset(offset)
-			var itemF32 float32
-			switch item := item.(type) {
-			case dtype.BFloat16:
-				itemF32 = item.Float32()
-			case float32:
-				itemF32 = item
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+			itemF32, err := input.GetItemByOffset_AsFloat32(offset)
+			if err != nil {
+				return nil, err
 			}
 			if maxValue < itemF32 {
 				maxValue = itemF32
