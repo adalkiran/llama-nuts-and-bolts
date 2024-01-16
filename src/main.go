@@ -28,7 +28,7 @@ func main() {
 	appState.literalProgressText = fmt.Sprintf("Loading model \"%s\"...", modelFilePath)
 	appState.updateOutput()
 
-	prompt := "You are Einstein. Describe your theory. "
+	prompt := "Can you explain what is Theory of relativity, shortly?"
 	if isChatModel {
 		prompt = fmt.Sprintf("%s %s %s", B_INST, strings.TrimSpace(prompt), E_INST)
 	}
@@ -48,7 +48,7 @@ func main() {
 
 	inferenceArgs := common.NewInferenceArgs()
 	inferenceArgs.Seed = 1234
-	inferenceArgs.SequenceLength = 100
+	inferenceArgs.SequenceLength = 200
 
 	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn)
 
@@ -147,7 +147,7 @@ func (as AppState) generateProgressText() string {
 	if len(as.generatedTokens) == 0 {
 		latestGeneratedTokenStr = "(generating)"
 	} else {
-		latestGeneratedTokenStr = as.generatedTokens[0].String()
+		latestGeneratedTokenStr = as.generatedTokens[len(as.generatedTokens)-1].String()
 	}
 	nextTokenNum := len(as.promptTokens) + len(as.generatedTokens)
 	if nextTokenNum < as.sequenceLength {
