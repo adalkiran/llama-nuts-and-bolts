@@ -50,7 +50,7 @@ type TorchStorage struct {
 
 func (ts *TorchStorage) Load(memoryMapper *common.MemoryMapper, elmCount int) error {
 	offset := int(ts.storageOffset)
-	size := elmCount * ts.kind.dataType.ItemSize()
+	size := elmCount * ts.kind.dataType.ItemSize
 	ts.rawData = memoryMapper.Data[offset : offset+size]
 	return nil
 }

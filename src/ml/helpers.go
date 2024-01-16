@@ -18,14 +18,14 @@ func checkIsVector(t *Tensor) error {
 	if t.IsVector() {
 		return nil
 	}
-	return fmt.Errorf("tensor \"%s\" with shape %v is not a vector", t.Name, t.GetShape())
+	return fmt.Errorf("tensor \"%s\" with shape %v is not a vector", t.Name, t.Size)
 }
 
 func checkIsMatrix(t *Tensor) error {
 	if t.IsMatrix() {
 		return nil
 	}
-	return fmt.Errorf("tensor \"%s\" with shape %v is not a matrix", t.Name, t.GetShape())
+	return fmt.Errorf("tensor \"%s\" with shape %v is not a matrix", t.Name, t.Size)
 }
 
 func checkSameDataType(a *Tensor, b *Tensor) error {

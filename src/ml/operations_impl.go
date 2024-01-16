@@ -32,7 +32,7 @@ func Outer(vec1 *Tensor, vec2 *Tensor) (*Tensor, error) {
 	); err != nil {
 		return nil, err
 	}
-	itemSize := vec1.DataType.ItemSize()
+	itemSize := vec1.DataType.ItemSize
 	result := NewEmptyTensor([]int{vec1.Size[0], vec2.Size[0]}, vec1.DataType)
 	for i := 0; i < vec1.Size[0]; i++ {
 		rowValF32, err := vec1.GetItemByOffset_AsFloat32(i * itemSize)
@@ -112,8 +112,8 @@ func Polar(abs *Tensor, angle *Tensor) (*Tensor, error) {
 
 	dst := NewEmptyTensor(abs.Size, DT_COMPLEX)
 
-	absItemSize := abs.DataType.ItemSize()
-	dstItemSize := dst.DataType.ItemSize()
+	absItemSize := abs.DataType.ItemSize
+	dstItemSize := dst.DataType.ItemSize
 
 	writeOffset := 0
 	for readOffset := 0; readOffset < abs.GetBytesCount(); readOffset += absItemSize {
@@ -201,8 +201,8 @@ func Pow(input *Tensor, power float64) (*Tensor, error) {
 	case DT_BF16:
 		dstDataType = DT_F32
 	}
-	inputItemSize := input.DataType.ItemSize()
-	dstItemSize := dstDataType.ItemSize()
+	inputItemSize := input.DataType.ItemSize
+	dstItemSize := dstDataType.ItemSize
 
 	dst := NewEmptyTensor(input.Size, dstDataType)
 	writeOffset := 0
@@ -229,7 +229,7 @@ func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
 	} else {
 		dstSize = dstSize[:len(dstSize)-1]
 	}
-	itemSize := input.DataType.ItemSize()
+	itemSize := input.DataType.ItemSize
 	dst := NewEmptyTensor(dstSize, input.DataType)
 	inputLastSize := input.Size[len(input.Size)-1]
 	inputStride := inputLastSize * itemSize
@@ -492,8 +492,8 @@ func matMul_BF16(input *Tensor, other *Tensor) (*Tensor, error) {
 	inputSizeFirstPart := input.Size[0 : len(input.Size)-2]
 	dstF32 := NewEmptyTensor(append(append([]int{}, inputSizeFirstPart...), inputRowsSize, otherColsSize), DT_F32)
 
-	inputItemSize := input.DataType.ItemSize()
-	dstItemSize := dstF32.DataType.ItemSize()
+	inputItemSize := input.DataType.ItemSize
+	dstItemSize := dstF32.DataType.ItemSize
 
 	for iteratorFirstPart := IterateOverSize(inputSizeFirstPart, 0); iteratorFirstPart.HasNext(); {
 		locFirstPart := iteratorFirstPart.Next()
@@ -546,8 +546,8 @@ func matMul_F32(input *Tensor, other *Tensor) (*Tensor, error) {
 	inputSizeFirstPart := input.Size[0 : len(input.Size)-2]
 	dstF32 := NewEmptyTensor(append(append([]int{}, inputSizeFirstPart...), inputRowsSize, otherColsSize), DT_F32)
 
-	inputItemSize := input.DataType.ItemSize()
-	dstItemSize := dstF32.DataType.ItemSize()
+	inputItemSize := input.DataType.ItemSize
+	dstItemSize := dstF32.DataType.ItemSize
 
 	for iteratorFirstPart := IterateOverSize(inputSizeFirstPart, 0); iteratorFirstPart.HasNext(); {
 		locFirstPart := iteratorFirstPart.Next()
@@ -629,7 +629,7 @@ func Softmax(input *Tensor, dim int) (*Tensor, error) {
 	}
 	dst := NewEmptyTensorLike(input, true)
 	inputSizeFirstPart := input.Size[0 : len(input.Size)-1]
-	inputItemSize := input.DataType.ItemSize()
+	inputItemSize := input.DataType.ItemSize
 	blockSize := input.Size[dim] * inputItemSize
 	for iteratorFirstPart := IterateOverSize(inputSizeFirstPart, 0); iteratorFirstPart.HasNext(); {
 		locFirstPart := append(iteratorFirstPart.Next(), 0)
@@ -674,7 +674,7 @@ func Argmax(input *Tensor, dim int) (*Tensor, error) {
 	dstSize := make([]int, len(input.Size)-1)
 	copy(dstSize, input.Size[0:len(input.Size)-1])
 	dst := NewEmptyTensor(dstSize, DT_INT32)
-	inputItemSize := input.DataType.ItemSize()
+	inputItemSize := input.DataType.ItemSize
 	blockSize := input.Size[dim] * inputItemSize
 	for iteratorDst := IterateOver(dst, 0); iteratorDst.HasNext(); {
 		locDst := iteratorDst.Next()

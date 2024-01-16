@@ -41,7 +41,7 @@ func linearTransformation_BF16_wOut(wg *sync.WaitGroup, ctx context.Context, inp
 	if ctx.Err() != nil {
 		return
 	}
-	inputItemSize := DT_BF16.ItemSize()
+	inputItemSize := DT_BF16.ItemSize
 	valDstF32 := float32(0)
 	for wInIdx := 0; wInIdx < weightsInputSize; wInIdx++ {
 		// Goal in Python manner: dst[rowIdx][wOutIdx] += input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
@@ -76,7 +76,7 @@ func linearTransformation_F32_wOut(wg *sync.WaitGroup, ctx context.Context, inpu
 	if ctx.Err() != nil {
 		return
 	}
-	inputItemSize := DT_F32.ItemSize()
+	inputItemSize := DT_F32.ItemSize
 	valDstF32 := float32(0)
 	for wInIdx := 0; wInIdx < weightsInputSize; wInIdx++ {
 		// Goal in Python manner: dst[rowIdx][wOutIdx] += input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
@@ -112,7 +112,7 @@ func linearTransformation_General_row(wg *sync.WaitGroup, ctx context.Context, i
 
 	wgRow := &sync.WaitGroup{}
 	dstValRowChan := make(chan DstVal, weightsOutputSize)
-	dstItemSize := DT_F32.ItemSize()
+	dstItemSize := DT_F32.ItemSize
 	dstRawLocal := make([]byte, weightsOutputSize*dstItemSize)
 	dstRawLocalPtr := unsafe.Pointer(&dstRawLocal[0])
 	for wOutIdx := 0; wOutIdx < weightsOutputSize; wOutIdx++ {

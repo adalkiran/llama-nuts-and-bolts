@@ -26,7 +26,7 @@ func _silu(x float64) float32 {
 
 func Silu(input *Tensor) (*Tensor, error) {
 	// See: https://pytorch.org/docs/stable/generated/torch.nn.SiLU.html
-	inputItemSize := input.DataType.ItemSize()
+	inputItemSize := input.DataType.ItemSize
 
 	dst := NewEmptyTensor(input.Size, input.DataType)
 	writeOffset := 0

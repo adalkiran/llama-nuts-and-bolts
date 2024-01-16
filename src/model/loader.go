@@ -107,7 +107,7 @@ func printMeta(model *Model) {
 	fmt.Print("=================================\n")
 	for i, tensorName := range model.Tensors.GetKeys() {
 		tensor, _ := model.Tensors.Get(tensorName)
-		fmt.Printf("Tensor %4d: %-48s | %-6s | %v\n", i, tensorName, tensor.DataType.GetName(), tensor.GetShape())
+		fmt.Printf("Tensor %4d: %-48s | %-6s | %v\n", i, tensorName, tensor.DataType.Name, tensor.Size)
 	}
 
 	fmt.Print("\nModel Metadata:\n")
@@ -173,8 +173,8 @@ func getTensor(model *Model, name string, expectedShape []int) (*ml.Tensor, erro
 	if !ok {
 		return nil, fmt.Errorf("tensor \"%s\" not found", name)
 	}
-	if fmt.Sprintf("%v", result.GetShape()) != fmt.Sprintf("%v", expectedShape) {
-		return nil, fmt.Errorf("tensor \"%s\" has incorrect shape; expected %v, got %v", name, expectedShape, result.GetShape())
+	if fmt.Sprintf("%v", result.Size) != fmt.Sprintf("%v", expectedShape) {
+		return nil, fmt.Errorf("tensor \"%s\" has incorrect shape; expected %v, got %v", name, expectedShape, result.Size)
 	}
 	return result, nil
 }

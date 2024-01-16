@@ -13,31 +13,31 @@ import (
 
 // See: https://github.com/ggerganov/llama.cpp/blob/master/convert.py
 
-type UnquantizedDataType = DataType
-
 var (
-	DT_BF16    = UnquantizedDataType{"BF16", reflect.TypeOf(dtype.BFloat16(0))}
-	DT_F32     = DataType{"Float32", reflect.TypeOf(float32(0))}
-	DT_UINT16  = DataType{"UInt16", reflect.TypeOf(uint16(0))}
-	DT_INT32   = DataType{"Int32", reflect.TypeOf(int32(0))}
-	DT_COMPLEX = DataType{"Complex", reflect.TypeOf(complex64(complex(0.0, 0.0)))}
+	DT_BF16    = newDataType("BF16", dtype.BFloat16(0))
+	DT_F32     = newDataType("Float32", float32(0))
+	DT_UINT16  = newDataType("UInt16", uint16(0))
+	DT_INT32   = newDataType("Int32", int32(0))
+	DT_COMPLEX = newDataType("Complex", complex64(complex(0.0, 0.0)))
 )
 
 type DataType struct {
-	name     string
-	dataType reflect.Type
+	Name     string
+	GoType   reflect.Type
+	ItemSize int
 }
 
-func (dt DataType) ItemSize() int {
-	return int(dt.dataType.Size())
-}
-
-func (dt DataType) GetName() string {
-	return dt.name
+func newDataType(name string, itemSample any) DataType {
+	result := DataType{
+		Name:   name,
+		GoType: reflect.TypeOf(itemSample),
+	}
+	result.ItemSize = int(result.GoType.Size())
+	return result
 }
 
 func (dt DataType) String() string {
-	return dt.name
+	return dt.Name
 }
 
 type Tensor struct {
@@ -88,20 +88,16 @@ func DuplicateTensor(input *Tensor) *Tensor {
 	return dst
 }
 
-func (t *Tensor) GetShape() []int {
-	return t.Size
-}
-
 func (t *Tensor) GetElementCount() int {
 	result := 1
-	for _, shapeItem := range t.GetShape() {
+	for _, shapeItem := range t.Size {
 		result = result * shapeItem
 	}
 	return result
 }
 
 func (t *Tensor) GetBytesCount() int {
-	return t.GetElementCount() * t.DataType.ItemSize()
+	return t.GetElementCount() * t.DataType.ItemSize
 }
 
 func (t *Tensor) String() string {
@@ -109,11 +105,11 @@ func (t *Tensor) String() string {
 	if len(t.Size) == 1 {
 		shorten = false
 	}
-	return fmt.Sprintf("[Tensor \"%s\"](%s, shape=%v, dtype=%s)", t.Name, t.dimensionToString([]int{}, shorten), t.Size, t.DataType.name)
+	return fmt.Sprintf("[Tensor \"%s\"](%s, shape=%v, dtype=%s)", t.Name, t.dimensionToString([]int{}, shorten), t.Size, t.DataType.Name)
 }
 
 func (t *Tensor) StringLong() string {
-	return fmt.Sprintf("[Tensor \"%s\"](%s, shape=%v, dtype=%s)", t.Name, t.dimensionToString([]int{}, false), t.Size, t.DataType.name)
+	return fmt.Sprintf("[Tensor \"%s\"](%s, shape=%v, dtype=%s)", t.Name, t.dimensionToString([]int{}, false), t.Size, t.DataType.Name)
 }
 
 func (t *Tensor) dimensionToString(loc []int, shorten bool) string {
@@ -348,7 +344,7 @@ func (t *Tensor) Item() any {
 }
 
 func (t *Tensor) Apply(fn func(val any) any) error {
-	for offset := 0; offset < len(t.RawData); offset += t.DataType.ItemSize() {
+	for offset := 0; offset < len(t.RawData); offset += t.DataType.ItemSize {
 		val := t.GetItemByOffset(offset)
 		val = fn(val)
 		if val == nil {
@@ -362,7 +358,7 @@ func (t *Tensor) Apply(fn func(val any) any) error {
 }
 
 func (t *Tensor) Apply_AsFloat32(fn func(val float32) float32) error {
-	for offset := 0; offset < len(t.RawData); offset += t.DataType.ItemSize() {
+	for offset := 0; offset < len(t.RawData); offset += t.DataType.ItemSize {
 		val, err := t.GetItemByOffset_AsFloat32(offset)
 		if err != nil {
 			return err
@@ -389,7 +385,7 @@ func calculateByteStride(size []int, dataType DataType) []int {
 	}
 	result := make([]int, len(size))
 
-	result[len(size)-1] = dataType.ItemSize()
+	result[len(size)-1] = dataType.ItemSize
 	for i := len(size) - 2; i >= 0; i-- {
 		result[i] = result[i+1] * size[i+1]
 	}
@@ -585,12 +581,12 @@ func (t *Tensor) ToBFloat16() (*Tensor, error) {
 	if t.DataType == DT_BF16 {
 		return t, nil
 	}
-	inputItemSize := t.DataType.ItemSize()
+	inputItemSize := t.DataType.ItemSize
 
 	switch t.DataType {
 	case DT_F32:
 		dst := NewEmptyTensorEx(t.Name, t.Size, DT_BF16, true)
-		dstItemSize := dst.DataType.ItemSize()
+		dstItemSize := dst.DataType.ItemSize
 
 		tPtr := unsafe.Pointer(&t.RawData[0])
 		dstPtr := unsafe.Pointer(&dst.RawData[0])
@@ -611,12 +607,12 @@ func (t *Tensor) ToFloat32() (*Tensor, error) {
 	if t.DataType == DT_F32 {
 		return t, nil
 	}
-	inputItemSize := t.DataType.ItemSize()
+	inputItemSize := t.DataType.ItemSize
 
 	switch t.DataType {
 	case DT_BF16:
 		dst := NewEmptyTensorEx(t.Name, t.Size, DT_F32, true)
-		dstItemSize := dst.DataType.ItemSize()
+		dstItemSize := dst.DataType.ItemSize
 
 		tPtr := unsafe.Pointer(&t.RawData[0])
 		dstPtr := unsafe.Pointer(&dst.RawData[0])
@@ -771,7 +767,7 @@ func (t *Tensor) Transpose(dim1 int, dim2 int) (*Tensor, error) {
 	for dimension := dim2 + 1; dimension < len(t.Size); dimension++ {
 		blockSize = blockSize * t.Size[dimension]
 	}
-	blockSize = blockSize * t.DataType.ItemSize()
+	blockSize = blockSize * t.DataType.ItemSize
 	for iteratorFirstPart := IterateOverSize(dst.Size[0:dim1], 0); iteratorFirstPart.HasNext(); {
 		locFirstPart := iteratorFirstPart.Next()
 		copy(tLoc, locFirstPart)
