@@ -11,22 +11,22 @@ import (
 )
 
 type DstVal struct {
-	offset int
-	val    float32
+	itemOffsetInRow int
+	val             float32
 }
 
 type DstRow struct {
-	offset int
-	val    []byte
+	rowOffset int
+	val       []byte
 }
 
-type linearTransformation_wOutFn = func(wg *sync.WaitGroup, ctx context.Context, inputPtr unsafe.Pointer, inputRowOffset int,
-	weightsPtr unsafe.Pointer, weightsWOutOffset int, weightsInputSize int,
-	dstItemOffset int, dstValChan chan<- DstVal)
+type linearTransformation_wOutFn = func(wg *sync.WaitGroup, ctx context.Context, inputRowPtr unsafe.Pointer,
+	weightsRowPtr unsafe.Pointer, weightsInputSize int,
+	dstItemOffsetInRow int, dstValInRowChan chan<- DstVal)
 
 func linearTransformation_ProcessRowChan(dstF32 *Tensor, dstRowChan <-chan DstRow) {
 	for dstRow := range dstRowChan {
-		copy(dstF32.RawData[dstRow.offset:], dstRow.val)
+		copy(dstF32.RawData[dstRow.rowOffset:], dstRow.val)
 	}
 }
 
@@ -34,9 +34,9 @@ func linearTransformation_ProcessRowChan(dstF32 *Tensor, dstRowChan <-chan DstRo
 	linearTransformation_BF16
 */
 
-func linearTransformation_BF16_wOut(wg *sync.WaitGroup, ctx context.Context, inputPtr unsafe.Pointer, inputRowOffset int,
-	weightsPtr unsafe.Pointer, weightsWOutOffset int, weightsInputSize int,
-	dstItemOffset int, dstValChan chan<- DstVal) {
+func linearTransformation_BF16_wOut(wg *sync.WaitGroup, ctx context.Context, inputRowPtr unsafe.Pointer,
+	weightsRowPtr unsafe.Pointer, weightsInputSize int,
+	dstItemOffsetInRow int, dstValInRowChan chan<- DstVal) {
 	defer wg.Done()
 
 	if ctx.Err() != nil {
@@ -50,12 +50,12 @@ func linearTransformation_BF16_wOut(wg *sync.WaitGroup, ctx context.Context, inp
 		// Getting input[rowIdx][wInIdx]
 		// location: {rowIdx, wInIdx}
 		//val1F32 := input.GetItemByOffset_BF16(inputRowOffset + wInIdx*inputItemSize).Float32()
-		val1F32 := dtype.BFloat16bitsToFloat32((*(*uint16)(unsafe.Add(inputPtr, inputRowOffset+wInIdx*inputItemSize))))
+		val1F32 := dtype.BFloat16bitsToFloat32((*(*uint16)(unsafe.Add(inputRowPtr, wInIdx*inputItemSize))))
 
 		// Getting weights[wOutIdx][wInIdx]
 		// location: {wOutIdx, wInIdx}
 		//val2F32 := weights.GetItemByOffset_BF16(weightsWOutOffset + wInIdx*inputItemSize).Float32()
-		val2F32 := dtype.BFloat16bitsToFloat32(*(*uint16)(unsafe.Add(weightsPtr, weightsWOutOffset+wInIdx*inputItemSize)))
+		val2F32 := dtype.BFloat16bitsToFloat32(*(*uint16)(unsafe.Add(weightsRowPtr, wInIdx*inputItemSize)))
 
 		//Calculating: input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
 		multiplicationValF32 := val1F32 * val2F32
@@ -63,15 +63,15 @@ func linearTransformation_BF16_wOut(wg *sync.WaitGroup, ctx context.Context, inp
 		//Calculating:  dst[rowIdx][wOutIdx] += multiplicationValF32
 		valDstF32 += multiplicationValF32
 	}
-	dstValChan <- DstVal{
-		offset: dstItemOffset,
-		val:    valDstF32,
+	dstValInRowChan <- DstVal{
+		itemOffsetInRow: dstItemOffsetInRow,
+		val:             valDstF32,
 	}
 }
 
-func linearTransformation_F32_wOut(wg *sync.WaitGroup, ctx context.Context, inputPtr unsafe.Pointer, inputRowOffset int,
-	weightsPtr unsafe.Pointer, weightsWOutOffset int, weightsInputSize int,
-	dstItemOffset int, dstValChan chan<- DstVal) {
+func linearTransformation_F32_wOut(wg *sync.WaitGroup, ctx context.Context, inputRowPtr unsafe.Pointer,
+	weightsRowPtr unsafe.Pointer, weightsInputSize int,
+	dstItemOffsetInRow int, dstValInRowChan chan<- DstVal) {
 	defer wg.Done()
 
 	if ctx.Err() != nil {
@@ -84,11 +84,11 @@ func linearTransformation_F32_wOut(wg *sync.WaitGroup, ctx context.Context, inpu
 
 		// Getting input[rowIdx][wInIdx]
 		// location: {rowIdx, wInIdx}
-		val1F32 := *(*float32)(unsafe.Add(inputPtr, inputRowOffset+wInIdx*inputItemSize))
+		val1F32 := *(*float32)(unsafe.Add(inputRowPtr, wInIdx*inputItemSize))
 
 		// Getting weights[wOutIdx][wInIdx]
 		// location: {wOutIdx, wInIdx}
-		val2F32 := *(*float32)(unsafe.Add(weightsPtr, weightsWOutOffset+wInIdx*inputItemSize))
+		val2F32 := *(*float32)(unsafe.Add(weightsRowPtr, wInIdx*inputItemSize))
 
 		//Calculating: input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
 		multiplicationValF32 := val1F32 * val2F32
@@ -96,13 +96,13 @@ func linearTransformation_F32_wOut(wg *sync.WaitGroup, ctx context.Context, inpu
 		//Calculating:  dst[rowIdx][wOutIdx] += multiplicationValF32
 		valDstF32 += multiplicationValF32
 	}
-	dstValChan <- DstVal{
-		offset: dstItemOffset,
-		val:    valDstF32,
+	dstValInRowChan <- DstVal{
+		itemOffsetInRow: dstItemOffsetInRow,
+		val:             valDstF32,
 	}
 }
 
-func linearTransformation_General_row(wg *sync.WaitGroup, ctx context.Context, inputPtr unsafe.Pointer, inputRowOffset int,
+func linearTransformation_General_row(wg *sync.WaitGroup, ctx context.Context, inputRowPtr unsafe.Pointer,
 	weightsPtr unsafe.Pointer, weightsRowStride int, weightsOutputSize int, weightsInputSize int,
 	dstRowOffset int, dstRowChan chan<- DstRow, wOutFn linearTransformation_wOutFn) {
 	defer wg.Done()
@@ -112,7 +112,7 @@ func linearTransformation_General_row(wg *sync.WaitGroup, ctx context.Context, i
 	}
 
 	wgRow := &sync.WaitGroup{}
-	dstValRowChan := make(chan DstVal, weightsOutputSize)
+	dstValInRowChan := make(chan DstVal, weightsOutputSize)
 	dstItemSize := DT_F32.ItemSize
 	dstRawLocal := make([]byte, weightsOutputSize*dstItemSize)
 	dstRawLocalPtr := unsafe.Pointer(&dstRawLocal[0])
@@ -122,21 +122,23 @@ func linearTransformation_General_row(wg *sync.WaitGroup, ctx context.Context, i
 		// location: {rowIdx, wOutIdx}
 		dstItemLocalOffset := wOutIdx * dstItemSize
 
+		weightsRowPtr := unsafe.Add(weightsPtr, weightsWOutOffset)
+
 		wgRow.Add(1)
-		go wOutFn(wgRow, ctx, inputPtr, inputRowOffset,
-			weightsPtr, weightsWOutOffset, weightsInputSize, dstItemLocalOffset, dstValRowChan)
+		go wOutFn(wgRow, ctx, inputRowPtr,
+			weightsRowPtr, weightsInputSize, dstItemLocalOffset, dstValInRowChan)
 	}
 
 	runtime.Gosched()
 	wgRow.Wait()
-	close(dstValRowChan)
+	close(dstValInRowChan)
 
-	for dstValRow := range dstValRowChan {
-		*(*float32)(unsafe.Add(dstRawLocalPtr, dstValRow.offset)) = dstValRow.val
+	for dstValInRow := range dstValInRowChan {
+		*(*float32)(unsafe.Add(dstRawLocalPtr, dstValInRow.itemOffsetInRow)) = dstValInRow.val
 	}
 	dstRowChan <- DstRow{
-		offset: dstRowOffset,
-		val:    dstRawLocal,
+		rowOffset: dstRowOffset,
+		val:       dstRawLocal,
 	}
 }
 
@@ -154,15 +156,18 @@ func linearTransformation_General(input *Tensor, weights *Tensor, wOutFn linearT
 
 	inputPtr := unsafe.Pointer(&input.RawData[0])
 	weightsPtr := unsafe.Pointer(&weights.RawData[0])
-	//dstF32Ptr := unsafe.Pointer(&dstF32.RawData[0])
 
 	inputRowStride := input.calculateByteOffset([]int{1, 0})
 	weightsRowStride := weights.calculateByteOffset([]int{1, 0})
 	dstRowStride := dstF32.calculateByteOffset([]int{1, 0})
 
-	dstRowChan := make(chan DstRow, 3000)
+	dstRowChanSize := float64(math.Ceil(float64(dstF32.Size[0]) / float64(100)))
+	if dstRowChanSize == 1 {
+		dstRowChanSize = math.Ceil(float64(dstF32.Size[0]) / float64(2))
+	}
+	dstRowChan := make(chan DstRow, int(dstRowChanSize))
 
-	rowProcessorCount := int(math.Ceil(float64(dstF32.GetElementCount()) / float64(100)))
+	rowProcessorCount := int(math.Ceil(dstRowChanSize / float64(5)))
 	for i := 0; i < rowProcessorCount; i++ {
 		go linearTransformation_ProcessRowChan(dstF32, dstRowChan)
 	}
@@ -171,19 +176,20 @@ func linearTransformation_General(input *Tensor, weights *Tensor, wOutFn linearT
 		for rowIdx := 0; rowIdx < rowsSize; rowIdx++ {
 			inputRowOffset := rowIdx * inputRowStride
 			dstRowOffset := rowIdx * dstRowStride
+			inputRowPtr := unsafe.Add(inputPtr, inputRowOffset)
 
 			wg.Add(1)
-			go linearTransformation_General_row(&wg, ctx, inputPtr, inputRowOffset,
+			go linearTransformation_General_row(&wg, ctx, inputRowPtr,
 				weightsPtr, weightsRowStride, weightsOutputSize, weightsInputSize,
 				dstRowOffset, dstRowChan, wOutFn)
 
 		}
 	} else {
-		inputRowOffset := 0
 		dstRowOffset := 0
+		inputRowPtr := inputPtr
 
 		wg.Add(1)
-		linearTransformation_General_row(&wg, ctx, inputPtr, inputRowOffset,
+		linearTransformation_General_row(&wg, ctx, inputRowPtr,
 			weightsPtr, weightsRowStride, weightsOutputSize, weightsInputSize,
 			dstRowOffset, dstRowChan, wOutFn)
 	}
