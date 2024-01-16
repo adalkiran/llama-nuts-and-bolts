@@ -43,7 +43,10 @@ func CompareTestTensorDimension(expected interface{}, actual *Tensor, currentDim
 		}
 		if len(actual.Size) > 0 {
 			if actual.DataType != DT_COMPLEX {
-				expectedArrTyped, ok := expectedArr.Interface().([]float32)
+				if actual.DataType.FuncSet == nil {
+					return fmt.Errorf("unsupported tensor datatype %s in compareTestTensorDimension function", actual.DataType)
+				}
+				expectedArrF32, ok := expectedArr.Interface().([]float32)
 				if !ok {
 					return fmt.Errorf("given expected argument is in unsupported datatype %s, should be %s", reflect.TypeOf(expectedArr.Interface()), "float32")
 				}
@@ -53,27 +56,14 @@ func CompareTestTensorDimension(expected interface{}, actual *Tensor, currentDim
 						continue
 					}
 					loc[currentDimension] = i
-					actualItem, err := actual.GetItem(loc)
+					actualItemF32, err := actual.GetItem_AsFloat32(loc)
 					if err != nil {
 						return err
 					}
-					var actualItemTyped float32
-					switch actualItem := actualItem.(type) {
-					case dtype.BFloat16:
-						actualItemTyped = actualItem.Float32()
-					case float32:
-						actualItemTyped = actualItem
-					case uint16:
-						actualItemTyped = float32(actualItem)
-					case int32:
-						actualItemTyped = float32(actualItem)
-					default:
-						return fmt.Errorf("unsupported tensor datatype %s in compareTestTensorDimension function", reflect.TypeOf(actualItem))
-					}
-					expectedItemTyped := expectedArrTyped[expectedIdx]
+					expectedItemF32 := expectedArrF32[expectedIdx]
 
-					if !common.AlmostEqualFloat32(actualItemTyped, expectedItemTyped, floatThreshold) {
-						return fmt.Errorf("expected %g, but got %g at index: %v", expectedItemTyped, actualItemTyped, loc)
+					if !common.AlmostEqualFloat32(actualItemF32, expectedItemF32, floatThreshold) {
+						return fmt.Errorf("expected %g, but got %g at index: %v", expectedItemF32, actualItemF32, loc)
 					}
 				}
 			} else {

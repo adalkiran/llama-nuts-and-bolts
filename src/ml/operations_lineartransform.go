@@ -2,6 +2,7 @@ package ml
 
 import (
 	"context"
+	"math"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -161,7 +162,7 @@ func linearTransformation_General(input *Tensor, weights *Tensor, wOutFn linearT
 
 	dstRowChan := make(chan DstRow, 3000)
 
-	rowProcessorCount := dstF32.GetElementCount() / 100
+	rowProcessorCount := int(math.Ceil(float64(dstF32.GetElementCount()) / float64(100)))
 	for i := 0; i < rowProcessorCount; i++ {
 		go linearTransformation_ProcessRowChan(dstF32, dstRowChan)
 	}

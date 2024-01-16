@@ -4,41 +4,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"reflect"
 	"strings"
 	"unsafe"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 )
-
-// See: https://github.com/ggerganov/llama.cpp/blob/master/convert.py
-
-var (
-	DT_BF16    = newDataType("BF16", dtype.BFloat16(0))
-	DT_F32     = newDataType("Float32", float32(0))
-	DT_UINT16  = newDataType("UInt16", uint16(0))
-	DT_INT32   = newDataType("Int32", int32(0))
-	DT_COMPLEX = newDataType("Complex", complex64(complex(0.0, 0.0)))
-)
-
-type DataType struct {
-	Name     string
-	GoType   reflect.Type
-	ItemSize int
-}
-
-func newDataType(name string, itemSample any) DataType {
-	result := DataType{
-		Name:   name,
-		GoType: reflect.TypeOf(itemSample),
-	}
-	result.ItemSize = int(result.GoType.Size())
-	return result
-}
-
-func (dt DataType) String() string {
-	return dt.Name
-}
 
 type Tensor struct {
 	Name     string
@@ -168,21 +138,10 @@ func (t *Tensor) dimensionToString(loc []int, shorten bool) string {
 	if err != nil {
 		return "err"
 	}
-	switch item := item.(type) {
-	case dtype.BFloat16:
-		return fmt.Sprintf("%.4e", item.Float32())
-	case float32, float64:
-		return fmt.Sprintf("%.4e", item)
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		return fmt.Sprintf("%d", item)
-	case complex64:
-		realPart := real(item)
-		imagPart := imag(item)
-
-		str := fmt.Sprintf("%.4e+%.4ej", realPart, imagPart)
-		return str
-	default:
+	if t.DataType.FuncSet == nil {
 		return fmt.Sprintf("%v", item)
+	} else {
+		return t.DataType.FuncSet.ToString(item)
 	}
 }
 
@@ -215,35 +174,17 @@ func (t *Tensor) SetItem(loc []int, val any) error {
 }
 
 func (t *Tensor) GetItemByOffset(offset int) any {
-	switch t.DataType {
-	case DT_BF16:
-		return dtype.ReadBFloat16LittleEndian(t.RawData[offset:])
-	case DT_UINT16:
-		return binary.LittleEndian.Uint16(t.RawData[offset:])
-	case DT_INT32:
-		return int32(binary.LittleEndian.Uint32(t.RawData[offset:]))
-	case DT_F32:
-		return math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset:]))
-	case DT_COMPLEX:
-		realPart := math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset:]))
-		imagPart := math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset+int(unsafe.Sizeof(realPart)):]))
-		return complex64(complex(realPart, imagPart))
+	if t.DataType.FuncSet == nil {
+		return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
 	}
-	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
+	return t.DataType.FuncSet.ReadItem(unsafe.Pointer(&t.RawData[offset]))
 }
 
 func (t *Tensor) GetItemByOffset_AsFloat32(offset int) (float32, error) {
-	switch t.DataType {
-	case DT_BF16:
-		return dtype.ReadBFloat16LittleEndian(t.RawData[offset:]).Float32(), nil
-	case DT_UINT16:
-		return float32(binary.LittleEndian.Uint16(t.RawData[offset:])), nil
-	case DT_INT32:
-		return float32(int32(binary.LittleEndian.Uint32(t.RawData[offset:]))), nil
-	case DT_F32:
-		return math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset:])), nil
+	if t.DataType.FuncSet == nil {
+		return 0, fmt.Errorf("unsupported tensor datatype %s", t.DataType)
 	}
-	return 0, fmt.Errorf("unsupported tensor datatype %s", t.DataType)
+	return t.DataType.FuncSet.ReadItem_AsFloat32(unsafe.Pointer(&t.RawData[offset])), nil
 }
 
 func (t *Tensor) GetItemByOffset_BF16(offset int) dtype.BFloat16 {
@@ -255,68 +196,18 @@ func (t *Tensor) GetItemByOffset_F32(offset int) float32 {
 }
 
 func (t *Tensor) SetItemByOffset(offset int, val any) error {
-	switch t.DataType {
-	case DT_BF16:
-		convVal, ok := val.(dtype.BFloat16)
-		if !ok {
-			return fmt.Errorf("incompatible types BFloat16 and %v", reflect.TypeOf(val))
-		}
-		dtype.WriteBFloat16LittleEndian(t.RawData[offset:], convVal)
-		return nil
-	case DT_UINT16:
-		convVal, ok := val.(uint16)
-		if !ok {
-			return fmt.Errorf("incompatible types uint16 and %v", reflect.TypeOf(val))
-		}
-		binary.LittleEndian.PutUint16(t.RawData[offset:], convVal)
-		return nil
-	case DT_INT32:
-		convVal, ok := val.(int32)
-		if !ok {
-			return fmt.Errorf("incompatible types int32 and %v", reflect.TypeOf(val))
-		}
-		binary.LittleEndian.PutUint32(t.RawData[offset:], uint32(convVal))
-		return nil
-
-	case DT_F32:
-		convVal, ok := val.(float32)
-		if !ok {
-			return fmt.Errorf("incompatible types float32 and %v", reflect.TypeOf(val))
-		}
-		binary.LittleEndian.PutUint32(t.RawData[offset:], math.Float32bits(convVal))
-		return nil
-
-	case DT_COMPLEX:
-		convVal, ok := val.(complex64)
-		if !ok {
-			return fmt.Errorf("incompatible types complex64 and %v", reflect.TypeOf(val))
-		}
-		realPartBits := math.Float32bits(real(convVal))
-		imagPartBits := math.Float32bits(imag(convVal))
-		binary.LittleEndian.PutUint32(t.RawData[offset:], realPartBits)
-		binary.LittleEndian.PutUint32(t.RawData[offset+int(unsafe.Sizeof(realPartBits)):], imagPartBits)
-		return nil
+	if t.DataType.FuncSet == nil {
+		return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
 	}
-	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
+	return t.DataType.FuncSet.WriteItem(unsafe.Pointer(&t.RawData[offset]), val)
 }
 
 func (t *Tensor) SetItemByOffset_FromFloat32(offset int, val float32) error {
-	switch t.DataType {
-	case DT_BF16:
-		dtype.WriteBFloat16LittleEndian(t.RawData[offset:], dtype.BFloat16fromFloat32(val))
-		return nil
-	case DT_UINT16:
-		binary.LittleEndian.PutUint16(t.RawData[offset:], uint16(val))
-		return nil
-	case DT_INT32:
-		binary.LittleEndian.PutUint32(t.RawData[offset:], uint32(int32(val)))
-		return nil
-
-	case DT_F32:
-		binary.LittleEndian.PutUint32(t.RawData[offset:], math.Float32bits(val))
-		return nil
+	if t.DataType.FuncSet == nil {
+		return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
 	}
-	return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
+	t.DataType.FuncSet.WriteItem_FromFloat32(unsafe.Pointer(&t.RawData[offset]), val)
+	return nil
 }
 
 func (t *Tensor) SetItemByOffset_BF16(offset int, val dtype.BFloat16) error {
@@ -484,27 +375,6 @@ func (t *Tensor) SetSlice(locStart []int, locEnd []int, val *Tensor) error {
 	if len(val.Size) > len(t.Size) {
 		return fmt.Errorf("tensor  \"%s\" %d and tensor \"%s\" %d don't have compatible dimensions", val.Name, len(val.Size), t.Name, len(t.Size))
 	}
-
-	//dimensionDiff := len(t.Size) - len(val.Size)
-	/*
-		if dimensionDiff != len(locStart)-1 {
-			return fmt.Errorf("tensor  \"%s\" %d and tensor \"%s\" %d don't have compatible dimensions", val.Name, len(val.Size), t.Name, len(t.Size))
-		}
-	*/
-	/*
-		for valDimension := len(val.Size) - 1; valDimension >= 0; valDimension-- {
-			if valDimension >= len(locStart) {
-				if val.Size[valDimension] != t.Size[valDimension+dimensionDiff] {
-					return fmt.Errorf("tensor  \"%s\" %d and tensor \"%s\" %d don't have compatible dimensions", val.Name, len(val.Size), t.Name, len(t.Size))
-				}
-			} else {
-				locDimSize := locEnd[valDimension] - locStart[valDimension]
-				if !(valDimension > 0 && locDimSize == 0) && (val.Size[valDimension] != locDimSize || locDimSize > t.Size[valDimension+dimensionDiff]) {
-					return fmt.Errorf("tensor  \"%s\" %d and tensor \"%s\" %d don't have compatible dimensions", val.Name, len(val.Size), t.Name, len(t.Size))
-				}
-			}
-		}
-	*/
 	for dstDimension := 0; dstDimension < len(locStart); dstDimension++ {
 		if locEnd[dstDimension] >= t.Size[dstDimension] {
 			return fmt.Errorf("tensor  \"%s\" %v and locEnd=%v are not compatible", t.Name, t.Size, locEnd)
@@ -688,57 +558,6 @@ func (t *Tensor) ViewAsFloat32WithReshape() (*Tensor, error) {
 	}
 	return t_, nil
 }
-
-/*
-	func (t *Tensor) Transpose(dim1 int, dim2 int) (*Tensor, error) {
-		if dim1 < 0 || dim1 >= len(t.Size) {
-			return nil, fmt.Errorf("incompatible dimension argument %d for shape %v", dim1, t.Size)
-		}
-		if dim2 < 0 || dim2 >= len(t.Size) {
-			return nil, fmt.Errorf("incompatible dimension argument %d for shape %v", dim2, t.Size)
-		}
-		if dim1 == dim2 {
-			return nil, fmt.Errorf("dim1 and dim2 can't be equal: %d", dim1)
-		}
-		if dim1 > dim2 {
-			temp := dim1
-			dim1 = dim2
-			dim2 = temp
-		}
-		dstSize := make([]int, len(t.Size))
-		copy(dstSize, t.Size)
-		dstSize[dim1] = t.Size[dim2]
-		dstSize[dim2] = t.Size[dim1]
-		dst := NewEmptyTensor(dstSize, t.DataType)
-
-		tLoc := make([]int, len(t.Size))
-		dstLoc := make([]int, len(t.Size))
-		blockSize := 1
-		for dimension := 2; dimension < len(t.Size); dimension++ {
-			blockSize = blockSize * t.Size[dimension]
-		}
-		blockSize = blockSize * t.DataType.ItemSize()
-
-		for i := 0; i < dst.Size[0]; i++ {
-			tLoc[1] = i
-			dstLoc[0] = i
-			for j := 0; j < dst.Size[1]; j++ {
-				tLoc[0] = j
-				dstLoc[1] = j
-
-				readOffsetStart := t.calculateByteOffset(tLoc)
-				readOffsetEnd := readOffsetStart + blockSize
-				writeOffsetStart := dst.calculateByteOffset(dstLoc)
-
-				if bytesCount := copy(dst.RawData[writeOffsetStart:], t.RawData[readOffsetStart:readOffsetEnd]); bytesCount != readOffsetEnd-readOffsetStart {
-					return nil, fmt.Errorf("error while copying bytes in Transpose, expected: %d, actual: %d", readOffsetEnd-readOffsetStart, bytesCount)
-				}
-			}
-		}
-
-		return dst, nil
-	}
-*/
 
 func (t *Tensor) Transpose(dim1 int, dim2 int) (*Tensor, error) {
 	if dim1 < 0 || dim1 >= len(t.Size) {

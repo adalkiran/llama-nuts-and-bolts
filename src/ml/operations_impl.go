@@ -254,23 +254,14 @@ func Mean(input *Tensor, dim int, keepdim bool) (*Tensor, error) {
 }
 
 func AddScalar(input *Tensor, scalar any) (*Tensor, error) {
-	var scalarF32 float32
-	switch input.DataType {
-	case DT_BF16:
-		scalarVal, ok := scalar.(dtype.BFloat16)
-		if !ok {
-			return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "BFloat16", scalar, reflect.TypeOf(scalar))
-		}
-		scalarF32 = scalarVal.Float32()
-	case DT_F32:
-		scalarVal, ok := scalar.(float32)
-		if !ok {
-			return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "float32", scalar, reflect.TypeOf(scalar))
-		}
-		scalarF32 = scalarVal
-	default:
+	if input.DataType.FuncSet == nil {
 		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
 	}
+	if !input.DataType.FuncSet.IsCompatible(scalar) {
+		return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", input.DataType.Name, scalar, reflect.TypeOf(scalar))
+	}
+	scalarF32 := input.DataType.FuncSet.ToFloat32(scalar)
+
 	dst := DuplicateTensor(input)
 	if err := dst.Apply_AsFloat32(func(val float32) float32 {
 		return val + scalarF32
@@ -281,29 +272,14 @@ func AddScalar(input *Tensor, scalar any) (*Tensor, error) {
 }
 
 func DivToScalar(input *Tensor, scalar any) (*Tensor, error) {
-	var scalarF32 float32
-	switch input.DataType {
-	case DT_BF16:
-		scalarVal, ok := scalar.(dtype.BFloat16)
-		if !ok {
-			scalarVal, ok := scalar.(float32)
-			if !ok {
-				return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "BFloat16 or float32", scalar, reflect.TypeOf(scalar))
-			}
-			scalarF32 = scalarVal
-		} else {
-			scalarF32 = scalarVal.Float32()
-		}
-
-	case DT_F32:
-		scalarVal, ok := scalar.(float32)
-		if !ok {
-			return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", "float32", scalar, reflect.TypeOf(scalar))
-		}
-		scalarF32 = scalarVal
-	default:
+	if input.DataType.FuncSet == nil {
 		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
 	}
+	if !input.DataType.FuncSet.IsCompatible(scalar) {
+		return nil, fmt.Errorf("expected scalar argument type is %s, got %v (%v)", input.DataType.Name, scalar, reflect.TypeOf(scalar))
+	}
+	scalarF32 := input.DataType.FuncSet.ToFloat32(scalar)
+
 	dst := DuplicateTensor(input)
 	if err := dst.Apply_AsFloat32(func(val float32) float32 {
 		return val / scalarF32
@@ -316,10 +292,7 @@ func DivToScalar(input *Tensor, scalar any) (*Tensor, error) {
 func RSqrt(input *Tensor) (*Tensor, error) {
 	// See: (For formula) https://pytorch.org/docs/stable/generated/torch.rsqrt.html
 	// Returns a new tensor with the reciprocal of the square-root of each of the elements of input.
-	switch input.DataType {
-	case DT_BF16: // Do nothing
-	case DT_F32: // Do nothing
-	default:
+	if input.DataType.FuncSet == nil {
 		return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
 	}
 
@@ -638,29 +611,20 @@ func Softmax(input *Tensor, dim int) (*Tensor, error) {
 
 		rowExpSum := float64(0)
 		for offset := startOffset; offset < endOffset; offset += inputItemSize {
-			item := input.GetItemByOffset(offset)
-			switch item := item.(type) {
-			case dtype.BFloat16:
-				rowExpSum += math.Exp(item.Float64())
-			case float32:
-				rowExpSum += math.Exp(float64(item))
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+			itemF32, err := input.GetItemByOffset_AsFloat32(offset)
+			if err != nil {
+				return nil, err
 			}
+			rowExpSum += math.Exp(float64(itemF32))
 		}
 
 		for offset := startOffset; offset < endOffset; offset += inputItemSize {
-			item := input.GetItemByOffset(offset)
-			switch item := item.(type) {
-			case dtype.BFloat16:
-				dstVal := dtype.BFloat16fromFloat32(float32(math.Exp(item.Float64()) / rowExpSum))
-				dst.SetItemByOffset_BF16(offset, dstVal)
-			case float32:
-				dstVal := float32(math.Exp(float64(item)) / rowExpSum)
-				dst.SetItemByOffset_F32(offset, dstVal)
-			default:
-				return nil, fmt.Errorf("unsupported tensor datatype %s", input.DataType)
+			itemF32, err := input.GetItemByOffset_AsFloat32(offset)
+			if err != nil {
+				return nil, err
 			}
+			dstValF32 := float32(math.Exp(float64(itemF32)) / rowExpSum)
+			dst.SetItemByOffset_FromFloat32(offset, dstValF32)
 		}
 	}
 	return dst, nil
