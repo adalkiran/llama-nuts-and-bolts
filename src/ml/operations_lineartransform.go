@@ -8,6 +8,8 @@ import (
 	"unsafe"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/simd/arm"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/simd/arm/neon"
 )
 
 type DstVal struct {
@@ -44,13 +46,35 @@ func linearTransformation_BF16_wOut(wg *sync.WaitGroup, ctx context.Context, inp
 	}
 	inputItemSize := DT_BF16.ItemSize
 	valDstF32 := float32(0)
-	for wInIdx := 0; wInIdx < weightsInputSize; wInIdx++ {
+
+	useNeon := true
+	remainingWInIdx := 0
+	if useNeon {
+		groupSize := 4
+		var a, b arm.Float32X4
+		var mul arm.Float32X4
+		var sum arm.Float32
+		for wInGroupStartIdx := 0; wInGroupStartIdx+groupSize < weightsInputSize; wInGroupStartIdx += groupSize {
+			for i := 0; i < groupSize; i++ {
+				wInIdx := wInGroupStartIdx + i
+				val1 := uint32(*(*uint16)(unsafe.Add(inputRowPtr, wInIdx*inputItemSize))) << 16
+				val2 := uint32(*(*uint16)(unsafe.Add(weightsRowPtr, wInIdx*inputItemSize))) << 16
+				a[i] = *(*arm.Float32)(unsafe.Pointer(&val1))
+				b[i] = *(*arm.Float32)(unsafe.Pointer(&val2))
+			}
+			neon.VmulqF32(&mul, &a, &b)
+			neon.VaddvqF32(&sum, &mul)
+			valDstF32 += float32(sum)
+		}
+		remainingWInIdx = weightsInputSize - weightsInputSize%4
+	}
+	for wInIdx := remainingWInIdx; wInIdx < weightsInputSize; wInIdx++ {
 		// Goal in Python manner: dst[rowIdx][wOutIdx] += input[rowIdx][wInIdx] * weights[wOutIdx][wInIdx]
 
 		// Getting input[rowIdx][wInIdx]
 		// location: {rowIdx, wInIdx}
 		//val1F32 := input.GetItemByOffset_BF16(inputRowOffset + wInIdx*inputItemSize).Float32()
-		val1F32 := dtype.BFloat16bitsToFloat32((*(*uint16)(unsafe.Add(inputRowPtr, wInIdx*inputItemSize))))
+		val1F32 := dtype.BFloat16bitsToFloat32(*(*uint16)(unsafe.Add(inputRowPtr, wInIdx*inputItemSize)))
 
 		// Getting weights[wOutIdx][wInIdx]
 		// location: {wOutIdx, wInIdx}

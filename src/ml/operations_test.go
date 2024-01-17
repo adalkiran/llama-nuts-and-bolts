@@ -876,3 +876,52 @@ func TestLinearTransformationBF16(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestLinearTransformationBF16_Large5Cols(t *testing.T) {
+	inputRowSize := 2
+	inputColSize := 5
+
+	weightsOutputSize := 4
+	weightsInputSize := 5
+
+	expectedSize := []int{2, 4}
+	expected := [][]float32{
+		{5.4443e-02, 1.2891e-01, 2.0312e-01, 2.7734e-01},
+		{1.2891e-01, 3.2812e-01, 5.2734e-01, 7.2656e-01},
+	}
+
+	weightVals := [][]dtype.BFloat16{
+		{dtype.BFloat16fromFloat32(0.01), dtype.BFloat16fromFloat32(0.02), dtype.BFloat16fromFloat32(0.03), dtype.BFloat16fromFloat32(0.04), dtype.BFloat16fromFloat32(0.05)},
+		{dtype.BFloat16fromFloat32(0.06), dtype.BFloat16fromFloat32(0.07), dtype.BFloat16fromFloat32(0.08), dtype.BFloat16fromFloat32(0.09), dtype.BFloat16fromFloat32(0.10)},
+		{dtype.BFloat16fromFloat32(0.11), dtype.BFloat16fromFloat32(0.12), dtype.BFloat16fromFloat32(0.13), dtype.BFloat16fromFloat32(0.14), dtype.BFloat16fromFloat32(0.15)},
+		{dtype.BFloat16fromFloat32(0.16), dtype.BFloat16fromFloat32(0.17), dtype.BFloat16fromFloat32(0.18), dtype.BFloat16fromFloat32(0.19), dtype.BFloat16fromFloat32(0.20)},
+	}
+	weights := NewEmptyTensor([]int{weightsOutputSize, weightsInputSize}, DT_BF16)
+	for iterator := IterateOver(weights, 0); iterator.HasNext(); {
+		loc := iterator.Next()
+		if err := weights.SetItem(loc, weightVals[loc[0]][loc[1]]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	inputVals := [][]dtype.BFloat16{
+		{dtype.BFloat16fromFloat32(0.1), dtype.BFloat16fromFloat32(0.2), dtype.BFloat16fromFloat32(0.3), dtype.BFloat16fromFloat32(0.4), dtype.BFloat16fromFloat32(0.5)},
+		{dtype.BFloat16fromFloat32(0.6), dtype.BFloat16fromFloat32(0.7), dtype.BFloat16fromFloat32(0.8), dtype.BFloat16fromFloat32(0.9), dtype.BFloat16fromFloat32(1.0)},
+	}
+
+	input := NewEmptyTensor([]int{inputRowSize, inputColSize}, DT_BF16)
+	for iterator := IterateOver(input, 0); iterator.HasNext(); {
+		loc := iterator.Next()
+		if err := input.SetItem(loc, inputVals[loc[0]][loc[1]]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	actual, err := LinearTransformation(input, weights)
+	if err != nil {
+		t.Error(err)
+	}
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
+		t.Error(err)
+	}
+}
