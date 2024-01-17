@@ -3,23 +3,43 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/inference"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/model"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/sentencepiece"
+	"github.com/apoorvam/goterminal"
 )
 
 const B_INST, E_INST = "[INST]", "[/INST]"
 const esc = 27
 
-var appState = AppState{
-	generatedTokens: make([]sentencepiece.SentencePiece, 0),
+var appState = &AppState{
+	generatedTokens:               make([]sentencepiece.SentencePiece, 0),
+	prevLineWidths:                make([]int, 0),
+	consoleMeasure:                goterminal.New(os.Stdout),
+	excludeEscapeDirectivesRegexp: *regexp.MustCompile(string(rune(esc)) + "\\[\\d+[a-zA-Z]"),
 }
 
 func main() {
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	// Get the directory containing the executable
+	exeDir := filepath.Dir(exePath)
+
+	fmt.Println(exeDir)
+
 	fmt.Println("Welcome to Llama Nuts and Bolts!")
 	fmt.Print("=================================\n\n\n")
 	modelFilePath := "../models-original/7B-chat/consolidated.00.pth"
@@ -43,6 +63,7 @@ func main() {
 	fmt.Println()
 	fmt.Println()
 
+	appState.resetConsoleState()
 	appState.literalProgressText = fmt.Sprintf("Model \"%s\" was loaded, starting inference...", modelFilePath)
 	appState.updateOutput()
 
@@ -95,7 +116,12 @@ func logFn(format string, v ...any) {
 }
 
 type AppState struct {
-	latestLogText string
+	mu                            sync.Mutex
+	consoleMeasure                *goterminal.Writer
+	excludeEscapeDirectivesRegexp regexp.Regexp
+
+	prevLineWidths []int
+	latestLogText  string
 
 	sequenceLength      int
 	promptText          string
@@ -108,38 +134,93 @@ type AppState struct {
 	startTimeToken  time.Time
 }
 
-func (as AppState) updateOutput() {
+func (as *AppState) updateOutput() {
 	// See: https://github.com/apoorvam/goterminal/blob/master/writer_posix.go
-	lineCount := 5
-
-	if as.startTimeTotal.Year() > 1 {
-		for i := 0; i < lineCount; i++ {
-			fmt.Printf("%c[2K\r", esc)   // Clear current line
-			fmt.Printf("%c[%dA", esc, 1) // Move cursor 1 upper line
-		}
-		fmt.Printf("%c[2K\r", esc) // Clear current line
-	}
+	as.cleanupConsole()
 	if as.latestLogText == "" {
 		as.latestLogText = "..."
 	}
+
 	elapsedTotalStr, elapsedTokenStr := as.durationsToStr()
-	fmt.Println(as.generateProgressText())
-	fmt.Printf("Total elapsed: %c[1m%s%c[0m, elapsed for next token: %c[1m%s%c[0m\n", esc, elapsedTotalStr, esc, esc, elapsedTokenStr, esc)
-	fmt.Println("Running for next token: " + as.latestLogText)
-	fmt.Println()
+	as.printLinef(as.generateProgressText())
+	as.printLinef("Total elapsed: %c[1m%s%c[0m, elapsed for next token: %c[1m%s%c[0m", esc, elapsedTotalStr, esc, esc, elapsedTokenStr, esc)
+	as.printLinef("Running for next token: " + as.latestLogText)
+	as.printLinef("")
 	if as.promptText != "" {
 		generatedText := as.generatedText
 		if generatedText == "" {
 			generatedText = "..."
 		}
-		fmt.Print(fmt.Sprintf("%c[1mPrompt:%c[0m ", esc, esc) + as.promptText +
+		as.printLinef(fmt.Sprintf("%c[1mPrompt:%c[0m ", esc, esc) + as.promptText +
 			fmt.Sprintf("\n%c[1mAssistant:%c[0m ", esc, esc) + generatedText)
 	} else {
-		fmt.Print("...")
+		as.printLinef("...")
 	}
 }
 
-func (as AppState) generateProgressText() string {
+func (as *AppState) printLinef(format string, v ...any) {
+	s := fmt.Sprintf(format, v...)
+	lines := strings.Split(s, "\n")
+	for _, line := range lines {
+		line = as.excludeEscapeDirectivesRegexp.ReplaceAllString(line, "")
+		if len(as.prevLineWidths) == 0 || as.prevLineWidths[len(as.prevLineWidths)-1] > 0 {
+			as.prevLineWidths = append(as.prevLineWidths, len(line))
+		} else {
+			as.prevLineWidths[len(as.prevLineWidths)-1] = len(line)
+		}
+	}
+	if len(as.prevLineWidths) == 0 || as.prevLineWidths[len(as.prevLineWidths)-1] > 0 {
+		s += "\n"
+		as.prevLineWidths = append(as.prevLineWidths, 0)
+	}
+	fmt.Print(s)
+}
+
+func (as *AppState) measureConsoleWidth() int {
+	var measureMu sync.Mutex
+	defer measureMu.Unlock()
+	measureMu.Lock()
+	w, _ := as.consoleMeasure.GetTermDimensions()
+	for {
+		time.Sleep(300 * time.Millisecond)
+		w2, _ := as.consoleMeasure.GetTermDimensions()
+		if w == w2 {
+			return w
+		}
+		w = w2
+	}
+}
+
+func (as *AppState) cleanupConsole() {
+	defer as.mu.Unlock()
+	as.mu.Lock()
+	if as.prevLineWidths != nil && len(as.prevLineWidths) > 0 {
+		lineCountToClean := 0
+		currentConsoleWidth := as.measureConsoleWidth()
+		for i := len(as.prevLineWidths) - 1; i >= 0; i-- {
+			prevLineWidth := as.prevLineWidths[i]
+			lineCountByCurrentConsoleWidth := int(math.Ceil(float64(prevLineWidth) / float64(currentConsoleWidth)))
+			if prevLineWidth == 0 {
+				lineCountByCurrentConsoleWidth = 1
+			}
+			lineCountToClean += lineCountByCurrentConsoleWidth
+		}
+		for i := 0; i < lineCountToClean; i++ {
+			fmt.Printf("%c[2K\r", esc) // Clear current line
+			if i < lineCountToClean-1 {
+				fmt.Printf("%c[%dA", esc, 1) // Move cursor upper line
+			}
+		}
+	}
+	as.resetConsoleState()
+}
+
+func (as *AppState) resetConsoleState() {
+	as.prevLineWidths = nil
+	as.prevLineWidths = make([]int, 0)
+}
+
+func (as *AppState) generateProgressText() string {
 	if as.literalProgressText != "" {
 		return as.literalProgressText
 	}
@@ -157,7 +238,7 @@ func (as AppState) generateProgressText() string {
 		esc, nextTokenNum, as.sequenceLength, len(as.promptTokens), esc, latestGeneratedTokenStr)
 }
 
-func (as AppState) durationsToStr() (elapsedTotalStr string, elapsedTokenStr string) {
+func (as *AppState) durationsToStr() (elapsedTotalStr string, elapsedTokenStr string) {
 	elapsedTotalStr = "..:.."
 	elapsedTokenStr = "..:.."
 	if as.startTimeTotal.Year() > 1 {
