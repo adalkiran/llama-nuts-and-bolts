@@ -6,7 +6,16 @@ import (
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/model"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/sentencepiece"
 )
+
+type GeneratedPart struct {
+	DecodedString     string
+	TokenId           model.TokenId
+	Token             sentencepiece.SentencePiece
+	AddedToWaiting    bool
+	IsResendOfWaiting bool
+}
 
 type InferenceEngine struct {
 	model         *model.Model
@@ -22,7 +31,68 @@ func NewInferenceEngine(model *model.Model, inferenceArgs common.InferenceArgs, 
 	}
 }
 
-func (ie *InferenceEngine) Generate(promptTokens []model.TokenId) (<-chan model.TokenId, <-chan error) {
+func (ie *InferenceEngine) GenerateString(promptTokens []model.TokenId) (<-chan GeneratedPart, <-chan error) {
+	// See: https://betterprogramming.pub/writing-a-stream-api-in-go-afbc3c4350e2
+	outputCh := make(chan GeneratedPart)
+	outputErrorCh := make(chan error)
+
+	go func() {
+		defer func() {
+			close(outputCh)
+			close(outputErrorCh)
+		}()
+		generatedWaitingBytes := make([]byte, 0)
+		generatedWaitingParts := make([]GeneratedPart, 0)
+
+		generatedTokensCh, errorCh := ie.GenerateTokens(promptTokens)
+		loop := true
+		for loop {
+			select {
+			case generatedTokenId, ok := <-generatedTokensCh:
+				if !ok {
+					loop = false
+					break
+				}
+				generatedToken, generatedTokenStr, addedToWaiting := ie.TokenToString(generatedTokenId, &generatedWaitingBytes)
+				result := GeneratedPart{
+					TokenId:        generatedTokenId,
+					Token:          generatedToken,
+					DecodedString:  generatedTokenStr,
+					AddedToWaiting: addedToWaiting,
+				}
+				if result.AddedToWaiting {
+					generatedWaitingParts = append(generatedWaitingParts, result)
+				} else {
+					if len(generatedWaitingParts) > 0 {
+						generatedWaitingParts = make([]GeneratedPart, 0)
+					}
+				}
+				outputCh <- result
+			case err, ok := <-errorCh:
+				if !ok || err == nil {
+					continue
+				}
+				outputErrorCh <- err
+				return
+			}
+		}
+		if len(generatedWaitingParts) > 0 {
+			for _, waitingPart := range generatedWaitingParts {
+				result := GeneratedPart{
+					TokenId:           waitingPart.TokenId,
+					Token:             waitingPart.Token,
+					DecodedString:     fmt.Sprintf("<0x%02X>", waitingPart.Token.ByteFallback),
+					AddedToWaiting:    false,
+					IsResendOfWaiting: true,
+				}
+				outputCh <- result
+			}
+		}
+	}()
+	return outputCh, outputErrorCh
+}
+
+func (ie *InferenceEngine) GenerateTokens(promptTokens []model.TokenId) (<-chan model.TokenId, <-chan error) {
 	// See: https://betterprogramming.pub/writing-a-stream-api-in-go-afbc3c4350e2
 	generatedTokensCh := make(chan model.TokenId)
 	errorCh := make(chan error)
@@ -31,12 +101,12 @@ func (ie *InferenceEngine) Generate(promptTokens []model.TokenId) (<-chan model.
 			close(errorCh)
 			close(generatedTokensCh)
 		}()
-		ie.generateInternal(promptTokens, generatedTokensCh, errorCh)
+		ie.generateTokensInternal(promptTokens, generatedTokensCh, errorCh)
 	}()
 	return generatedTokensCh, errorCh
 }
 
-func (ie *InferenceEngine) generateInternal(promptTokens []model.TokenId, generatedTokensCh chan<- model.TokenId, errorCh chan<- error) {
+func (ie *InferenceEngine) generateTokensInternal(promptTokens []model.TokenId, generatedTokensCh chan<- model.TokenId, errorCh chan<- error) {
 	infContext := ie.CreateInferenceContext()
 
 	promptLength := len(promptTokens)

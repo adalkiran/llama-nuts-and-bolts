@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
@@ -20,7 +21,7 @@ func LoadModel(modelFilePath string) (*Model, error) {
 		return nil, err
 	}
 	defer torchModelReader.Close()
-	fmt.Printf("Loading model file: \"%s\"...\n", modelFilePath)
+	log.Printf("Loading model file: \"%s\"...", modelFilePath)
 	modelTensors, err := torchModelReader.Load()
 	if err != nil {
 		return nil, err
@@ -35,7 +36,7 @@ func LoadModel(modelFilePath string) (*Model, error) {
 		return nil, err
 	}
 
-	fmt.Printf("Found %d tensors in the model.\n", len(model.Tensors.GetKeys()))
+	log.Printf("Found %d tensors in the model.", len(model.Tensors.GetKeys()))
 
 	err = checkModelArgs(model)
 	if err != nil {
@@ -60,25 +61,25 @@ func LoadModel(modelFilePath string) (*Model, error) {
 
 func loadModelArgs(modelFilePath string, model *Model) error {
 	configFilePath := filepath.Dir(modelFilePath) + "/params.json"
-	fmt.Printf("Loading model configuration file: \"%s\"...\n", configFilePath)
+	log.Printf("Loading model configuration file: \"%s\"...", configFilePath)
 	modelArgs, err := loadModelArgsFromFile(configFilePath)
 	if err != nil {
 		return err
 	}
 	model.ModelArgs = modelArgs
-	fmt.Printf("Model configuration: %v\n", *model.ModelArgs)
+	log.Printf("Model configuration: %v", *model.ModelArgs)
 	return nil
 }
 
 func loadVocab(modelFilePath string, model *Model) error {
 	vocabFilePath := filepath.Dir(modelFilePath) + "/tokenizer.model"
-	fmt.Printf("Loading vocabulary/tokens file: \"%s\"...\n", vocabFilePath)
+	log.Printf("Loading vocabulary/tokens file: \"%s\"...", vocabFilePath)
 	vocabModelProto, err := sentencepiece.Load(vocabFilePath)
 	if err != nil {
 		return err
 	}
 	model.Vocabulary = NewVocabulary(vocabModelProto)
-	fmt.Printf("Found %d tokens in the model.\n", len(model.Vocabulary.IdToToken))
+	log.Printf("Found %d tokens in the model.", len(model.Vocabulary.IdToToken))
 	return nil
 }
 

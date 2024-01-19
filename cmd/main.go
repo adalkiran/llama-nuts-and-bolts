@@ -32,8 +32,6 @@ var predefinedPrompts = []PromptInput{
 }
 
 var appState = &AppState{
-	generatedTokenIds:             make([]model.TokenId, 0),
-	generatedTokens:               make([]sentencepiece.SentencePiece, 0),
 	prevLineWidths:                make([]int, 0),
 	consoleMeasure:                goterminal.New(os.Stdout),
 	excludeEscapeDirectivesRegexp: *regexp.MustCompile(string(rune(esc)) + "\\[\\d+[a-zA-Z]"),
@@ -55,7 +53,7 @@ func main() {
 	fmt.Print("=================================\n\n\n")
 	modelFilePath := "../models-original/7B-chat/consolidated.00.pth"
 
-	fmt.Printf("Loading model \"%s\"...\n", modelFilePath)
+	log.Printf("Loading model \"%s\"...", modelFilePath)
 
 	llamaModel, err := model.LoadModel(modelFilePath)
 	if err != nil {
@@ -69,7 +67,7 @@ func main() {
 
 	inferenceArgs := common.NewInferenceArgs()
 	inferenceArgs.Seed = 1234
-	inferenceArgs.SequenceLength = 200
+	inferenceArgs.SequenceLength = 47
 
 	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn)
 
@@ -95,30 +93,48 @@ func main() {
 	appState.literalProgressText = ""
 	appState.updateOutput()
 
-	generatedTokensCh, errorCh := engine.Generate(tokens)
+	appState.generatedTokenIds = make([]model.TokenId, 0)
+	appState.generatedTokens = make([]sentencepiece.SentencePiece, 0)
+
+	var wg sync.WaitGroup
+
+	generatedPartCh, errorCh := engine.GenerateString(tokens)
+
+	wg.Add(1)
+	go listenGenerationChannels(&wg, generatedPartCh, errorCh)
+
+	wg.Wait()
+
+	fmt.Printf("\n\nFinished.\n")
+}
+
+func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inference.GeneratedPart, errorCh <-chan error) {
+	defer wg.Done()
 	loop := true
 	for loop {
 		select {
-		case generatedTokenId, ok := <-generatedTokensCh:
+		case generatedPart, ok := <-generatedPartCh:
 			if !ok {
 				loop = false
 				fmt.Println()
 				break
 			}
-			appState.generatedTokenIds = append(appState.generatedTokenIds, generatedTokenId)
-			generatedToken, generatedTokenStr, addedToWaiting := engine.TokenToString(generatedTokenId, &appState.generatedWaitingBytes)
-			appState.generatedTokens = append(appState.generatedTokens, generatedToken)
-			if addedToWaiting {
-				if len(appState.generatedText) > 0 && !strings.HasSuffix(appState.generatedText, waitingByteTempChar) {
-					appState.generatedText += waitingByteTempChar
-				}
+			if !generatedPart.IsResendOfWaiting {
+				appState.generatedTokenIds = append(appState.generatedTokenIds, generatedPart.TokenId)
+				appState.generatedTokens = append(appState.generatedTokens, generatedPart.Token)
+			}
+			if generatedPart.AddedToWaiting {
+				appState.generatedText += waitingByteTempChar
 			} else {
 				// Check if the text ends with waitingByteTempChar, if true, remove it.
-				appState.generatedText = strings.TrimSuffix(appState.generatedText, waitingByteTempChar)
-				appState.generatedText += generatedTokenStr
+				for strings.HasSuffix(appState.generatedText, waitingByteTempChar) {
+					appState.generatedText = strings.TrimSuffix(appState.generatedText, waitingByteTempChar)
+				}
+				appState.generatedText += generatedPart.DecodedString
 			}
 			appState.updateOutput()
 			appState.startTimeToken = time.Now()
+
 		case err := <-errorCh:
 			if err == nil {
 				continue
@@ -127,14 +143,6 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	// Check if the text ends with waitingByteTempChar, if true, remove it.
-	appState.generatedText = strings.TrimSuffix(appState.generatedText, waitingByteTempChar)
-	if appState.generatedWaitingBytes != nil && len(appState.generatedWaitingBytes) > 0 {
-		for _, waitingByte := range appState.generatedWaitingBytes {
-			appState.generatedText += fmt.Sprintf("<0x%02X>", waitingByte)
-		}
-	}
-	appState.updateOutput()
 }
 
 func askUserPromptChoice() PromptInput {
@@ -212,11 +220,10 @@ type AppState struct {
 	generatedText       string
 	literalProgressText string
 
-	generatedTokenIds     []model.TokenId
-	generatedTokens       []sentencepiece.SentencePiece
-	generatedWaitingBytes []byte
-	startTimeTotal        time.Time
-	startTimeToken        time.Time
+	generatedTokenIds []model.TokenId
+	generatedTokens   []sentencepiece.SentencePiece
+	startTimeTotal    time.Time
+	startTimeToken    time.Time
 }
 
 func (as *AppState) updateOutput() {
@@ -227,17 +234,18 @@ func (as *AppState) updateOutput() {
 	}
 
 	elapsedTotalStr, elapsedTokenStr := as.durationsToStr()
+	as.printLinef("Press Ctrl+C to exit.")
 	as.printLinef(as.generateProgressText())
-	as.printLinef("Total elapsed: %c[1m%s%c[0m, elapsed for next token: %c[1m%s%c[0m", esc, elapsedTotalStr, esc, esc, elapsedTokenStr, esc)
-	as.printLinef("Running for next token: " + as.latestLogText)
+	as.printLinef("%-23s: %c[1m%s%c[0m, elapsed for next token: %c[1m%s%c[0m", "Total elapsed", esc, elapsedTotalStr, esc, esc, elapsedTokenStr, esc)
+	as.printLinef("%-23s: %s", "Running for next token", as.latestLogText)
 	as.printLinef("")
 	if as.promptText != "" {
 		generatedText := as.generatedText
 		if generatedText == "" {
 			generatedText = waitingByteTempChar
 		}
-		as.printLinef(fmt.Sprintf("%c[1mPrompt:%c[0m \"", esc, esc) + as.promptText + "\"" +
-			fmt.Sprintf("\n%c[1mAssistant:%c[0m ", esc, esc) + generatedText)
+		as.printLinef("%c[1m%-23s:%c[0m \"%s\"", esc, "Prompt", esc, as.promptText)
+		as.printLinef("%c[1m%-23s:%c[0m \"%s\"", esc, "Assistant", esc, generatedText)
 	} else {
 		as.printLinef(waitingByteTempChar)
 	}
@@ -319,8 +327,9 @@ func (as *AppState) generateProgressText() string {
 	if nextTokenNum < as.sequenceLength {
 		nextTokenNum++
 	}
-	return fmt.Sprintf("%c[1mGenerating tokens %d / %d, including %d prompt tokens...%c[0m Latest generated token: %s",
-		esc, nextTokenNum, as.sequenceLength, len(as.promptTokens), esc, latestGeneratedTokenStr)
+	return fmt.Sprintf("%c[1m%-23s: %d / %d, including %d prompt tokens...%c[0m",
+		esc, "Generating tokens", nextTokenNum, as.sequenceLength, len(as.promptTokens), esc) + "\n" +
+		fmt.Sprintf("%-23s: %s", "Latest generated token", latestGeneratedTokenStr)
 }
 
 func (as *AppState) durationsToStr() (elapsedTotalStr string, elapsedTokenStr string) {
