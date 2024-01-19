@@ -17,6 +17,7 @@ func (ie *InferenceEngine) Tokenize(text string, addBeginOfSentence bool) ([]mod
 	result := make([]model.TokenId, 0)
 	vocabulary := ie.model.Vocabulary
 
+	text = " " + text
 	text = escapeWhitespace(text)
 
 	if addBeginOfSentence && vocabulary.BeginOfSentenceId != -1 {
@@ -48,6 +49,8 @@ func (ie *InferenceEngine) TokenToString(tokenId model.TokenId) (sentencepiece.S
 	switch token.PieceType {
 	case sentencepiece.CONTROL:
 		// Do nothing
+	case sentencepiece.BYTE:
+		return token, unescapeWhitespace(token.Piece)
 	case sentencepiece.NORMAL:
 		return token, unescapeWhitespace(token.Piece)
 	}
@@ -79,7 +82,7 @@ func separatePieces(text string, vocabulary *model.Vocabulary) []model.TokenId {
 			if _, ok := vocabulary.TokenToId[subword]; ok {
 				matchedSubword = subword
 			} else {
-				break
+				continue
 			}
 		}
 
@@ -92,7 +95,11 @@ func separatePieces(text string, vocabulary *model.Vocabulary) []model.TokenId {
 		tokens = append(tokens, matchedSubword)
 
 		// Move to the next unmatched part of the input
-		text = text[len(matchedSubword):]
+		if matchedSubword == "<unk>" {
+			text = text[1:]
+		} else {
+			text = text[len(matchedSubword):]
+		}
 	}
 
 	result := make([]model.TokenId, len(tokens))
@@ -108,31 +115,6 @@ func separatePieces(text string, vocabulary *model.Vocabulary) []model.TokenId {
 	return result
 }
 
-/*
-	func separateRunes(text string) []string {
-		result := make([]string, 0)
-		for offset := 0; offset < len(text); {
-			r, size := utf8.DecodeRuneInString(text)
-			text = text[size:]
-			result = append(result, string(r))
-		}
-		return result
-	}
-
-	func separateBigram(symbols []string, vocabulary *Vocabulary) []sentencepiece.SentencePiece {
-		queue := make([]sentencepiece.SentencePiece, 0)
-
-		for i := 1; i < len(symbols); i++ {
-
-			bigramToken := strings.Join(symbols[i-1:i+1], "")
-			if id, ok := vocabulary.tokenToId[bigramToken]; ok {
-				piece := vocabulary.idToToken[id]
-				queue = append(queue, piece)
-			}
-		}
-		return queue
-	}
-*/
 func escapeWhitespace(text string) string {
 	return strings.ReplaceAll(text, " ", whitespaceEscapeToken)
 }

@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +23,15 @@ import (
 const B_INST, E_INST = "[INST]", "[/INST]"
 const esc = 27
 
+var predefinedPrompts = []PromptInput{
+	{IsChatMode: false, Prompt: "Hello, my name is "},
+	{IsChatMode: false, Prompt: "You are Einstein. Describe your theory. "},
+	{IsChatMode: true, Prompt: "Can you explain what is Theory of relativity, shortly?"},
+	{IsChatMode: true, Prompt: "<<SYS>>\nAlways answer with emojis\n<</SYS>>\n\nHow to go from Beijing to NY?"},
+}
+
 var appState = &AppState{
+	generatedTokenIds:             make([]model.TokenId, 0),
 	generatedTokens:               make([]sentencepiece.SentencePiece, 0),
 	prevLineWidths:                make([]int, 0),
 	consoleMeasure:                goterminal.New(os.Stdout),
@@ -43,15 +53,8 @@ func main() {
 	fmt.Println("Welcome to Llama Nuts and Bolts!")
 	fmt.Print("=================================\n\n\n")
 	modelFilePath := "../models-original/7B-chat/consolidated.00.pth"
-	isChatModel := true
 
-	appState.literalProgressText = fmt.Sprintf("Loading model \"%s\"...", modelFilePath)
-	appState.updateOutput()
-
-	prompt := "Can you explain what is Theory of relativity, shortly?"
-	if isChatModel {
-		prompt = fmt.Sprintf("%s %s %s", B_INST, strings.TrimSpace(prompt), E_INST)
-	}
+	fmt.Printf("Loading model \"%s\"...\n", modelFilePath)
 
 	llamaModel, err := model.LoadModel(modelFilePath)
 	if err != nil {
@@ -59,13 +62,9 @@ func main() {
 	}
 	defer llamaModel.Free()
 
-	fmt.Println()
-	fmt.Println()
-	fmt.Println()
+	fmt.Printf("Model \"%s\" was loaded.\n", modelFilePath)
 
-	appState.resetConsoleState()
-	appState.literalProgressText = fmt.Sprintf("Model \"%s\" was loaded, starting inference...", modelFilePath)
-	appState.updateOutput()
+	fmt.Printf("\n\n\n")
 
 	inferenceArgs := common.NewInferenceArgs()
 	inferenceArgs.Seed = 1234
@@ -73,7 +72,14 @@ func main() {
 
 	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn)
 
-	tokens, err := engine.Tokenize(prompt, true)
+	userPrompt := askUserPromptChoice()
+	if userPrompt.IsChatMode {
+		userPrompt.Prompt = fmt.Sprintf("%s %s %s", B_INST, userPrompt.Prompt, E_INST)
+	}
+
+	fmt.Printf("\n\n\n")
+
+	tokens, err := engine.Tokenize(userPrompt.Prompt, true)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -84,6 +90,7 @@ func main() {
 	appState.startTimeToken = appState.startTimeTotal
 
 	appState.sequenceLength = inferenceArgs.SequenceLength
+	appState.resetConsoleState()
 	appState.literalProgressText = ""
 	appState.updateOutput()
 
@@ -95,6 +102,7 @@ func main() {
 				fmt.Println()
 				return
 			}
+			appState.generatedTokenIds = append(appState.generatedTokenIds, generatedTokenId)
 			generatedToken, generatedTokenStr := engine.TokenToString(generatedTokenId)
 			appState.generatedTokens = append(appState.generatedTokens, generatedToken)
 			appState.generatedText += generatedTokenStr
@@ -108,6 +116,62 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+}
+
+func askUserPromptChoice() PromptInput {
+	extraChoiceCount := 2
+	for {
+		fmt.Printf("%c[1mSelect from our predefined prompts:%c[0m\n", esc, esc)
+		for i, predefinedPrompt := range predefinedPrompts {
+			isChatModeText := "Chat mode"
+			if !predefinedPrompt.IsChatMode {
+				isChatModeText = "Text completion"
+			}
+			fmt.Printf("%2d. [%s] %s\n", i+1, isChatModeText, predefinedPrompt.Prompt)
+		}
+		fmt.Printf("%c[1m%2d.%c[0m [%s] %s\n", esc, len(predefinedPrompts)+1, esc, "Text completion", "Other, manual input")
+		fmt.Printf("%c[1m%2d.%c[0m [%s] %s\n", esc, len(predefinedPrompts)+2, esc, "Chat mode", "Other, manual input")
+
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Printf("\nYour choice (choose %d to %d and press Enter): ", 1, len(predefinedPrompts)+extraChoiceCount)
+		userChoice, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Printf("\nerror: %v\n\n", err)
+			continue
+		}
+		userChoiceNum, err := strconv.Atoi(strings.TrimSpace(userChoice))
+		if err != nil {
+			fmt.Printf("\nNot a valid number.\n\n")
+			continue
+		}
+		if userChoiceNum < 1 || userChoiceNum > len(predefinedPrompts)+extraChoiceCount {
+			fmt.Printf("\nChoice must be between %d and %d.\n\n", 0, len(predefinedPrompts)+extraChoiceCount)
+			continue
+		}
+
+		if userChoiceNum <= len(predefinedPrompts) {
+			return predefinedPrompts[userChoiceNum-1]
+		}
+		userPromptInput := PromptInput{
+			IsChatMode: userChoiceNum == len(predefinedPrompts)+2,
+		}
+		fmt.Print("Write down your prompt and press Enter: ")
+		if userPromptInput.Prompt, err = reader.ReadString('\n'); err != nil {
+			fmt.Printf("\nerror: %v\n", err)
+			continue
+		}
+		userPromptInput.Prompt = strings.TrimRight(userPromptInput.Prompt, "\r\n")
+		if len(userPromptInput.Prompt) == 0 {
+			fmt.Printf("\nThe prompt you entered is empty.")
+			continue
+		}
+		return userPromptInput
+	}
+}
+
+type PromptInput struct {
+	Prompt     string
+	IsChatMode bool
 }
 
 func logFn(format string, v ...any) {
@@ -129,9 +193,10 @@ type AppState struct {
 	generatedText       string
 	literalProgressText string
 
-	generatedTokens []sentencepiece.SentencePiece
-	startTimeTotal  time.Time
-	startTimeToken  time.Time
+	generatedTokenIds []model.TokenId
+	generatedTokens   []sentencepiece.SentencePiece
+	startTimeTotal    time.Time
+	startTimeToken    time.Time
 }
 
 func (as *AppState) updateOutput() {
@@ -151,7 +216,7 @@ func (as *AppState) updateOutput() {
 		if generatedText == "" {
 			generatedText = "..."
 		}
-		as.printLinef(fmt.Sprintf("%c[1mPrompt:%c[0m ", esc, esc) + as.promptText +
+		as.printLinef(fmt.Sprintf("%c[1mPrompt:%c[0m \"", esc, esc) + as.promptText + "\"" +
 			fmt.Sprintf("\n%c[1mAssistant:%c[0m ", esc, esc) + generatedText)
 	} else {
 		as.printLinef("...")
@@ -161,9 +226,9 @@ func (as *AppState) updateOutput() {
 func (as *AppState) printLinef(format string, v ...any) {
 	s := fmt.Sprintf(format, v...)
 	lines := strings.Split(s, "\n")
-	for _, line := range lines {
+	for i, line := range lines {
 		line = as.excludeEscapeDirectivesRegexp.ReplaceAllString(line, "")
-		if len(as.prevLineWidths) == 0 || as.prevLineWidths[len(as.prevLineWidths)-1] > 0 {
+		if len(as.prevLineWidths) == 0 || i > 0 || as.prevLineWidths[len(as.prevLineWidths)-1] > 0 {
 			as.prevLineWidths = append(as.prevLineWidths, len(line))
 		} else {
 			as.prevLineWidths[len(as.prevLineWidths)-1] = len(line)
