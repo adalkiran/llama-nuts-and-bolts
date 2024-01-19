@@ -1,7 +1,9 @@
 package sentencepiece
 
 import (
+	"encoding/hex"
 	"fmt"
+	"regexp"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/protobuf"
@@ -18,10 +20,32 @@ type ModelProto struct {
 	NormalizerSpec *NormalizerSpec //num: 3
 }
 
+var extractHexadecimalPiece = *regexp.MustCompile(`<0x(\w+)>`)
+
 type SentencePiece struct {
 	Piece     string // piece must not be empty.
 	Score     float32
 	PieceType Type //[default = NORMAL];
+
+	ByteFallback byte
+}
+
+func newSentencePiece(piece string, score float32, pieceType Type) SentencePiece {
+	result := SentencePiece{
+		Piece:     piece,
+		Score:     score,
+		PieceType: pieceType,
+	}
+	if result.PieceType == BYTE {
+		match := extractHexadecimalPiece.FindStringSubmatch(result.Piece)
+		if len(match) >= 2 {
+			byteValue, err := hex.DecodeString(match[1])
+			if err == nil && len(byteValue) == 1 {
+				result.ByteFallback = byteValue[0]
+			}
+		}
+	}
+	return result
 }
 
 func (sp SentencePiece) String() string {
@@ -102,11 +126,7 @@ var modelprotoDescriptor = protobuf.ProtoDescriptor{
 			if err != nil {
 				pieceTypeVal = int(NORMAL)
 			}
-			item := SentencePiece{
-				Piece:     props[1].(string),
-				Score:     props[2].(float32),
-				PieceType: Type(pieceTypeVal),
-			}
+			item := newSentencePiece(props[1].(string), props[2].(float32), Type(pieceTypeVal))
 			*mo.Pieces = append(*mo.Pieces, item)
 		},
 		2: func(mainObject interface{}, message protobuf.Message) {

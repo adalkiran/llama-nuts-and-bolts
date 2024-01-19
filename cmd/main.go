@@ -22,6 +22,7 @@ import (
 
 const B_INST, E_INST = "[INST]", "[/INST]"
 const esc = 27
+const waitingByteTempChar = "\u2026" // Unicode character ellipsis …
 
 var predefinedPrompts = []PromptInput{
 	{IsChatMode: false, Prompt: "Hello, my name is "},
@@ -95,17 +96,27 @@ func main() {
 	appState.updateOutput()
 
 	generatedTokensCh, errorCh := engine.Generate(tokens)
-	for {
+	loop := true
+	for loop {
 		select {
 		case generatedTokenId, ok := <-generatedTokensCh:
 			if !ok {
+				loop = false
 				fmt.Println()
-				return
+				break
 			}
 			appState.generatedTokenIds = append(appState.generatedTokenIds, generatedTokenId)
-			generatedToken, generatedTokenStr := engine.TokenToString(generatedTokenId)
+			generatedToken, generatedTokenStr, addedToWaiting := engine.TokenToString(generatedTokenId, &appState.generatedWaitingBytes)
 			appState.generatedTokens = append(appState.generatedTokens, generatedToken)
-			appState.generatedText += generatedTokenStr
+			if addedToWaiting {
+				if len(appState.generatedText) > 0 && !strings.HasSuffix(appState.generatedText, waitingByteTempChar) {
+					appState.generatedText += waitingByteTempChar
+				}
+			} else {
+				// Check if the text ends with waitingByteTempChar, if true, remove it.
+				appState.generatedText = strings.TrimSuffix(appState.generatedText, waitingByteTempChar)
+				appState.generatedText += generatedTokenStr
+			}
 			appState.updateOutput()
 			appState.startTimeToken = time.Now()
 		case err := <-errorCh:
@@ -116,6 +127,14 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	// Check if the text ends with waitingByteTempChar, if true, remove it.
+	appState.generatedText = strings.TrimSuffix(appState.generatedText, waitingByteTempChar)
+	if appState.generatedWaitingBytes != nil && len(appState.generatedWaitingBytes) > 0 {
+		for _, waitingByte := range appState.generatedWaitingBytes {
+			appState.generatedText += fmt.Sprintf("<0x%02X>", waitingByte)
+		}
+	}
+	appState.updateOutput()
 }
 
 func askUserPromptChoice() PromptInput {
@@ -193,17 +212,18 @@ type AppState struct {
 	generatedText       string
 	literalProgressText string
 
-	generatedTokenIds []model.TokenId
-	generatedTokens   []sentencepiece.SentencePiece
-	startTimeTotal    time.Time
-	startTimeToken    time.Time
+	generatedTokenIds     []model.TokenId
+	generatedTokens       []sentencepiece.SentencePiece
+	generatedWaitingBytes []byte
+	startTimeTotal        time.Time
+	startTimeToken        time.Time
 }
 
 func (as *AppState) updateOutput() {
 	// See: https://github.com/apoorvam/goterminal/blob/master/writer_posix.go
 	as.cleanupConsole()
 	if as.latestLogText == "" {
-		as.latestLogText = "..."
+		as.latestLogText = waitingByteTempChar
 	}
 
 	elapsedTotalStr, elapsedTokenStr := as.durationsToStr()
@@ -214,12 +234,12 @@ func (as *AppState) updateOutput() {
 	if as.promptText != "" {
 		generatedText := as.generatedText
 		if generatedText == "" {
-			generatedText = "..."
+			generatedText = waitingByteTempChar
 		}
 		as.printLinef(fmt.Sprintf("%c[1mPrompt:%c[0m \"", esc, esc) + as.promptText + "\"" +
 			fmt.Sprintf("\n%c[1mAssistant:%c[0m ", esc, esc) + generatedText)
 	} else {
-		as.printLinef("...")
+		as.printLinef(waitingByteTempChar)
 	}
 }
 

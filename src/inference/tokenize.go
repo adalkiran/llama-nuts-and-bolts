@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -40,33 +41,48 @@ func (ie *InferenceEngine) TokenizeBatch(texts []string, addBeginOfSentence bool
 	return result, nil
 }
 
-func (ie *InferenceEngine) TokenToString(tokenId model.TokenId) (sentencepiece.SentencePiece, string) {
+func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, waitingBytes *[]byte) (token sentencepiece.SentencePiece, resultString string, addedToWaiting bool) {
 	vocabulary := ie.model.Vocabulary
 	if tokenId < 0 || int(tokenId) >= len(vocabulary.IdToToken) {
-		return sentencepiece.SentencePiece{PieceType: sentencepiece.UNKNOWN}, unknownOutputToken
+		return sentencepiece.SentencePiece{PieceType: sentencepiece.UNKNOWN}, unknownOutputToken, false
 	}
-	token := vocabulary.IdToToken[tokenId]
+	token = vocabulary.IdToToken[tokenId]
 	switch token.PieceType {
 	case sentencepiece.CONTROL:
 		// Do nothing
 	case sentencepiece.BYTE:
-		return token, unescapeWhitespace(token.Piece)
+		if waitingBytes == nil {
+			*waitingBytes = make([]byte, 0)
+		}
+		*waitingBytes = append(*waitingBytes, token.ByteFallback)
+		if utf8.Valid(*waitingBytes) {
+			r, rsize := utf8.DecodeRune(*waitingBytes)
+			*waitingBytes = (*waitingBytes)[rsize:]
+			resultString = unescapeWhitespace(string(r))
+		} else {
+			addedToWaiting = true
+		}
+		return
 	case sentencepiece.NORMAL:
-		return token, unescapeWhitespace(token.Piece)
+		resultString = unescapeWhitespace(token.Piece)
+		return
 	}
-	return sentencepiece.SentencePiece{PieceType: sentencepiece.UNKNOWN}, ""
+	return sentencepiece.SentencePiece{PieceType: sentencepiece.UNKNOWN}, "", false
 }
 
 func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) ([]sentencepiece.SentencePiece, string) {
 	resultTokens := make([]sentencepiece.SentencePiece, 0)
 	resultStr := ""
+	generatedWaitingBytes := make([]byte, 0)
 	for _, tokenId := range tokenIdBatch {
 		if tokenId == ie.model.Vocabulary.PadId {
 			break
 		}
-		token, tokenStr := ie.TokenToString(tokenId)
+		token, tokenStr, addedToWaiting := ie.TokenToString(tokenId, &generatedWaitingBytes)
 		resultTokens = append(resultTokens, token)
-		resultStr += tokenStr
+		if !addedToWaiting {
+			resultStr += tokenStr
+		}
 	}
 	return resultTokens, resultStr
 }
@@ -77,10 +93,19 @@ func separatePieces(text string, vocabulary *model.Vocabulary) []model.TokenId {
 	for len(text) > 0 {
 		// Find the longest matching subword unit
 		var matchedSubword string
+		incrementCursor := 0
 		for i := 1; i <= utf8.RuneCountInString(text); i++ {
 			subword := string([]rune(text)[:i])
 			if _, ok := vocabulary.TokenToId[subword]; ok {
 				matchedSubword = subword
+				incrementCursor = len(matchedSubword)
+			} else if len(subword) == 1 {
+				r := []rune(text)[:i][0]
+				if utf8.RuneLen(r) == 1 {
+					matchedSubword = fmt.Sprintf("<0x%02X>", r)
+					incrementCursor = 1 // 1-byte
+					break
+				}
 			} else {
 				continue
 			}
@@ -89,17 +114,14 @@ func separatePieces(text string, vocabulary *model.Vocabulary) []model.TokenId {
 		// If no matching subword is found, treat it as an unknown token
 		if matchedSubword == "" {
 			matchedSubword = "<unk>"
+			incrementCursor = 1 // skip 1-byte
 		}
 
 		// Add the matched subword to the list of tokens
 		tokens = append(tokens, matchedSubword)
 
 		// Move to the next unmatched part of the input
-		if matchedSubword == "<unk>" {
-			text = text[1:]
-		} else {
-			text = text[len(matchedSubword):]
-		}
+		text = text[incrementCursor:]
 	}
 
 	result := make([]model.TokenId, len(tokens))
