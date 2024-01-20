@@ -171,6 +171,7 @@ func linearTransformation_General(input *Tensor, weights *Tensor, wOutFn linearT
 	for i := 0; i < rowProcessorCount; i++ {
 		go linearTransformation_ProcessRowChan(dstF32, dstRowChan)
 	}
+	runtime.Gosched()
 
 	if rowsSize > 1 {
 		for rowIdx := 0; rowIdx < rowsSize; rowIdx++ {

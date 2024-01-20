@@ -148,7 +148,9 @@ func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inferen
 			}
 			if generatedPart.AddedToWaiting {
 				appState.generatedText += waitingByteTempChar
+				appState.addedToWaitingCount++
 			} else {
+				appState.addedToWaitingCount = 0
 				// Check if the text ends with waitingByteTempChar, if true, remove it.
 				for strings.HasSuffix(appState.generatedText, waitingByteTempChar) {
 					appState.generatedText = strings.TrimSuffix(appState.generatedText, waitingByteTempChar)
@@ -244,11 +246,12 @@ type AppState struct {
 	generatedText       string
 	literalProgressText string
 
-	generationState   inference.GenerationState
-	generatedTokenIds []model.TokenId
-	generatedTokens   []sentencepiece.SentencePiece
-	startTimeTotal    time.Time
-	startTimeToken    time.Time
+	generationState     inference.GenerationState
+	generatedTokenIds   []model.TokenId
+	generatedTokens     []sentencepiece.SentencePiece
+	addedToWaitingCount int
+	startTimeTotal      time.Time
+	startTimeToken      time.Time
 }
 
 func (as *AppState) updateOutput() {
@@ -269,8 +272,17 @@ func (as *AppState) updateOutput() {
 		if generatedText == "" {
 			generatedText = waitingByteTempChar
 		}
+		additionalText := ""
+		if appState.addedToWaitingCount > 0 {
+			additionalTextItems := make([]string, appState.addedToWaitingCount)
+			addedToWaitingTokens := appState.generatedTokens[len(appState.generatedTokens)-appState.addedToWaitingCount : len(appState.generatedTokens)]
+			for i, addedToWaitingToken := range addedToWaitingTokens {
+				additionalTextItems[i] = fmt.Sprintf("\"%s\"", addedToWaitingToken.Piece)
+			}
+			additionalText = fmt.Sprintf(" (tokens waiting to be processed further: %s)", strings.Join(additionalTextItems, ", "))
+		}
 		as.printLinef("%c[1m%-23s:%c[0m \"%s\"", esc, "Prompt", esc, as.promptText)
-		as.printLinef("%c[1m%-23s:%c[0m \"%s\"", esc, "Assistant", esc, generatedText)
+		as.printLinef("%c[1m%-23s:%c[0m \"%s\"%s", esc, "Assistant", esc, generatedText, additionalText)
 	} else {
 		as.printLinef(waitingByteTempChar)
 	}
