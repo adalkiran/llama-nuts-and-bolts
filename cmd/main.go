@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"log"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -23,6 +23,7 @@ import (
 const B_INST, E_INST = "[INST]", "[/INST]"
 const esc = 27
 const waitingByteTempChar = "\u2026" // Unicode character ellipsis …
+const debugMode = false
 
 var predefinedPrompts = []PromptInput{
 	{IsChatMode: false, Prompt: "Hello, my name is "},
@@ -43,7 +44,6 @@ func main() {
 		fmt.Println("Error:", err)
 		return
 	}
-
 	// Get the directory containing the executable
 	exeDir := filepath.Dir(exePath)
 
@@ -51,13 +51,28 @@ func main() {
 
 	fmt.Println("Welcome to Llama Nuts and Bolts!")
 	fmt.Print("=================================\n\n\n")
+
+	var debugLogWriter io.Writer = nil
+	if debugMode {
+		debugLogWriter, err = os.Create("debug.log")
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	common.GLogger, err = common.NewLogger(os.Stdout, debugLogWriter)
+	if err != nil {
+		panic(err)
+	}
+	defer common.GLogger.Close()
+
 	modelFilePath := "../models-original/7B-chat/consolidated.00.pth"
 
-	log.Printf("Loading model \"%s\"...", modelFilePath)
+	common.GLogger.ConsolePrintf("Loading model \"%s\"...", modelFilePath)
 
 	llamaModel, err := model.LoadModel(modelFilePath)
 	if err != nil {
-		log.Fatal(err)
+		common.GLogger.ConsoleFatal(err)
 	}
 	defer llamaModel.Free()
 
@@ -80,7 +95,7 @@ func main() {
 
 	tokens, err := engine.Tokenize(userPrompt.Prompt, true)
 	if err != nil {
-		log.Fatal(err)
+		common.GLogger.ConsoleFatal(err)
 	}
 
 	appState.promptTokens, appState.promptText = engine.TokenBatchToString(tokens)
@@ -149,7 +164,7 @@ func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inferen
 				continue
 			}
 			fmt.Println()
-			log.Fatal(err)
+			common.GLogger.ConsoleFatal(err)
 		}
 	}
 }

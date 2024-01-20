@@ -2,9 +2,9 @@ package model
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/sentencepiece"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/torch"
@@ -21,7 +21,7 @@ func LoadModel(modelFilePath string) (*Model, error) {
 		return nil, err
 	}
 	defer torchModelReader.Close()
-	log.Printf("Loading model file: \"%s\"...", modelFilePath)
+	common.GLogger.ConsolePrintf("Loading model file: \"%s\"...", modelFilePath)
 	modelTensors, err := torchModelReader.Load()
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func LoadModel(modelFilePath string) (*Model, error) {
 		return nil, err
 	}
 
-	log.Printf("Found %d tensors in the model.", len(model.Tensors.GetKeys()))
+	common.GLogger.ConsolePrintf("Found %d tensors in the model.", len(model.Tensors.GetKeys()))
 
 	err = checkModelArgs(model)
 	if err != nil {
@@ -61,25 +61,25 @@ func LoadModel(modelFilePath string) (*Model, error) {
 
 func loadModelArgs(modelFilePath string, model *Model) error {
 	configFilePath := filepath.Dir(modelFilePath) + "/params.json"
-	log.Printf("Loading model configuration file: \"%s\"...", configFilePath)
+	common.GLogger.ConsolePrintf("Loading model configuration file: \"%s\"...", configFilePath)
 	modelArgs, err := loadModelArgsFromFile(configFilePath)
 	if err != nil {
 		return err
 	}
 	model.ModelArgs = modelArgs
-	log.Printf("Model configuration: %v", *model.ModelArgs)
+	common.GLogger.ConsolePrintf("Model configuration: %v", *model.ModelArgs)
 	return nil
 }
 
 func loadVocab(modelFilePath string, model *Model) error {
 	vocabFilePath := filepath.Dir(modelFilePath) + "/tokenizer.model"
-	log.Printf("Loading vocabulary/tokens file: \"%s\"...", vocabFilePath)
+	common.GLogger.ConsolePrintf("Loading vocabulary/tokens file: \"%s\"...", vocabFilePath)
 	vocabModelProto, err := sentencepiece.Load(vocabFilePath)
 	if err != nil {
 		return err
 	}
 	model.Vocabulary = NewVocabulary(vocabModelProto)
-	log.Printf("Found %d tokens in the model.", len(model.Vocabulary.IdToToken))
+	common.GLogger.ConsolePrintf("Found %d tokens in the model.", len(model.Vocabulary.IdToToken))
 	return nil
 }
 

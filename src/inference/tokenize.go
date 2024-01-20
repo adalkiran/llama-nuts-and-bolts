@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/model"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/sentencepiece"
 )
@@ -15,6 +16,7 @@ const (
 )
 
 func (ie *InferenceEngine) Tokenize(text string, addBeginOfSentence bool) ([]model.TokenId, error) {
+	common.GLogger.DebugPrintf("Tokenizing prompt: \"%s\", addBeginOfSentence: %v", text, addBeginOfSentence)
 	result := make([]model.TokenId, 0)
 	vocabulary := ie.model.Vocabulary
 
@@ -25,7 +27,8 @@ func (ie *InferenceEngine) Tokenize(text string, addBeginOfSentence bool) ([]mod
 		result = append(result, vocabulary.BeginOfSentenceId)
 	}
 	result = append(result, separatePieces(text, vocabulary)...)
-
+	common.GLogger.DebugPrintf("Prompt token ids: \"%v\"", result)
+	common.GLogger.DebugPrintf("Prompt tokens: \"%v\"", ie.TokenBatchToDebugString(result))
 	return result, nil
 }
 
@@ -85,6 +88,22 @@ func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) ([]s
 		}
 	}
 	return resultTokens, resultStr
+}
+
+func (ie *InferenceEngine) TokenBatchToDebugString(tokenIdBatch []model.TokenId) string {
+	vocabulary := ie.model.Vocabulary
+	resultStrArray := make([]string, 0)
+	for _, tokenId := range tokenIdBatch {
+		if tokenId == ie.model.Vocabulary.PadId {
+			break
+		}
+		if tokenId < 0 || int(tokenId) >= len(vocabulary.IdToToken) {
+			resultStrArray = append(resultStrArray, fmt.Sprintf("[id: %d, UNKNOWN ID]", tokenId))
+		}
+		token := vocabulary.IdToToken[tokenId]
+		resultStrArray = append(resultStrArray, fmt.Sprintf("[id: %d, %s]", tokenId, token.String()))
+	}
+	return strings.Join(resultStrArray, ", ")
 }
 
 func separatePieces(text string, vocabulary *model.Vocabulary) []model.TokenId {

@@ -47,7 +47,7 @@ func NewInferenceEngine(model *model.Model, inferenceArgs common.InferenceArgs, 
 
 func (ie *InferenceEngine) GenerateString(promptTokens []model.TokenId) (<-chan GeneratedPart, <-chan error) {
 	// See: https://betterprogramming.pub/writing-a-stream-api-in-go-afbc3c4350e2
-	outputCh := make(chan GeneratedPart)
+	outputCh := make(chan GeneratedPart, 1)
 	outputErrorCh := make(chan error)
 
 	go func() {
@@ -69,6 +69,7 @@ func (ie *InferenceEngine) GenerateString(promptTokens []model.TokenId) (<-chan 
 					break
 				}
 				generatedToken, generatedTokenStr, addedToWaiting := ie.TokenToString(generatedTokenIdResult.value, &generatedWaitingBytes)
+				common.GLogger.DebugPrintf("Generated token string: \"%s\", addedToWaiting: %v, details: %s", generatedTokenStr, addedToWaiting, ie.TokenBatchToDebugString([]model.TokenId{generatedTokenIdResult.value}))
 				result := GeneratedPart{
 					TokenId:         generatedTokenIdResult.value,
 					Token:           generatedToken,
@@ -132,7 +133,6 @@ func (ie *InferenceEngine) GenerateTokens(promptTokens []model.TokenId) (<-chan 
 
 func (ie *InferenceEngine) generateTokensInternal(promptTokens []model.TokenId, generatedTokensCh chan<- generationStepResult[model.TokenId], errorCh chan<- error) {
 	infContext := ie.CreateInferenceContext()
-
 	promptLength := len(promptTokens)
 	if promptLength >= infContext.SequenceLength {
 		errorCh <- fmt.Errorf("context SequenceLength %d must be higher than prompt tokens length %d", infContext.SequenceLength, promptLength)
@@ -150,6 +150,7 @@ func (ie *InferenceEngine) generateTokensInternal(promptTokens []model.TokenId, 
 			return
 		}
 	}
+	common.GLogger.DebugPrintf("Created input tokens tensor: shape(%v)", tokens.Size)
 	prevPos := 0
 	for curPos := promptLength; curPos < infContext.SequenceLength; curPos++ {
 		inputTokensSlice, err := tokens.Slice([]int{prevPos}, []int{curPos})
@@ -157,6 +158,8 @@ func (ie *InferenceEngine) generateTokensInternal(promptTokens []model.TokenId, 
 			errorCh <- err
 			return
 		}
+		common.GLogger.DebugPrintf("=======================================\n\n")
+		common.GLogger.DebugPrintf("Running Transformer.Forward for curPos: %d, prevPos: %d, inputTokensSlice: shape(%v)", curPos, prevPos, inputTokensSlice.Size)
 		logits, err := ie.model.Transformer.Forward(infContext, inputTokensSlice, prevPos)
 		if err != nil {
 			errorCh <- err
@@ -186,6 +189,8 @@ func (ie *InferenceEngine) generateTokensInternal(promptTokens []model.TokenId, 
 			errorCh <- err
 			return
 		}
+		common.GLogger.DebugPrintf("Generated token for curPos: %d, prevPos: %d, token id: %d", curPos, prevPos, nextTokenId)
+
 		eosReached := nextTokenId == ie.model.Vocabulary.EndOfSentenceId
 		prevPos = curPos
 		if eosReached {

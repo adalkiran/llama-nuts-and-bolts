@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 )
@@ -108,6 +109,7 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 
 func (lt *LlamaTransformer) prepare(inputTokens *ml.Tensor, startPos int) (inputTensor *ml.Tensor, freqsCis *ml.Tensor, mask *ml.Tensor, err error) {
 	sequenceLength := inputTokens.Size[0]
+	common.GLogger.DebugPrintf("LlamaTransformer.prepare started for inputTokens: shape(%v), startPos: %d. sequenceLength: %d", inputTokens.Size, startPos, sequenceLength)
 	inputTensor, err = ml.Fwd_Get_Rows(lt.tok_embd, inputTokens)
 	if err != nil {
 		return
@@ -127,6 +129,11 @@ func (lt *LlamaTransformer) prepare(inputTokens *ml.Tensor, startPos int) (input
 			return
 		}
 	}
+	var maskSize []int
+	if mask != nil {
+		maskSize = mask.Size
+	}
+	common.GLogger.DebugPrintf("LlamaTransformer.prepare finished inputTensor: shape(%v), freqsCis: shape(%v), mask: shape(%v)", inputTensor.Size, freqsCis.Size, maskSize)
 	return
 }
 
@@ -134,7 +141,7 @@ func (lt *LlamaTransformer) Forward(infContext *InferenceContext, inputTokens *m
 	if inputTokens.Size[0] == 0 {
 		return nil, fmt.Errorf("empty token array")
 	}
-
+	common.GLogger.DebugPrintf("LlamaTransformer.Forward started for inputTokens: shape(%v), startPos: %d -> tensor inputTensor", inputTokens.Size, startPos)
 	inputTensor, freqsCis, mask, err := lt.prepare(inputTokens, startPos)
 	if err != nil {
 		return nil, err
@@ -143,21 +150,27 @@ func (lt *LlamaTransformer) Forward(infContext *InferenceContext, inputTokens *m
 	currentTensor := inputTensor
 	for layerIdx, layer := range lt.Layers {
 		startTime := time.Now()
+		common.GLogger.DebugPrintf("=======================================\n")
+		common.GLogger.DebugPrintf("Calling LlamaTransformerBlock.Forward for layer: %d / %d, startPos: %d -> tensor currentTensor", layerIdx+1, len(lt.Layers), startPos)
 		if currentTensor, err = layer.Forward(infContext, currentTensor, startPos, freqsCis, mask); err != nil {
 			return nil, err
 		}
 		infContext.Logf("Transformer block layer %d / %d was run, took %.4f sec(s)", layerIdx+1, len(lt.Layers), time.Since(startTime).Seconds())
 	}
+	common.GLogger.DebugPrintf("Calling RMSNorm for currentTensor shape(%v) (result of all transformer blocks) and LlamaTransformer.output_norm weights shape(%v) -> tensor currentTensor", currentTensor.Size, lt.output_norm.weights.Size)
 	if currentTensor, err = lt.output_norm.Forward(infContext, currentTensor); err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling ml.LinearTransformation for currentTensor (normalized result of all transformer blocks) shape(%v) and LlamaTransformer.output weights shape(%v) -> tensor output", currentTensor.Size, lt.output.Size)
 	output, err := ml.LinearTransformation(currentTensor, lt.output)
 	if err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Converting output tensor shape(%v) to Float32 tensor -> tensor output", output.Size)
 	if output, err = output.ToFloat32(); err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Returning tensor output: shape(%v)", output.Size)
 	return output, nil
 }
 
@@ -195,32 +208,43 @@ func NewLlamaTransformerBlock(model *Model, layerIndex int) (*LlamaTransformerBl
 }
 
 func (ltb *LlamaTransformerBlock) Forward(infContext *InferenceContext, x *ml.Tensor, startPos int, freqsCis *ml.Tensor, mask *ml.Tensor) (*ml.Tensor, error) {
+	var maskSize []int
+	if mask != nil {
+		maskSize = mask.Size
+	}
+	common.GLogger.DebugPrintf("LlamaTransformerBlock.Forward started for x: shape(%v), startPos: %d, freqsCis: shape(%v), mask: shape(%v)", x.Size, startPos, freqsCis.Size, maskSize)
+	common.GLogger.DebugPrintf("Calling RMSNorm for tensor x shape(%v) and LlamaTransformerBlock.attn_norm weights shape(%v) -> tensor normalizedX", x.Size, ltb.attn_norm.weights.Size)
 	normalizedX, err := ltb.attn_norm.Forward(infContext, x)
 	if err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling LlamaAttention.Forward for tensor normalizedX shape(%v) and startPos: %d, freqsCis: shape(%v), mask: shape(%v) -> tensor h", normalizedX.Size, startPos, freqsCis.Size, maskSize)
 	h, err := ltb.attention.Forward(infContext, normalizedX, startPos, freqsCis, mask)
 	if err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling ml.Add to calculate x shape(%v) + h shape(%v) -> tensor h", x.Size, h.Size)
 	if h, err = ml.Add(x, h); err != nil {
 		return nil, err
 	}
 
+	common.GLogger.DebugPrintf("Calling RMSNorm for tensor h shape(%v) and LlamaTransformerBlock.ffn_norm weights shape(%v) -> tensor normalizedH", x.Size, ltb.ffn_norm.weights.Size)
 	normalizedH, err := ltb.ffn_norm.Forward(infContext, h)
 	if err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling LlamaFeedForward.Forward for tensor normalizedH shape(%v) -> tensor ffnOutput", normalizedH.Size)
 	ffnOutput, err := ltb.feedForward.Forward(normalizedH)
 	if err != nil {
 		return nil, err
 	}
 
+	common.GLogger.DebugPrintf("Calling ml.Add to calculate h shape(%v) + ffnOutput shape(%v) -> tensor output", h.Size, ffnOutput.Size)
 	output, err := ml.Add(h, ffnOutput)
 	if err != nil {
 		return nil, err
 	}
-
+	common.GLogger.DebugPrintf("Returning tensor output: shape(%v)", output.Size)
 	return output, nil
 }
 
@@ -265,12 +289,14 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 	var mu sync.Mutex
 	parallelResults := make(map[string]*ml.Tensor)
 
+	common.GLogger.DebugPrintf("[Scheduling goroutine] ml.LinearTransformation for x shape(%v) and LlamaAttention.attn_wq weights shape(%v) -> tensor xq", x.Size, lat.attn_wq.Size)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if ctx.Err() != nil {
 			return
 		}
+		common.GLogger.DebugPrintf("[Calling in goroutine] ml.LinearTransformation for x shape(%v) and LlamaAttention.attn_wq weights shape(%v) -> tensor xq", x.Size, lat.attn_wq.Size)
 		// lat.attn_wq: [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
 		xq, err := ml.LinearTransformation(x, lat.attn_wq)
 		if err != nil {
@@ -282,12 +308,14 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		mu.Unlock()
 	}()
 
+	common.GLogger.DebugPrintf("[Scheduling goroutine] ml.LinearTransformation for x shape(%v) and LlamaAttention.attn_wk weights shape(%v) -> tensor xk", x.Size, lat.attn_wk.Size)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if ctx.Err() != nil {
 			return
 		}
+		common.GLogger.DebugPrintf("[Calling in goroutine] ml.LinearTransformation for x shape(%v) and LlamaAttention.attn_wk weights shape(%v) -> tensor xk", x.Size, lat.attn_wk.Size)
 		// lat.attn_wk: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
 		xk, err := ml.LinearTransformation(x, lat.attn_wk)
 		if err != nil {
@@ -299,12 +327,14 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		mu.Unlock()
 	}()
 
+	common.GLogger.DebugPrintf("[Scheduling goroutine] ml.LinearTransformation for x shape(%v) and LlamaAttention.attn_wv weights shape(%v) -> tensor xv", x.Size, lat.attn_wv.Size)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if ctx.Err() != nil {
 			return
 		}
+		common.GLogger.DebugPrintf("[Calling in goroutine] ml.LinearTransformation for x shape(%v) and LlamaAttention.attn_wv weights shape(%v) -> tensor xv", x.Size, lat.attn_wv.Size)
 		// lat.attn_wv: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
 		xv, err := ml.LinearTransformation(x, lat.attn_wv)
 		if err != nil {
@@ -323,8 +353,10 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 	}
 
 	xq := parallelResults["xq"]
-	xv := parallelResults["xv"]
 	xk := parallelResults["xk"]
+	xv := parallelResults["xv"]
+
+	common.GLogger.DebugPrintf("Parallel results, xq: shape(%v), xk: shape(%v), xv: shape(%v)", xq.Size, xk.Size, xv.Size)
 
 	/*
 		Do reshapings
@@ -342,6 +374,8 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		return nil, err
 	}
 
+	common.GLogger.DebugPrintf("Reshaping results, xq: shape(%v), xk: shape(%v), xv: shape(%v)", xq.Size, xk.Size, xv.Size)
+
 	/*
 		Apply rotary embeddings
 	*/
@@ -349,6 +383,8 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 	if xq, xk, err = applyRotaryEmbeddings(xq, xk, freqsCis); err != nil { // example shape=[5,32,128] dtype=DT_BF16
 		return nil, err
 	}
+
+	common.GLogger.DebugPrintf("applyRotaryEmbeddings results, xq: shape(%v), xk: shape(%v)", xq.Size, xk.Size)
 
 	/*
 		Update KV cache
@@ -401,24 +437,31 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		return nil, err
 	}
 
+	common.GLogger.DebugPrintf("Multiple transposing results, xq: shape(%v), keys: shape(%v), values: shape(%v)", xq.Size, keys.Size, values.Size)
+
 	/*
 		Goal in Python manner:
 		scores = torch.matmul(xq, keys.transpose(2, 3)) / math.sqrt(self.head_dim)
 	*/
 
+	common.GLogger.DebugPrintf("Calling ml.MatMul for xq shape(%v) and keys shape(%v) -> tensor xqMatMulKeys", xq.Size, keys.Size)
 	xqMatMulKeys, err := ml.MatMul(xq, keys) // matmul([32,5,128], [32,128,5]) -> example shape=[32,5,5] (N_Heads, sequenceLength, sequenceLength)
 	if err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling ml.DivToScalar for xqMatMulKeys shape(%v) and scalar -> tensor scores", xqMatMulKeys.Size)
 	scores, err := ml.DivToScalar(xqMatMulKeys, dtype.BFloat16fromFloat32(float32(math.Sqrt(float64(lat.HeadDim))))) // example shape=[32,5,5]
 	if err != nil {
 		return nil, err
 	}
 
 	if mask != nil {
+		common.GLogger.DebugPrintf("Calling ml.Add to calculate scores shape(%v) + mask shape(%v) -> tensor scores", scores.Size, mask.Size)
 		if scores, err = ml.Add(scores, mask); err != nil { // example shape=[32,5,5]
 			return nil, err
 		}
+	} else {
+		common.GLogger.DebugPrintf("Skipping addition scores + mask")
 	}
 
 	/*
@@ -426,13 +469,16 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		scores = F.softmax(scores.float(), dim=-1).type_as(xq)
 	*/
 
+	common.GLogger.DebugPrintf("Converting scores tensor shape(%v) to Float32 tensor -> tensor scores", scores.Size)
 	scores, err = scores.ToFloat32() // example shape=[32,5,5] dtype=DT_F32
 	if err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling ml.Softmax for scores shape(%v) and dim %d -> tensor scores", scores.Size, len(scores.Size)-1)
 	if scores, err = ml.Softmax(scores, len(scores.Size)-1); err != nil { // example shape=[32,5,5] dtype=DT_F32
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Converting scores tensor shape(%v) to BFloat16 tensor -> tensor scores", scores.Size)
 	if scores, err = scores.ToBFloat16(); err != nil { // example shape=[32,5,5] (N_Heads, sequenceLength, sequenceLength) dtype=DT_BF16
 		return nil, err
 	}
@@ -443,6 +489,7 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
 	*/
 
+	common.GLogger.DebugPrintf("Calling ml.MatMul for scores shape(%v) and values shape(%v) -> tensor output", scores.Size, values.Size)
 	output, err := ml.MatMul(scores, values)
 	if err != nil {
 		return nil, err
@@ -459,10 +506,12 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		Apply lat.attn_wo weights to output
 	*/
 
+	common.GLogger.DebugPrintf("Calling ml.LinearTransformation for output shape(%v) and LlamaAttention.attn_wo weights shape(%v) -> tensor output", output.Size, lat.attn_wo.Size)
 	// lat.attn_wo: [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
 	if output, err = ml.LinearTransformation(output, lat.attn_wo); err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Returning tensor output: shape(%v)", output.Size)
 	return output, nil
 }
 
@@ -514,20 +563,25 @@ func (lff *LlamaFeedForward) Forward(x *ml.Tensor) (*ml.Tensor, error) {
 		-->
 		self.ffn_down(F.silu(self.ffn_gate(x)) * self.ffn_up(x))
 	*/
+	common.GLogger.DebugPrintf("Calling ml.LinearTransformation for x shape(%v) and LlamaFeedForward.ffn_gate weights shape(%v) -> tensor h", x.Size, lff.ffn_gate.Size)
 	h, err := ml.LinearTransformation(x, lff.ffn_gate)
 	if err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling ml.Silu for h shape(%v) -> tensor h", h.Size)
 	if h, err = ml.Silu(h); err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling ml.LinearTransformation for x shape(%v) and LlamaFeedForward.ffn_up weights shape(%v) -> tensor ffnUpX", x.Size, lff.ffn_up.Size)
 	ffnUpX, err := ml.LinearTransformation(x, lff.ffn_up)
 	if err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling ml.MultiplyElementwise for h shape(%v) and ffnUpX weights shape(%v) -> tensor ffnUpX", h.Size, ffnUpX.Size)
 	if h, err = ml.MultiplyElementwise(h, ffnUpX); err != nil {
 		return nil, err
 	}
+	common.GLogger.DebugPrintf("Calling ml.LinearTransformation for h shape(%v) and LlamaFeedForward.ffn_down weights shape(%v) -> tensor output", h.Size, lff.ffn_down.Size)
 	output, err := ml.LinearTransformation(h, lff.ffn_down)
 	if err != nil {
 		return nil, err

@@ -50,7 +50,7 @@ func NewInferenceContext(model *Model, inferenceArgs common.InferenceArgs, logFn
 			modelArgs.HeadDim,            // 128
 		}, ml.DT_BF16)
 	}
-
+	common.GLogger.DebugPrintf("Inference Context created with SequenceLength: %d", context.SequenceLength)
 	return context
 }
 
