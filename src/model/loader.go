@@ -15,7 +15,8 @@ const (
 	BYTES_GIGABYTE = 1024 * 1024 * 1024
 )
 
-func LoadModel(modelFilePath string) (*Model, error) {
+func LoadModel(modelDir string) (*Model, error) {
+	modelFilePath := filepath.Join(modelDir, "consolidated.00.pth")
 	torchModelReader, err := torch.NewTorchModelReader(modelFilePath)
 	if err != nil {
 		return nil, err
@@ -27,11 +28,11 @@ func LoadModel(modelFilePath string) (*Model, error) {
 		return nil, err
 	}
 	model := &Model{Tensors: modelTensors}
-	err = loadModelArgs(modelFilePath, model)
+	err = loadModelArgs(modelDir, model)
 	if err != nil {
 		return nil, err
 	}
-	err = loadVocab(modelFilePath, model)
+	err = loadVocab(modelDir, model)
 	if err != nil {
 		return nil, err
 	}
@@ -59,20 +60,20 @@ func LoadModel(modelFilePath string) (*Model, error) {
 	return model, nil
 }
 
-func loadModelArgs(modelFilePath string, model *Model) error {
-	configFilePath := filepath.Dir(modelFilePath) + "/params.json"
+func loadModelArgs(modelDir string, model *Model) error {
+	configFilePath := filepath.Join(modelDir, "params.json")
 	common.GLogger.ConsolePrintf("Loading model configuration file: \"%s\"...", configFilePath)
 	modelArgs, err := loadModelArgsFromFile(configFilePath)
 	if err != nil {
 		return err
 	}
 	model.ModelArgs = modelArgs
-	common.GLogger.ConsolePrintf("Model configuration: %v", *model.ModelArgs)
+	common.GLogger.ConsolePrintf("Model configuration:\n%v", *model.ModelArgs)
 	return nil
 }
 
-func loadVocab(modelFilePath string, model *Model) error {
-	vocabFilePath := filepath.Dir(modelFilePath) + "/tokenizer.model"
+func loadVocab(modelDir string, model *Model) error {
+	vocabFilePath := filepath.Join(modelDir, "tokenizer.model")
 	common.GLogger.ConsolePrintf("Loading vocabulary/tokens file: \"%s\"...", vocabFilePath)
 	vocabModelProto, err := sentencepiece.Load(vocabFilePath)
 	if err != nil {

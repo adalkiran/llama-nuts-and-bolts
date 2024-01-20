@@ -23,6 +23,7 @@ import (
 const B_INST, E_INST = "[INST]", "[/INST]"
 const esc = 27
 const waitingByteTempChar = "\u2026" // Unicode character ellipsis …
+const modelsDirName = "models-original"
 const debugMode = false
 
 var predefinedPrompts = []PromptInput{
@@ -39,19 +40,10 @@ var appState = &AppState{
 }
 
 func main() {
-	exePath, err := os.Executable()
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-	// Get the directory containing the executable
-	exeDir := filepath.Dir(exePath)
-
-	fmt.Println(exeDir)
-
 	fmt.Println("Welcome to Llama Nuts and Bolts!")
 	fmt.Print("=================================\n\n\n")
 
+	var err error
 	var debugLogWriter io.Writer = nil
 	if debugMode {
 		debugLogWriter, err = os.Create("debug.log")
@@ -66,17 +58,20 @@ func main() {
 	}
 	defer common.GLogger.Close()
 
-	modelFilePath := "../models-original/7B-chat/consolidated.00.pth"
+	modelDir, err := searchForModelPath(modelsDirName, "7B-chat")
+	if err != nil {
+		panic(err)
+	}
 
-	common.GLogger.ConsolePrintf("Loading model \"%s\"...", modelFilePath)
+	common.GLogger.ConsolePrintf("Found model files in \"%s\"...", modelDir)
 
-	llamaModel, err := model.LoadModel(modelFilePath)
+	llamaModel, err := model.LoadModel(modelDir)
 	if err != nil {
 		common.GLogger.ConsoleFatal(err)
 	}
 	defer llamaModel.Free()
 
-	fmt.Printf("Model \"%s\" was loaded.\n", modelFilePath)
+	fmt.Printf("Model \"%s\" was loaded.\n", modelDir)
 
 	fmt.Printf("\n\n\n")
 
@@ -169,6 +164,35 @@ func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inferen
 			common.GLogger.ConsoleFatal(err)
 		}
 	}
+}
+
+func searchForModelPath(modelsDirName string, modelName string) (string, error) {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	// Get the directory containing the executable
+	exeDir := filepath.Dir(exePath)
+
+	fileNamesToLookFor := []string{"consolidated.00.pth", "params.json", "tokenizer.model"}
+
+	rootPathAlternatives := []string{".", ".."}
+	searchedDirectories := make([]string, 0)
+	for _, rootPathAlternative := range rootPathAlternatives {
+		found := true
+		modelDir := filepath.Join(exeDir, rootPathAlternative, modelsDirName, modelName)
+		for _, fileNameToLookFor := range fileNamesToLookFor {
+			if _, err := os.Stat(filepath.Join(modelDir, fileNameToLookFor)); err != nil {
+				found = false
+				break
+			}
+		}
+		if found {
+			return modelDir, nil
+		}
+		searchedDirectories = append(searchedDirectories, modelDir)
+	}
+	return "", fmt.Errorf("model directory \"%s\" and related files could not be found in:\n%s", modelsDirName, strings.Join(searchedDirectories, "\n"))
 }
 
 func askUserPromptChoice() PromptInput {
