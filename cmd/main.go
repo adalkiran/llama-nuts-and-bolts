@@ -105,7 +105,15 @@ func main() {
 
 	wg.Wait()
 
-	fmt.Printf("\n\nFinished.\n")
+	finishReason := "unknown"
+	switch appState.generationState {
+	case inference.GSFinishedByReachingEOS:
+		finishReason = "reaching EOS token"
+	case inference.GSFinishedByReachingSeqLen:
+		finishReason = "reaching sequence length"
+	}
+
+	fmt.Printf("\n\nFinished %c[1mby %s%c[0m.\n", esc, finishReason, esc)
 }
 
 func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inference.GeneratedPart, errorCh <-chan error) {
@@ -132,6 +140,7 @@ func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inferen
 				}
 				appState.generatedText += generatedPart.DecodedString
 			}
+			appState.generationState = generatedPart.GenerationState
 			appState.updateOutput()
 			appState.startTimeToken = time.Now()
 
@@ -220,6 +229,7 @@ type AppState struct {
 	generatedText       string
 	literalProgressText string
 
+	generationState   inference.GenerationState
 	generatedTokenIds []model.TokenId
 	generatedTokens   []sentencepiece.SentencePiece
 	startTimeTotal    time.Time

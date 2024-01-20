@@ -67,7 +67,7 @@ func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, waitingBytes *[]
 		resultString = unescapeWhitespace(token.Piece)
 		return
 	}
-	return sentencepiece.SentencePiece{PieceType: sentencepiece.UNKNOWN}, "", false
+	return token, "", false
 }
 
 func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) ([]sentencepiece.SentencePiece, string) {
