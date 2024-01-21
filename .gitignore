@@ -21,6 +21,8 @@
 go.work
 
 .DS_Store
+*.log
+__debug_bin*
 /output
 /models-original/**/*
 !/models-original/.gitkeep
