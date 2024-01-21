@@ -53,7 +53,7 @@ func NewMemoryMapper(filePath string) (*MemoryMapper, error) {
 	// Llama.cpp has given 0 as "size" argument of MapViewOfFile, because it takes uint32, but our file size (14GB)
 	// exceeds limits of 32 bit integer. So, here, our code takes the address overflow risk on its own.
 	// See: https://github.com/ggerganov/llama.cpp/blob/381ee195721d8e747ee31a60c0751822b3072f02/llama.cpp#L1022
-	addr, err := windows.MapViewOfFile(h, syscall.FILE_MAP_READ, 0, 0, uintptr(0))
+	addr, err := windows.MapViewOfFile(result.MappingHandle, syscall.FILE_MAP_READ, 0, 0, uintptr(0))
 	if err != nil {
 		return nil, err
 	}
@@ -65,11 +65,11 @@ func NewMemoryMapper(filePath string) (*MemoryMapper, error) {
 }
 
 func (mm *MemoryMapper) Unmap() error {
-	addr := uintptr(unsafe.Pointer(&data[0]))
+	addr := uintptr(unsafe.Pointer(&mm.Data[0]))
 	err := syscall.UnmapViewOfFile(addr)
 
 	if err == nil {
-		err = syscall.CloseHandle(mm.MappingHandle)
+		err = windows.CloseHandle(mm.MappingHandle)
 	}
 	return nil
 }
