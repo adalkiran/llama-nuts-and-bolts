@@ -43,7 +43,7 @@ func NewMemoryMapper(filePath string) (*MemoryMapper, error) {
 	// Llama.cpp has given 0 as "size" argument of CreateFileMapping, because it takes uint32, but our file size (14GB)
 	// exceeds limits of 32 bit integer. So, here, our code takes the address overflow risk on its own.
 	// See: https://github.com/ggerganov/llama.cpp/blob/381ee195721d8e747ee31a60c0751822b3072f02/llama.cpp#L1015
-	result.MappingHandle, err = windows.CreateFileMapping(windows.Handle(file.Fd()), nil, windows.PAGE_READONLY, 0, uint32(result.Size), nil)
+	result.MappingHandle, err = windows.CreateFileMapping(windows.Handle(file.Fd()), nil, windows.PAGE_READONLY, 0, 0, nil)
 	if err != nil {
 		return nil, err
 	}

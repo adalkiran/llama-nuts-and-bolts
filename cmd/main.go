@@ -176,11 +176,13 @@ func searchForModelPath(modelsDirName string, modelName string) (string, error) 
 
 	fileNamesToLookFor := []string{"consolidated.00.pth", "params.json", "tokenizer.model"}
 
-	rootPathAlternatives := []string{".", ".."}
+	rootPathAlternatives := [][2]string{
+		{exeDir, "."}, {exeDir, ".."}, {"", "."}, {"", ".."},
+	}
 	searchedDirectories := make([]string, 0)
 	for _, rootPathAlternative := range rootPathAlternatives {
 		found := true
-		modelDir := filepath.Join(exeDir, rootPathAlternative, modelsDirName, modelName)
+		modelDir := filepath.Join(rootPathAlternative[0], rootPathAlternative[1], modelsDirName, modelName)
 		for _, fileNameToLookFor := range fileNamesToLookFor {
 			if _, err := os.Stat(filepath.Join(modelDir, fileNameToLookFor)); err != nil {
 				found = false

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 )
 
@@ -195,12 +196,14 @@ func linearTransformation_General(input *Tensor, weights *Tensor, wOutFn linearT
 			dstRowOffset, dstRowChan, wOutFn)
 	}
 
+	runtime.Gosched()
+
 	select {
 	case <-ctx.Done():
 		close(dstRowChan)
 		// Cancellation signal received, one of the goroutines encountered an error
 		return nil, context.Cause(ctx)
-	case <-waitGroupDone(&wg):
+	case <-common.WaitGroupDone(&wg):
 		runtime.Gosched()
 		close(dstRowChan)
 		return dstF32.ToBFloat16()

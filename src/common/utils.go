@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"math"
+	"sync"
 )
 
 const (
@@ -10,6 +11,15 @@ const (
 	THRESHOLD_F32   = 1e-3
 	THRESHOLD_BF16  = 1e-2
 )
+
+func WaitGroupDone(wg *sync.WaitGroup) chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	return done
+}
 
 func InterfaceToInt(val interface{}) (int, error) {
 	if x, ok := val.(int); ok {

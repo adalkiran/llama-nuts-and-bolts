@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"sync"
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/dtype"
 )
@@ -423,15 +422,6 @@ func MultiplyElementwise(input *Tensor, other *Tensor) (*Tensor, error) {
 		}
 	}
 	return dst, nil
-}
-
-func waitGroupDone(wg *sync.WaitGroup) chan struct{} {
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-	return done
 }
 
 func LinearTransformation(input *Tensor, weights *Tensor) (*Tensor, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"runtime"
 	"sync"
 	"time"
 
@@ -346,10 +347,14 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		mu.Unlock()
 	}()
 
-	wg.Wait()
+	runtime.Gosched()
 
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
+	select {
+	case <-ctx.Done():
+		// Cancellation signal was received
+		return nil, context.Cause(ctx)
+	case <-common.WaitGroupDone(&wg):
+		runtime.Gosched()
 	}
 
 	xq := parallelResults["xq"]
