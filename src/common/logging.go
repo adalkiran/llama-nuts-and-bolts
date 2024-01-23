@@ -23,7 +23,7 @@ func NewLogger(consoleWriter io.Writer, debugWriter io.Writer) (*Logger, error) 
 		debug:   nil,
 	}
 	if debugWriter != nil {
-		log.New(debugWriter, "[DEBUG]", log.Flags())
+		result.debug = log.New(debugWriter, "[DEBUG]", log.Flags())
 	}
 	return result, nil
 }
