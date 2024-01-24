@@ -1711,13 +1711,19 @@ func testSimulatedLog(format string, v ...any) {
 }
 
 func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
-	modelFilePath := "../../models-original/7B/consolidated.00.pth"
-	if _, err := os.Stat(modelFilePath); err != nil {
-		t.Skipf("Model file \"%s\" is not found, passing this test: %s", modelFilePath, "TestSimulated")
+	modelDir := "../../models-original/7B"
+	if _, err := os.Stat(modelDir); err != nil {
+		t.Skipf("Model directory \"%s\" is not found, passing this test: %s", modelDir, "TestSimulated")
 		return
 	}
+	var err error
+	common.GLogger, err = common.NewLogger(os.Stdout, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer common.GLogger.Close()
 
-	llamaModel, err := LoadModel(modelFilePath)
+	llamaModel, err := LoadModel(modelDir)
 	if err != nil {
 		t.Fatal(err)
 	}

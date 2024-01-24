@@ -1,9 +1,11 @@
 package common
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"time"
 )
 
 var GLogger *Logger
@@ -11,6 +13,8 @@ var GLogger *Logger
 type Logger struct {
 	console *log.Logger
 	debug   *log.Logger
+
+	debugStartTime time.Time
 }
 
 func NewLogger(consoleWriter io.Writer, debugWriter io.Writer) (*Logger, error) {
@@ -23,7 +27,7 @@ func NewLogger(consoleWriter io.Writer, debugWriter io.Writer) (*Logger, error) 
 		debug:   nil,
 	}
 	if debugWriter != nil {
-		result.debug = log.New(debugWriter, "[DEBUG]", log.Flags())
+		result.debug = log.New(debugWriter, "[DEBUG]", log.Lmicroseconds)
 	}
 	return result, nil
 }
@@ -42,7 +46,11 @@ func (l *Logger) ConsoleFatal(v ...any) {
 
 func (l *Logger) DebugPrintf(format string, v ...any) {
 	if l.debug != nil {
+		if !l.debugStartTime.IsZero() {
+			format += fmt.Sprintf(" (%.4f secs)", time.Since(l.debugStartTime).Seconds())
+		}
 		l.debug.Printf(format, v...)
+		l.debugStartTime = time.Now()
 	}
 }
 

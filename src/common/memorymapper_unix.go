@@ -19,7 +19,7 @@ func NewMemoryMapper(filePath string) (*MemoryMapper, error) {
 	result := &MemoryMapper{
 		FilePath: filePath,
 	}
-	file, err := os.Open(filePath)
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, err
 	}

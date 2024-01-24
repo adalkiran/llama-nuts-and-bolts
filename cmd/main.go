@@ -58,6 +58,12 @@ func main() {
 	}
 	defer common.GLogger.Close()
 
+	machineEndian := common.DetermineMachineEndian()
+	common.GLogger.ConsolePrintf("Determined machine endianness: %s", machineEndian)
+	if machineEndian != "LITTLE_ENDIAN" {
+		panic(fmt.Errorf("error: Endianness of your machine is not supported. Expected LITTLE_ENDIAN but got %s", machineEndian))
+	}
+
 	modelDir, err := searchForModelPath(modelsDirName, "7B-chat")
 	if err != nil {
 		panic(err)

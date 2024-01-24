@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"unsafe"
 )
 
 const (
@@ -78,4 +79,19 @@ func AlmostEqualFloat32(a float32, b float32, threshold float64) bool {
 		return true
 	}
 	return math.Abs(float64(a)-float64(b)) <= threshold
+}
+
+func DetermineMachineEndian() string {
+	// See: https://stackoverflow.com/questions/51332658/any-better-way-to-check-endianness-in-go
+	buf := [2]byte{}
+	*(*uint16)(unsafe.Pointer(&buf[0])) = uint16(0xABCD)
+
+	switch buf {
+	case [2]byte{0xCD, 0xAB}:
+		return "LITTLE_ENDIAN"
+	case [2]byte{0xAB, 0xCD}:
+		return "BIG_ENDIAN"
+	default:
+		panic("Could not determine native endianness.")
+	}
 }
