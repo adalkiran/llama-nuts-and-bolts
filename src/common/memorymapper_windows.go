@@ -65,11 +65,14 @@ func NewMemoryMapper(filePath string) (*MemoryMapper, error) {
 }
 
 func (mm *MemoryMapper) Unmap() error {
-	addr := uintptr(unsafe.Pointer(&mm.Data[0]))
-	err := syscall.UnmapViewOfFile(addr)
+	// TODO: Check this part again, it gives this error while trying to unmap: "runtime error: invalid memory address or nil pointer dereference"
+	/*
+		addr := uintptr(unsafe.Pointer(&mm.Data[0]))
+		err := syscall.UnmapViewOfFile(addr)
 
-	if err == nil {
-		err = windows.CloseHandle(mm.MappingHandle)
-	}
+		if err == nil {
+			err = windows.CloseHandle(mm.MappingHandle)
+		}
+	*/
 	return nil
 }
