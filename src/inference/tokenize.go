@@ -62,6 +62,7 @@ func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, waitingBytes *[]
 			r, rsize := utf8.DecodeRune(*waitingBytes)
 			*waitingBytes = (*waitingBytes)[rsize:]
 			resultString = unescapeWhitespace(string(r))
+			resultString = emojiToAlias(resultString, true)
 		} else {
 			addedToWaiting = true
 		}

@@ -21,22 +21,23 @@ import (
 )
 
 const B_INST, E_INST = "[INST]", "[/INST]"
-const esc = 27
+const B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
 const waitingByteTempChar = "\u2026" // Unicode character ellipsis …
 const modelsDirName = "models-original"
 const debugMode = false
 
 var predefinedPrompts = []PromptInput{
-	{IsChatMode: false, Prompt: "Hello, my name is "},
-	{IsChatMode: false, Prompt: "You are Einstein. Describe your theory. "},
-	{IsChatMode: true, Prompt: "Can you explain what is Theory of relativity, shortly?"},
-	{IsChatMode: true, Prompt: "<<SYS>>\nAlways answer with emojis\n<</SYS>>\n\nHow to go from Beijing to NY?"},
+	{IsChatMode: false, Prompt: "Hello, my name is"},
+	{IsChatMode: true, SystemPrompt: "You are Einstein", Prompt: "Describe your theory."},
+	{IsChatMode: true, SystemPrompt: "Answer in 20 words, directly, and without an introduction", Prompt: "Can you explain what is Theory of relativity?"},
+	{IsChatMode: true, SystemPrompt: "You are a pirate", Prompt: "Explain what is quantum computer in 20 words."},
+	{IsChatMode: true, SystemPrompt: "Always answer with emojis", Prompt: "How to go from Beijing to NY?"},
 }
 
 var appState = &AppState{
 	prevLineWidths:                make([]int, 0),
 	consoleMeasure:                goterminal.New(os.Stdout),
-	excludeEscapeDirectivesRegexp: *regexp.MustCompile(string(rune(esc)) + "\\[\\d+[a-zA-Z]"),
+	excludeEscapeDirectivesRegexp: *regexp.MustCompile(string(rune('\033')) + "\\[\\d+[a-zA-Z]"),
 }
 
 func main() {
@@ -88,13 +89,22 @@ func main() {
 	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn)
 
 	userPrompt := askUserPromptChoice()
+	userPromptStr := userPrompt.Prompt
 	if userPrompt.IsChatMode {
-		userPrompt.Prompt = fmt.Sprintf("%s %s %s", B_INST, userPrompt.Prompt, E_INST)
+		systemPrompt := ""
+		if userPrompt.SystemPrompt != "" {
+			systemPrompt = fmt.Sprintf("%s%s%s", B_SYS, userPrompt.SystemPrompt, E_SYS)
+		}
+		userPromptStr = fmt.Sprintf("%s %s%s %s", B_INST, systemPrompt, userPrompt.Prompt, E_INST)
+	} else {
+		if !strings.HasSuffix(userPromptStr, " ") {
+			userPromptStr += " "
+		}
 	}
 
 	fmt.Printf("\n\n\n")
 
-	tokens, err := engine.Tokenize(userPrompt.Prompt, true)
+	tokens, err := engine.Tokenize(userPromptStr, true)
 	if err != nil {
 		common.GLogger.ConsoleFatal(err)
 	}
@@ -129,7 +139,7 @@ func main() {
 		finishReason = "reaching sequence length"
 	}
 
-	fmt.Printf("\n\nFinished %c[1mby %s%c[0m.\n", esc, finishReason, esc)
+	fmt.Printf("\n\nFinished \033[1mby %s\033[0m.\n", finishReason)
 }
 
 func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inference.GeneratedPart, errorCh <-chan error) {
@@ -206,19 +216,26 @@ func searchForModelPath(modelsDirName string, modelName string) (string, error) 
 func askUserPromptChoice() PromptInput {
 	extraChoiceCount := 2
 	for {
-		fmt.Printf("%c[1mSelect from our predefined prompts:%c[0m\n", esc, esc)
+		fmt.Printf("\033[1mSelect from our predefined prompts (latest two are for manual input):\033[0m\n")
 		for i, predefinedPrompt := range predefinedPrompts {
-			isChatModeText := "Chat mode"
-			if !predefinedPrompt.IsChatMode {
-				isChatModeText = "Text completion"
+			if predefinedPrompt.IsChatMode {
+				systemPrompt := predefinedPrompt.SystemPrompt
+				if systemPrompt == "" {
+					systemPrompt = "(empty)"
+				}
+				fmt.Printf("%2d. %-17s \033[1mSystem Prompt:\033[0m %s\n%22s\033[1mPrompt:\033[0m %s\n",
+					i+1, "[Chat mode]", systemPrompt, " ", predefinedPrompt.Prompt)
+
+			} else {
+				fmt.Printf("%2d. %-17s \033[1mPrompt:\033[0m %s\n", i+1, "[Text completion]", predefinedPrompt.Prompt)
+
 			}
-			fmt.Printf("%2d. [%s] %s\n", i+1, isChatModeText, predefinedPrompt.Prompt)
 		}
-		fmt.Printf("%c[1m%2d.%c[0m [%s] %s\n", esc, len(predefinedPrompts)+1, esc, "Text completion", "Other, manual input")
-		fmt.Printf("%c[1m%2d.%c[0m [%s] %s\n", esc, len(predefinedPrompts)+2, esc, "Chat mode", "Other, manual input")
+		fmt.Printf("%2d. %-17s %s\n", len(predefinedPrompts)+1, "[Text completion]", "Other, manual input")
+		fmt.Printf("%2d. %-17s %s\n", len(predefinedPrompts)+2, "[Chat mode]", "Other, manual input")
 
 		reader := bufio.NewReader(os.Stdin)
-		fmt.Printf("\nYour choice (choose %d to %d and press Enter): ", 1, len(predefinedPrompts)+extraChoiceCount)
+		fmt.Printf("\n\033[1mYour choice (choose %d to %d and press Enter):\033[0m ", 1, len(predefinedPrompts)+extraChoiceCount)
 		userChoice, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Printf("\nerror: %v\n\n", err)
@@ -240,7 +257,19 @@ func askUserPromptChoice() PromptInput {
 		userPromptInput := PromptInput{
 			IsChatMode: userChoiceNum == len(predefinedPrompts)+2,
 		}
-		fmt.Print("Write down your prompt and press Enter: ")
+		if userPromptInput.IsChatMode {
+			fmt.Print("\033[1mWrite down your \"system prompt\" (optional, will be surrounded by <<SYS>> and <</SYS>>) and press Enter:\033[0m ")
+			if userPromptInput.Prompt, err = reader.ReadString('\n'); err != nil {
+				fmt.Printf("\nerror: %v\n", err)
+				continue
+			}
+			userPromptInput.SystemPrompt = strings.TrimRight(userPromptInput.Prompt, "\r\n")
+		}
+		if userPromptInput.IsChatMode {
+			fmt.Print("\033[1mWrite down your prompt (will be surrounded by [INST] and [/INST]) and press Enter:\033[0m ")
+		} else {
+			fmt.Print("\033[1mWrite down your prompt and press Enter:\033[0m ")
+		}
 		if userPromptInput.Prompt, err = reader.ReadString('\n'); err != nil {
 			fmt.Printf("\nerror: %v\n", err)
 			continue
@@ -255,8 +284,9 @@ func askUserPromptChoice() PromptInput {
 }
 
 type PromptInput struct {
-	Prompt     string
-	IsChatMode bool
+	SystemPrompt string
+	Prompt       string
+	IsChatMode   bool
 }
 
 func logFn(format string, v ...any) {
@@ -269,8 +299,9 @@ type AppState struct {
 	consoleMeasure                *goterminal.Writer
 	excludeEscapeDirectivesRegexp regexp.Regexp
 
-	prevLineWidths []int
-	latestLogText  string
+	prevLineWidths  []int
+	latestLogText   string
+	printStrBuilder strings.Builder
 
 	sequenceLength      int
 	promptText          string
@@ -296,7 +327,7 @@ func (as *AppState) updateOutput() {
 	elapsedTotalStr, elapsedTokenStr := as.durationsToStr()
 	as.printLinef("Press Ctrl+C to exit.")
 	as.printLinef(as.generateProgressText())
-	as.printLinef("%-23s: %c[1m%s%c[0m, elapsed for next token: %c[1m%s%c[0m", "Total elapsed", esc, elapsedTotalStr, esc, esc, elapsedTokenStr, esc)
+	as.printLinef("%-23s: \033[1m%s\033[0m, elapsed for next token: \033[1m%s\033[0m", "Total elapsed", elapsedTotalStr, elapsedTokenStr)
 	as.printLinef("%-23s: %s", "Running for next token", as.latestLogText)
 	as.printLinef("")
 	if as.promptText != "" {
@@ -311,13 +342,14 @@ func (as *AppState) updateOutput() {
 			for i, addedToWaitingToken := range addedToWaitingTokens {
 				additionalTextItems[i] = fmt.Sprintf("\"%s\"", addedToWaitingToken.Piece)
 			}
-			additionalText = fmt.Sprintf(" (tokens waiting to be processed further: %s)", strings.Join(additionalTextItems, ", "))
+			additionalText = fmt.Sprintf(" (tokens waiting to be processed further: %s, possibly a part of an upcoming emoji)", strings.Join(additionalTextItems, ", "))
 		}
-		as.printLinef("%c[1m%-23s:%c[0m \"%s\"", esc, "Prompt", esc, as.promptText)
-		as.printLinef("%c[1m%-23s:%c[0m \"%s\"%s", esc, "Assistant", esc, generatedText, additionalText)
+		as.printLinef("\033[1m%-23s:\033[0m \"%s\"", "Prompt", as.promptText)
+		as.printLinef("\033[1m%-23s:\033[0m \"%s\"%s", "Assistant", generatedText, additionalText)
 	} else {
 		as.printLinef(waitingByteTempChar)
 	}
+	as.flushConsolePrint()
 }
 
 func (as *AppState) printLinef(format string, v ...any) {
@@ -335,7 +367,9 @@ func (as *AppState) printLinef(format string, v ...any) {
 		s += "\n"
 		as.prevLineWidths = append(as.prevLineWidths, 0)
 	}
-	fmt.Print(s)
+	// While testing on some Windows machines, directly printing out the output caused a "flash" on the screen.
+	// To prevent this, the output is collected in a string builder, and then printed at one time via flushConsolePrint() function.
+	as.printStrBuilder.WriteString(s)
 }
 
 func (as *AppState) measureConsoleWidth() int {
@@ -356,6 +390,7 @@ func (as *AppState) measureConsoleWidth() int {
 func (as *AppState) cleanupConsole() {
 	defer as.mu.Unlock()
 	as.mu.Lock()
+	var sb strings.Builder
 	if as.prevLineWidths != nil && len(as.prevLineWidths) > 0 {
 		lineCountToClean := 0
 		currentConsoleWidth := as.measureConsoleWidth()
@@ -368,13 +403,19 @@ func (as *AppState) cleanupConsole() {
 			lineCountToClean += lineCountByCurrentConsoleWidth
 		}
 		for i := 0; i < lineCountToClean; i++ {
-			fmt.Printf("%c[2K\r", esc) // Clear current line
+			sb.WriteString("\033[2K\r") // Clear current line
 			if i < lineCountToClean-1 {
-				fmt.Printf("%c[%dA", esc, 1) // Move cursor upper line
+				sb.WriteString(fmt.Sprintf("\033[%dA", 1)) // Move cursor upper line
 			}
 		}
 	}
+	as.printStrBuilder.WriteString(sb.String())
 	as.resetConsoleState()
+}
+
+func (as *AppState) flushConsolePrint() {
+	fmt.Print(as.printStrBuilder.String())
+	as.printStrBuilder.Reset()
 }
 
 func (as *AppState) resetConsoleState() {
@@ -396,8 +437,8 @@ func (as *AppState) generateProgressText() string {
 	if nextTokenNum < as.sequenceLength {
 		nextTokenNum++
 	}
-	return fmt.Sprintf("%c[1m%-23s: %d / %d, including %d prompt tokens...%c[0m",
-		esc, "Generating tokens", nextTokenNum, as.sequenceLength, len(as.promptTokens), esc) + "\n" +
+	return fmt.Sprintf("\033[1m%-23s: %d / %d, including %d prompt tokens...\033[0m",
+		"Generating tokens", nextTokenNum, as.sequenceLength, len(as.promptTokens)) + "\n" +
 		fmt.Sprintf("%-23s: %s", "Latest generated token", latestGeneratedTokenStr)
 }
 
