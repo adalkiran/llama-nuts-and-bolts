@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -35,6 +36,7 @@ var predefinedPrompts = []PromptInput{
 }
 
 var appState = &AppState{
+	consoleOutWriter:              os.Stdout,
 	prevLineWidths:                make([]int, 0),
 	consoleMeasure:                goterminal.New(os.Stdout),
 	excludeEscapeDirectivesRegexp: *regexp.MustCompile(string(rune('\033')) + "\\[\\d+[a-zA-Z]"),
@@ -71,6 +73,9 @@ func main() {
 	}
 
 	common.GLogger.ConsolePrintf("Found model files in \"%s\"...", modelDir)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	llamaModel, err := model.LoadModel(modelDir)
 	if err != nil {
@@ -127,7 +132,7 @@ func main() {
 	generatedPartCh, errorCh := engine.GenerateString(tokens)
 
 	wg.Add(1)
-	go listenGenerationChannels(&wg, generatedPartCh, errorCh)
+	go listenGenerationChannels(&wg, ctx, generatedPartCh, errorCh)
 
 	wg.Wait()
 
@@ -142,7 +147,7 @@ func main() {
 	fmt.Printf("\n\nFinished \033[1mby %s\033[0m.\n", finishReason)
 }
 
-func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inference.GeneratedPart, errorCh <-chan error) {
+func listenGenerationChannels(wg *sync.WaitGroup, ctx context.Context, generatedPartCh <-chan inference.GeneratedPart, errorCh <-chan error) {
 	defer wg.Done()
 	loop := true
 	for loop {
@@ -150,7 +155,7 @@ func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inferen
 		case generatedPart, ok := <-generatedPartCh:
 			if !ok {
 				loop = false
-				fmt.Println()
+				fmt.Fprintln(appState.consoleOutWriter)
 				break
 			}
 			if !generatedPart.IsResendOfWaiting {
@@ -176,8 +181,11 @@ func listenGenerationChannels(wg *sync.WaitGroup, generatedPartCh <-chan inferen
 			if err == nil {
 				continue
 			}
-			fmt.Println()
+			fmt.Fprintln(appState.consoleOutWriter)
 			common.GLogger.ConsoleFatal(err)
+		case <-ctx.Done():
+			loop = false
+			return
 		}
 	}
 }
@@ -299,9 +307,10 @@ type AppState struct {
 	consoleMeasure                *goterminal.Writer
 	excludeEscapeDirectivesRegexp regexp.Regexp
 
-	prevLineWidths  []int
-	latestLogText   string
-	printStrBuilder strings.Builder
+	prevLineWidths   []int
+	latestLogText    string
+	printStrBuilder  strings.Builder
+	consoleOutWriter io.Writer
 
 	sequenceLength      int
 	promptText          string
@@ -335,17 +344,20 @@ func (as *AppState) updateOutput() {
 		if generatedText == "" {
 			generatedText = waitingByteTempChar
 		}
-		additionalText := ""
+		waitingTokensText := ""
 		if appState.addedToWaitingCount > 0 {
-			additionalTextItems := make([]string, appState.addedToWaitingCount)
+			waitingTokensTextItems := make([]string, appState.addedToWaitingCount)
 			addedToWaitingTokens := appState.generatedTokens[len(appState.generatedTokens)-appState.addedToWaitingCount : len(appState.generatedTokens)]
 			for i, addedToWaitingToken := range addedToWaitingTokens {
-				additionalTextItems[i] = fmt.Sprintf("\"%s\"", addedToWaitingToken.Piece)
+				waitingTokensTextItems[i] = fmt.Sprintf("\"%s\"", addedToWaitingToken.Piece)
 			}
-			additionalText = fmt.Sprintf(" (tokens waiting to be processed further: %s, possibly a part of an upcoming emoji)", strings.Join(additionalTextItems, ", "))
+			waitingTokensText = fmt.Sprintf("%s, possibly a part of an upcoming emoji)", strings.Join(waitingTokensTextItems, ", "))
 		}
 		as.printLinef("\033[1m%-23s:\033[0m \"%s\"", "Prompt", as.promptText)
-		as.printLinef("\033[1m%-23s:\033[0m \"%s\"%s", "Assistant", generatedText, additionalText)
+		as.printLinef("\033[1m%-23s:\033[0m \"%s\"", "Assistant", generatedText)
+		if waitingTokensText != "" {
+			as.printLinef("\033[1m%-23s:\033[0m %s", "Tokens waiting to be processed further", waitingTokensText)
+		}
 	} else {
 		as.printLinef(waitingByteTempChar)
 	}
@@ -414,7 +426,7 @@ func (as *AppState) cleanupConsole() {
 }
 
 func (as *AppState) flushConsolePrint() {
-	fmt.Print(as.printStrBuilder.String())
+	fmt.Fprint(as.consoleOutWriter, as.printStrBuilder.String())
 	as.printStrBuilder.Reset()
 }
 

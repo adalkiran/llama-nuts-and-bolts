@@ -37,6 +37,8 @@ type InferenceEngine struct {
 	logFn         func(format string, v ...any)
 }
 
+type TokenGeneratorFn = func(promptTokens []model.TokenId, generatedTokensCh chan<- generationStepResult[model.TokenId], errorCh chan<- error)
+
 func NewInferenceEngine(model *model.Model, inferenceArgs common.InferenceArgs, logFn func(format string, v ...any)) *InferenceEngine {
 	return &InferenceEngine{
 		model:         model,
@@ -46,6 +48,23 @@ func NewInferenceEngine(model *model.Model, inferenceArgs common.InferenceArgs, 
 }
 
 func (ie *InferenceEngine) GenerateString(promptTokens []model.TokenId) (<-chan GeneratedPart, <-chan error) {
+	return ie.GenerateStringGeneric(promptTokens, ie.generateTokensInternal)
+}
+
+func (ie *InferenceEngine) GenerateStringFromOutputTokens(outputTokens []model.TokenId) (<-chan GeneratedPart, <-chan error) {
+	return ie.GenerateStringGeneric([]model.TokenId{}, func(promptTokens []model.TokenId, generatedTokensCh chan<- generationStepResult[model.TokenId], errorCh chan<- error) {
+		bytes := []byte{0xF0, 0x9F, 0x87, 0xB9, 0xF0, 0x9F, 0x87, 0xB7}
+		for _, b := range bytes {
+			nextTokenId := ie.model.Vocabulary.TokenToId[fmt.Sprintf("<0x%02X>", b)]
+			generatedTokensCh <- generationStepResult[model.TokenId]{
+				state: GSInProgress,
+				value: nextTokenId,
+			}
+		}
+	})
+}
+
+func (ie *InferenceEngine) GenerateStringGeneric(promptTokens []model.TokenId, tokenGeneratorFn TokenGeneratorFn) (<-chan GeneratedPart, <-chan error) {
 	// See: https://betterprogramming.pub/writing-a-stream-api-in-go-afbc3c4350e2
 	outputCh := make(chan GeneratedPart, 1)
 	outputErrorCh := make(chan error)
@@ -55,69 +74,73 @@ func (ie *InferenceEngine) GenerateString(promptTokens []model.TokenId) (<-chan 
 			close(outputCh)
 			close(outputErrorCh)
 		}()
-		generatedWaitingBytes := make([]byte, 0)
-		generatedWaitingParts := make([]GeneratedPart, 0)
-		lastGenerationState := GSInProgress
-
-		generatedTokensCh, errorCh := ie.GenerateTokens(promptTokens)
-		loop := true
-		for loop {
-			select {
-			case generatedTokenIdResult, ok := <-generatedTokensCh:
-				if !ok {
-					loop = false
-					break
-				}
-				generatedToken, generatedTokenStr, addedToWaiting := ie.TokenToString(generatedTokenIdResult.value, &generatedWaitingBytes)
-				common.GLogger.DebugPrintf("Generated token string: \"%s\", addedToWaiting: %v, details: %s", generatedTokenStr, addedToWaiting, ie.TokenBatchToDebugString([]model.TokenId{generatedTokenIdResult.value}))
-				result := GeneratedPart{
-					TokenId:         generatedTokenIdResult.value,
-					Token:           generatedToken,
-					DecodedString:   generatedTokenStr,
-					AddedToWaiting:  addedToWaiting,
-					GenerationState: GSInProgress,
-				}
-				if generatedTokenIdResult.state != GSInProgress && len(generatedWaitingParts) == 0 {
-					result.GenerationState = generatedTokenIdResult.state
-				}
-				lastGenerationState = generatedTokenIdResult.state
-				if result.AddedToWaiting {
-					generatedWaitingParts = append(generatedWaitingParts, result)
-				} else {
-					if len(generatedWaitingParts) > 0 {
-						generatedWaitingParts = make([]GeneratedPart, 0)
-					}
-				}
-				outputCh <- result
-			case err, ok := <-errorCh:
-				if !ok || err == nil {
-					continue
-				}
-				outputErrorCh <- err
-				return
-			}
-		}
-		if len(generatedWaitingParts) > 0 {
-			for i, waitingPart := range generatedWaitingParts {
-				result := GeneratedPart{
-					TokenId:           waitingPart.TokenId,
-					Token:             waitingPart.Token,
-					DecodedString:     fmt.Sprintf("<0x%02X>", waitingPart.Token.ByteFallback),
-					AddedToWaiting:    false,
-					IsResendOfWaiting: true,
-					GenerationState:   GSInProgress,
-				}
-				if i+1 == len(generatedWaitingParts) {
-					result.GenerationState = lastGenerationState
-				}
-				outputCh <- result
-			}
-		}
+		ie.generateStringInternal(promptTokens, outputCh, outputErrorCh, tokenGeneratorFn)
 	}()
 	return outputCh, outputErrorCh
 }
 
-func (ie *InferenceEngine) GenerateTokens(promptTokens []model.TokenId) (<-chan generationStepResult[model.TokenId], <-chan error) {
+func (ie *InferenceEngine) generateStringInternal(promptTokens []model.TokenId, outputCh chan<- GeneratedPart, outputErrorCh chan<- error, tokenGeneratorFn TokenGeneratorFn) {
+	generatedWaitingBytes := make([]byte, 0)
+	generatedWaitingParts := make([]GeneratedPart, 0)
+	lastGenerationState := GSInProgress
+
+	generatedTokensCh, errorCh := ie.GenerateTokensGeneric(promptTokens, tokenGeneratorFn)
+	loop := true
+	for loop {
+		select {
+		case generatedTokenIdResult, ok := <-generatedTokensCh:
+			if !ok {
+				loop = false
+				break
+			}
+			generatedToken, generatedTokenStr, addedToWaiting := ie.TokenToString(generatedTokenIdResult.value, &generatedWaitingBytes)
+			common.GLogger.DebugPrintf("Generated token string: \"%s\", addedToWaiting: %v, details: %s", generatedTokenStr, addedToWaiting, ie.TokenBatchToDebugString([]model.TokenId{generatedTokenIdResult.value}))
+			result := GeneratedPart{
+				TokenId:         generatedTokenIdResult.value,
+				Token:           generatedToken,
+				DecodedString:   generatedTokenStr,
+				AddedToWaiting:  addedToWaiting,
+				GenerationState: GSInProgress,
+			}
+			if generatedTokenIdResult.state != GSInProgress && len(generatedWaitingParts) == 0 {
+				result.GenerationState = generatedTokenIdResult.state
+			}
+			lastGenerationState = generatedTokenIdResult.state
+			if result.AddedToWaiting {
+				generatedWaitingParts = append(generatedWaitingParts, result)
+			} else {
+				if len(generatedWaitingParts) > 0 {
+					generatedWaitingParts = make([]GeneratedPart, 0)
+				}
+			}
+			outputCh <- result
+		case err, ok := <-errorCh:
+			if !ok || err == nil {
+				continue
+			}
+			outputErrorCh <- err
+			return
+		}
+	}
+	if len(generatedWaitingParts) > 0 {
+		for i, waitingPart := range generatedWaitingParts {
+			result := GeneratedPart{
+				TokenId:           waitingPart.TokenId,
+				Token:             waitingPart.Token,
+				DecodedString:     fmt.Sprintf("<0x%02X>", waitingPart.Token.ByteFallback),
+				AddedToWaiting:    false,
+				IsResendOfWaiting: true,
+				GenerationState:   GSInProgress,
+			}
+			if i+1 == len(generatedWaitingParts) {
+				result.GenerationState = lastGenerationState
+			}
+			outputCh <- result
+		}
+	}
+}
+
+func (ie *InferenceEngine) GenerateTokensGeneric(promptTokens []model.TokenId, tokenGeneratorFn TokenGeneratorFn) (<-chan generationStepResult[model.TokenId], <-chan error) {
 	// See: https://betterprogramming.pub/writing-a-stream-api-in-go-afbc3c4350e2
 	generatedTokensCh := make(chan generationStepResult[model.TokenId])
 	errorCh := make(chan error)
@@ -126,7 +149,7 @@ func (ie *InferenceEngine) GenerateTokens(promptTokens []model.TokenId) (<-chan 
 			close(errorCh)
 			close(generatedTokensCh)
 		}()
-		ie.generateTokensInternal(promptTokens, generatedTokensCh, errorCh)
+		tokenGeneratorFn(promptTokens, generatedTokensCh, errorCh)
 	}()
 	return generatedTokensCh, errorCh
 }

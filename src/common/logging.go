@@ -57,7 +57,7 @@ func (l *Logger) DebugPrintf(format string, v ...any) {
 func (l *Logger) Close() {
 	if l.console != nil {
 		f, ok := l.console.Writer().(*os.File)
-		if ok {
+		if ok && f != os.Stdout {
 			f.Close()
 		}
 	}
