@@ -18,17 +18,26 @@ const (
 )
 
 type GeneratedPart struct {
-	DecodedString     string
-	TokenId           model.TokenId
-	Token             sentencepiece.SentencePiece
-	AddedToWaiting    bool
-	IsResendOfWaiting bool
-	GenerationState   GenerationState
+	DecodedString        string
+	TokenId              model.TokenId
+	Token                sentencepiece.SentencePiece
+	AddedToWaiting       bool
+	WaitingRunesExtraStr string
+	IsResendOfWaiting    bool
+	GenerationState      GenerationState
 }
 
 type generationStepResult[T any] struct {
 	state GenerationState
 	value T
+}
+
+type generationDecodingContext struct {
+	waitingBytes         []byte
+	waitingParts         []GeneratedPart
+	waitingRunes         string
+	waitingRunesExtraStr string
+	decodingFinished     bool
 }
 
 type InferenceEngine struct {
@@ -53,12 +62,10 @@ func (ie *InferenceEngine) GenerateString(promptTokens []model.TokenId) (<-chan 
 
 func (ie *InferenceEngine) GenerateStringFromOutputTokens(outputTokens []model.TokenId) (<-chan GeneratedPart, <-chan error) {
 	return ie.GenerateStringGeneric([]model.TokenId{}, func(promptTokens []model.TokenId, generatedTokensCh chan<- generationStepResult[model.TokenId], errorCh chan<- error) {
-		bytes := []byte{0xF0, 0x9F, 0x87, 0xB9, 0xF0, 0x9F, 0x87, 0xB7}
-		for _, b := range bytes {
-			nextTokenId := ie.model.Vocabulary.TokenToId[fmt.Sprintf("<0x%02X>", b)]
+		for _, outputToken := range outputTokens {
 			generatedTokensCh <- generationStepResult[model.TokenId]{
 				state: GSInProgress,
-				value: nextTokenId,
+				value: outputToken,
 			}
 		}
 	})
@@ -80,8 +87,10 @@ func (ie *InferenceEngine) GenerateStringGeneric(promptTokens []model.TokenId, t
 }
 
 func (ie *InferenceEngine) generateStringInternal(promptTokens []model.TokenId, outputCh chan<- GeneratedPart, outputErrorCh chan<- error, tokenGeneratorFn TokenGeneratorFn) {
-	generatedWaitingBytes := make([]byte, 0)
-	generatedWaitingParts := make([]GeneratedPart, 0)
+	decodingContext := &generationDecodingContext{
+		waitingBytes: make([]byte, 0),
+		waitingParts: make([]GeneratedPart, 0),
+	}
 	lastGenerationState := GSInProgress
 
 	generatedTokensCh, errorCh := ie.GenerateTokensGeneric(promptTokens, tokenGeneratorFn)
@@ -93,24 +102,25 @@ func (ie *InferenceEngine) generateStringInternal(promptTokens []model.TokenId, 
 				loop = false
 				break
 			}
-			generatedToken, generatedTokenStr, addedToWaiting := ie.TokenToString(generatedTokenIdResult.value, &generatedWaitingBytes)
+			generatedToken, generatedTokenStr, addedToWaiting := ie.TokenToString(generatedTokenIdResult.value, decodingContext)
 			common.GLogger.DebugPrintf("Generated token string: \"%s\", addedToWaiting: %v, details: %s", generatedTokenStr, addedToWaiting, ie.TokenBatchToDebugString([]model.TokenId{generatedTokenIdResult.value}))
 			result := GeneratedPart{
-				TokenId:         generatedTokenIdResult.value,
-				Token:           generatedToken,
-				DecodedString:   generatedTokenStr,
-				AddedToWaiting:  addedToWaiting,
-				GenerationState: GSInProgress,
+				TokenId:              generatedTokenIdResult.value,
+				Token:                generatedToken,
+				DecodedString:        generatedTokenStr,
+				AddedToWaiting:       addedToWaiting,
+				WaitingRunesExtraStr: decodingContext.waitingRunesExtraStr,
+				GenerationState:      GSInProgress,
 			}
-			if generatedTokenIdResult.state != GSInProgress && len(generatedWaitingParts) == 0 {
+			if generatedTokenIdResult.state != GSInProgress && len(decodingContext.waitingParts) == 0 {
 				result.GenerationState = generatedTokenIdResult.state
 			}
 			lastGenerationState = generatedTokenIdResult.state
 			if result.AddedToWaiting {
-				generatedWaitingParts = append(generatedWaitingParts, result)
+				decodingContext.waitingParts = append(decodingContext.waitingParts, result)
 			} else {
-				if len(generatedWaitingParts) > 0 {
-					generatedWaitingParts = make([]GeneratedPart, 0)
+				if len(decodingContext.waitingParts) > 0 {
+					decodingContext.waitingParts = make([]GeneratedPart, 0)
 				}
 			}
 			outputCh <- result
@@ -122,17 +132,24 @@ func (ie *InferenceEngine) generateStringInternal(promptTokens []model.TokenId, 
 			return
 		}
 	}
-	if len(generatedWaitingParts) > 0 {
-		for i, waitingPart := range generatedWaitingParts {
+	decodingContext.decodingFinished = true
+	if len(decodingContext.waitingParts) > 0 {
+		for i, waitingPart := range decodingContext.waitingParts {
 			result := GeneratedPart{
-				TokenId:           waitingPart.TokenId,
-				Token:             waitingPart.Token,
-				DecodedString:     fmt.Sprintf("<0x%02X>", waitingPart.Token.ByteFallback),
-				AddedToWaiting:    false,
-				IsResendOfWaiting: true,
-				GenerationState:   GSInProgress,
+				TokenId:              waitingPart.TokenId,
+				Token:                waitingPart.Token,
+				DecodedString:        fmt.Sprintf("<0x%02X>", waitingPart.Token.ByteFallback),
+				AddedToWaiting:       false,
+				WaitingRunesExtraStr: "",
+				IsResendOfWaiting:    true,
+				GenerationState:      GSInProgress,
 			}
-			if i+1 == len(generatedWaitingParts) {
+			if len(decodingContext.waitingRunesExtraStr) > 0 {
+				result.DecodedString = decodingContext.waitingRunesExtraStr + result.DecodedString
+				decodingContext.waitingRunes = ""
+				decodingContext.waitingRunesExtraStr = ""
+			}
+			if i+1 == len(decodingContext.waitingParts) {
 				result.GenerationState = lastGenerationState
 			}
 			outputCh <- result

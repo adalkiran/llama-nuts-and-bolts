@@ -33,6 +33,7 @@ var predefinedPrompts = []PromptInput{
 	{IsChatMode: true, SystemPrompt: "Answer in 20 words, directly, and without an introduction", Prompt: "Can you explain what is Theory of relativity?"},
 	{IsChatMode: true, SystemPrompt: "You are a pirate", Prompt: "Explain what is quantum computer in 20 words."},
 	{IsChatMode: true, SystemPrompt: "Always answer with emojis", Prompt: "How to go from Beijing to NY?"},
+	{IsChatMode: true, SystemPrompt: "Answer with only one emoji", Prompt: "What is the flag of Turkey?"},
 }
 
 var appState = &AppState{
@@ -163,16 +164,12 @@ func listenGenerationChannels(wg *sync.WaitGroup, ctx context.Context, generated
 				appState.generatedTokens = append(appState.generatedTokens, generatedPart.Token)
 			}
 			if generatedPart.AddedToWaiting {
-				appState.generatedText += waitingByteTempChar
 				appState.addedToWaitingCount++
 			} else {
 				appState.addedToWaitingCount = 0
-				// Check if the text ends with waitingByteTempChar, if true, remove it.
-				for strings.HasSuffix(appState.generatedText, waitingByteTempChar) {
-					appState.generatedText = strings.TrimSuffix(appState.generatedText, waitingByteTempChar)
-				}
 				appState.generatedText += generatedPart.DecodedString
 			}
+			appState.waitingRunesExtraStr = generatedPart.WaitingRunesExtraStr
 			appState.generationState = generatedPart.GenerationState
 			appState.updateOutput()
 			appState.startTimeToken = time.Now()
@@ -185,8 +182,11 @@ func listenGenerationChannels(wg *sync.WaitGroup, ctx context.Context, generated
 			common.GLogger.ConsoleFatal(err)
 		case <-ctx.Done():
 			loop = false
-			return
 		}
+	}
+	if len(appState.waitingRunesExtraStr) > 0 {
+		appState.generatedText += appState.waitingRunesExtraStr
+		appState.updateOutput()
 	}
 }
 
@@ -312,11 +312,12 @@ type AppState struct {
 	printStrBuilder  strings.Builder
 	consoleOutWriter io.Writer
 
-	sequenceLength      int
-	promptText          string
-	promptTokens        []sentencepiece.SentencePiece
-	generatedText       string
-	literalProgressText string
+	sequenceLength       int
+	promptText           string
+	promptTokens         []sentencepiece.SentencePiece
+	generatedText        string
+	waitingRunesExtraStr string
+	literalProgressText  string
 
 	generationState     inference.GenerationState
 	generatedTokenIds   []model.TokenId
@@ -341,6 +342,10 @@ func (as *AppState) updateOutput() {
 	as.printLinef("")
 	if as.promptText != "" {
 		generatedText := as.generatedText
+		generatedText += as.waitingRunesExtraStr
+		for i := 0; i < as.addedToWaitingCount; i++ {
+			generatedText += waitingByteTempChar
+		}
 		if generatedText == "" {
 			generatedText = waitingByteTempChar
 		}

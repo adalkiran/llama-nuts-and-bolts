@@ -19,8 +19,6 @@ func (ie *InferenceEngine) Tokenize(text string, addBeginOfSentence bool) ([]mod
 	common.GLogger.DebugPrintf("Tokenizing prompt: \"%s\", addBeginOfSentence: %v", text, addBeginOfSentence)
 	result := make([]model.TokenId, 0)
 	vocabulary := ie.model.Vocabulary
-
-	text = " " + text
 	text = escapeWhitespace(text)
 
 	if addBeginOfSentence && vocabulary.BeginOfSentenceId != -1 {
@@ -44,44 +42,54 @@ func (ie *InferenceEngine) TokenizeBatch(texts []string, addBeginOfSentence bool
 	return result, nil
 }
 
-func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, waitingBytes *[]byte) (token sentencepiece.SentencePiece, resultString string, addedToWaiting bool) {
+func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, decodingContext *generationDecodingContext) (token sentencepiece.SentencePiece, resultString string, addedToWaiting bool) {
 	vocabulary := ie.model.Vocabulary
 	if tokenId < 0 || int(tokenId) >= len(vocabulary.IdToToken) {
 		return sentencepiece.SentencePiece{PieceType: sentencepiece.UNKNOWN}, unknownOutputToken, false
 	}
 	token = vocabulary.IdToToken[tokenId]
+
+	if len(decodingContext.waitingRunesExtraStr) > 0 && token.PieceType != sentencepiece.BYTE {
+		resultString = decodingContext.waitingRunesExtraStr
+		decodingContext.waitingRunes = ""
+		decodingContext.waitingRunesExtraStr = ""
+	}
+
 	switch token.PieceType {
 	case sentencepiece.CONTROL:
 		// Do nothing
 	case sentencepiece.BYTE:
-		if waitingBytes == nil {
-			*waitingBytes = make([]byte, 0)
+		if decodingContext.waitingBytes == nil {
+			decodingContext.waitingBytes = make([]byte, 0)
 		}
-		*waitingBytes = append(*waitingBytes, token.ByteFallback)
-		if utf8.Valid(*waitingBytes) {
-			r, rsize := utf8.DecodeRune(*waitingBytes)
-			*waitingBytes = (*waitingBytes)[rsize:]
-			resultString = emojiToAlias(r, rsize, true)
+		decodingContext.waitingBytes = append(decodingContext.waitingBytes, token.ByteFallback)
+		if utf8.Valid(decodingContext.waitingBytes) {
+			r, rsize := utf8.DecodeRune(decodingContext.waitingBytes)
+			decodingContext.waitingBytes = decodingContext.waitingBytes[rsize:]
+			resultString += processEmoji(decodingContext, r, rsize)
 		} else {
 			addedToWaiting = true
 		}
 		return
 	case sentencepiece.NORMAL:
-		resultString = unescapeWhitespace(token.Piece)
+		resultString += unescapeWhitespace(token.Piece)
 		return
 	}
 	return token, "", false
 }
 
 func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) ([]sentencepiece.SentencePiece, string) {
+	decodingContext := &generationDecodingContext{
+		waitingBytes: make([]byte, 0),
+		waitingParts: make([]GeneratedPart, 0),
+	}
 	resultTokens := make([]sentencepiece.SentencePiece, 0)
 	resultStr := ""
-	generatedWaitingBytes := make([]byte, 0)
 	for _, tokenId := range tokenIdBatch {
 		if tokenId == ie.model.Vocabulary.PadId {
 			break
 		}
-		token, tokenStr, addedToWaiting := ie.TokenToString(tokenId, &generatedWaitingBytes)
+		token, tokenStr, addedToWaiting := ie.TokenToString(tokenId, decodingContext)
 		resultTokens = append(resultTokens, token)
 		if !addedToWaiting {
 			resultStr += tokenStr

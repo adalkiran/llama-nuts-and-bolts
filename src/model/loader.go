@@ -16,47 +16,59 @@ const (
 )
 
 func LoadModel(modelDir string) (*Model, error) {
-	modelFilePath := filepath.Join(modelDir, "consolidated.00.pth")
-	torchModelReader, err := torch.NewTorchModelReader(modelFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer torchModelReader.Close()
-	common.GLogger.ConsolePrintf("Loading model file: \"%s\"...", modelFilePath)
-	modelTensors, err := torchModelReader.Load()
-	if err != nil {
-		return nil, err
-	}
-	model := &Model{Tensors: modelTensors}
-	err = loadModelArgs(modelDir, model)
-	if err != nil {
-		return nil, err
-	}
-	err = loadVocab(modelDir, model)
-	if err != nil {
-		return nil, err
-	}
+	return LoadModelEx(modelDir, true, true)
+}
 
-	common.GLogger.ConsolePrintf("Found %d tensors in the model.", len(model.Tensors.GetKeys()))
-
-	err = checkModelArgs(model)
-	if err != nil {
-		return nil, err
+func LoadModelEx(modelDir string, includeTensors bool, includeVocab bool) (*Model, error) {
+	model := &Model{}
+	if includeTensors {
+		modelFilePath := filepath.Join(modelDir, "consolidated.00.pth")
+		torchModelReader, err := torch.NewTorchModelReader(modelFilePath)
+		if err != nil {
+			return nil, err
+		}
+		defer torchModelReader.Close()
+		common.GLogger.ConsolePrintf("Loading model file: \"%s\"...", modelFilePath)
+		modelTensors, err := torchModelReader.Load()
+		if err != nil {
+			return nil, err
+		}
+		model.Tensors = modelTensors
+		common.GLogger.ConsolePrintf("Found %d tensors in the model.", len(model.Tensors.GetKeys()))
+		err = loadModelArgs(modelDir, model)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		common.GLogger.ConsolePrintf("Loading tensors was skipped.")
 	}
-
-	model.ModelArchitecture = ModelArchitectureLlama
-	switch model.ModelArgs.N_Layers {
-	case 32:
-		model.ModelType = ModelType7B
+	if includeVocab {
+		err := loadVocab(modelDir, model)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		common.GLogger.ConsolePrintf("Loading vocabulary was skipped.")
 	}
+	if includeTensors {
+		err := checkModelArgs(model)
+		if err != nil {
+			return nil, err
+		}
 
-	if model.Transformer, err = NewLlamaTransformer(model); err != nil {
+		model.ModelArchitecture = ModelArchitectureLlama
+		switch model.ModelArgs.N_Layers {
+		case 32:
+			model.ModelType = ModelType7B
+		}
+
+		if model.Transformer, err = NewLlamaTransformer(model); err != nil {
+			printMeta(model)
+			return nil, err
+		}
+
 		printMeta(model)
-		return nil, err
 	}
-
-	printMeta(model)
-
 	return model, nil
 }
 
