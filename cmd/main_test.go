@@ -34,6 +34,7 @@ func (iw *InterceptorWriter) Write(p []byte) (n int, err error) {
 }
 
 func prepareInferenceEngine(t *testing.T) (*inference.InferenceEngine, chan string) {
+	t.Helper()
 	var err error
 	common.GLogger, err = common.NewLogger(os.Stdout, nil)
 	if err != nil {
@@ -68,6 +69,7 @@ func prepareInferenceEngine(t *testing.T) (*inference.InferenceEngine, chan stri
 }
 
 func testSimulatedEmojiOutput(t *testing.T, inputStr string, expectedAssistantLines []string, expectedWaitingLines []string) {
+	t.Helper()
 	engine, consoleListenerChan := prepareInferenceEngine(t)
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
@@ -139,8 +141,8 @@ func testSimulatedEmojiOutput(t *testing.T, inputStr string, expectedAssistantLi
 func TestSimulatedEmojiOutputTurkeyFlag(t *testing.T) {
 	inputPartT := "<0xF0><0x9F><0x87><0xB9>" // Character: 🇹
 	inputPartR := "<0xF0><0x9F><0x87><0xB7>" // Character: 🇷
-	inputPartMissingPiece := "<0xF0>"
-	inputStr := inputPartT + inputPartR + inputPartMissingPiece // Character: 🇹🇷
+	inputPartEOS := "</s>"
+	inputStr := inputPartT + inputPartR + inputPartEOS // Character: 🇹🇷
 	expectedAssistantLines := []string{
 		"…",
 		"……",
@@ -150,8 +152,7 @@ func TestSimulatedEmojiOutputTurkeyFlag(t *testing.T) {
 		"🇹[:REGIONAL INDICATOR SYMBOL LETTER T:\\U0001F1F9]……",
 		"🇹[:REGIONAL INDICATOR SYMBOL LETTER T:\\U0001F1F9]………",
 		"🇹🇷[:flag_for_turkey:\\U0001F1F9\\U0001F1F7]",
-		"🇹🇷[:flag_for_turkey:\\U0001F1F9\\U0001F1F7]…",
-		"🇹🇷[:flag_for_turkey:\\U0001F1F9\\U0001F1F7]<0xF0>",
+		"🇹🇷[:flag_for_turkey:\\U0001F1F9\\U0001F1F7]",
 	}
 	expectedWaitingLines := []string{
 		"\"<0xF0>\"",
@@ -162,7 +163,6 @@ func TestSimulatedEmojiOutputTurkeyFlag(t *testing.T) {
 		"\"<0xF0>\", \"<0x9F>\"",
 		"\"<0xF0>\", \"<0x9F>\", \"<0x87>\"",
 		"",
-		"\"<0xF0>\"",
 		"",
 	}
 	testSimulatedEmojiOutput(t, inputStr, expectedAssistantLines, expectedWaitingLines)

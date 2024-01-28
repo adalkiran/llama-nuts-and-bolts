@@ -75,7 +75,7 @@ func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, decodingContext 
 		resultString += unescapeWhitespace(token.Piece)
 		return
 	}
-	return token, "", false
+	return token, resultString, false
 }
 
 func (ie *InferenceEngine) TokenBatchToString(tokenIdBatch []model.TokenId) ([]sentencepiece.SentencePiece, string) {
