@@ -93,7 +93,7 @@ func main() {
 
 	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn)
 
-	userPrompt := askUserPromptChoice()
+	userPrompt := askUserPromptChoice(llamaModel)
 	userPromptStr := userPrompt.Prompt
 	if userPrompt.IsChatMode {
 		systemPrompt := ""
@@ -220,10 +220,11 @@ func searchForModelPath(modelsDirName string, modelName string) (string, error) 
 	return "", fmt.Errorf("model directory \"%s\" and related files could not be found in:\n%s", modelsDirName, strings.Join(searchedDirectories, "\n"))
 }
 
-func askUserPromptChoice() PromptInput {
+func askUserPromptChoice(llamaModel *model.Model) PromptInput {
 	extraChoiceCount := 2
 	for {
 		fmt.Printf("\033[1mSelect from our predefined prompts (latest two are for manual input):\033[0m\n")
+		fmt.Printf("%2d. %-17s %s\n", 0, "", "Print model metadata (tensor list, hyperparameters, etc...)")
 		for i, predefinedPrompt := range predefinedPrompts {
 			if predefinedPrompt.IsChatMode {
 				systemPrompt := predefinedPrompt.SystemPrompt
@@ -242,7 +243,7 @@ func askUserPromptChoice() PromptInput {
 		fmt.Printf("%2d. %-17s %s\n", len(predefinedPrompts)+2, "[Chat mode]", "Other, manual input")
 
 		reader := bufio.NewReader(os.Stdin)
-		fmt.Printf("\n\033[1mYour choice (choose %d to %d and press Enter):\033[0m ", 1, len(predefinedPrompts)+extraChoiceCount)
+		fmt.Printf("\n\033[1mYour choice (choose %d to %d and press Enter):\033[0m ", 0, len(predefinedPrompts)+extraChoiceCount)
 		userChoice, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Printf("\nerror: %v\n\n", err)
@@ -253,8 +254,14 @@ func askUserPromptChoice() PromptInput {
 			fmt.Printf("\nNot a valid number.\n\n")
 			continue
 		}
-		if userChoiceNum < 1 || userChoiceNum > len(predefinedPrompts)+extraChoiceCount {
+		if userChoiceNum < 0 || userChoiceNum > len(predefinedPrompts)+extraChoiceCount {
 			fmt.Printf("\nChoice must be between %d and %d.\n\n", 0, len(predefinedPrompts)+extraChoiceCount)
+			continue
+		}
+
+		if userChoiceNum == 0 {
+			model.PrintMeta(llamaModel)
+			fmt.Printf("\nModel metadata was printed.\n\n")
 			continue
 		}
 

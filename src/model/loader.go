@@ -63,11 +63,8 @@ func LoadModelEx(modelDir string, includeTensors bool, includeVocab bool) (*Mode
 		}
 
 		if model.Transformer, err = NewLlamaTransformer(model); err != nil {
-			printMeta(model)
 			return nil, err
 		}
-
-		printMeta(model)
 	}
 	return model, nil
 }
@@ -116,7 +113,7 @@ func checkModelArgs(model *Model) error {
 	}
 }
 
-func printMeta(model *Model) {
+func PrintMeta(model *Model) {
 	fmt.Print("\nTensors:\n")
 	fmt.Print("=================================\n")
 	for i, tensorName := range model.Tensors.GetKeys() {
