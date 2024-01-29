@@ -49,7 +49,7 @@ func prepareInferenceEngine(t *testing.T) (*inference.InferenceEngine, chan stri
 		ListenerChan: consoleListenerChan,
 	}
 
-	modelDir := "../models-original/7B"
+	modelDir := "../models-original/7B-chat"
 	if _, err := os.Stat(modelDir); err != nil {
 		t.Skipf("Model directory \"%s\" is not found, passing this test: %s", modelDir, "TestSimulated")
 		return nil, nil
