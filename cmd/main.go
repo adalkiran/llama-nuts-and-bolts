@@ -27,6 +27,8 @@ const waitingByteTempChar = "\u2026" // Unicode character ellipsis …
 const modelsDirName = "models-original"
 const debugMode = false
 
+var excludeEscapeDirectivesRegexp = *regexp.MustCompile(string(rune('\033')) + "\\[\\d+[a-zA-Z]")
+
 var predefinedPrompts = []PromptInput{
 	{IsChatMode: false, Prompt: "Hello, my name is"},
 	{IsChatMode: true, SystemPrompt: "You are Einstein", Prompt: "Describe your theory."},
@@ -36,16 +38,13 @@ var predefinedPrompts = []PromptInput{
 	{IsChatMode: true, SystemPrompt: "Answer with only one emoji", Prompt: "What is the flag of Turkey?"},
 }
 
-var appState = &AppState{
-	consoleOutWriter:              os.Stdout,
-	prevLineWidths:                make([]int, 0),
-	consoleMeasure:                goterminal.New(os.Stdout),
-	excludeEscapeDirectivesRegexp: *regexp.MustCompile(string(rune('\033')) + "\\[\\d+[a-zA-Z]"),
-}
+var appState *AppState
 
 func main() {
 	fmt.Println("Welcome to Llama Nuts and Bolts!")
 	fmt.Print("=================================\n\n\n")
+
+	appState = NewAppState()
 
 	var err error
 	var debugLogWriter io.Writer = nil
@@ -302,15 +301,25 @@ func logFn(format string, v ...any) {
 	appState.updateOutput()
 }
 
-type AppState struct {
-	mu                            sync.Mutex
-	consoleMeasure                *goterminal.Writer
-	excludeEscapeDirectivesRegexp regexp.Regexp
+type UpdateOutputData struct {
+	i                    int
+	contentStr           string
+	prevLineWidthsBackup []int
+}
 
-	prevLineWidths   []int
-	latestLogText    string
-	printStrBuilder  strings.Builder
-	consoleOutWriter io.Writer
+type AppState struct {
+	printStrBuilderMu       sync.Mutex
+	printWorkerStrBuilderMu sync.Mutex
+	measureMu               sync.Mutex
+	consoleMeasure          *goterminal.Writer
+	ignoreConsoleMeasure    bool
+	updateOutputChan        chan UpdateOutputData
+
+	prevLineWidths        []int
+	latestLogText         string
+	printStrBuilder       strings.Builder
+	printWorkerStrBuilder strings.Builder
+	consoleOutWriter      io.Writer
 
 	sequenceLength       int
 	promptText           string
@@ -327,9 +336,19 @@ type AppState struct {
 	startTimeToken      time.Time
 }
 
+func NewAppState() *AppState {
+	return &AppState{
+		consoleOutWriter: os.Stdout,
+		prevLineWidths:   make([]int, 0),
+		consoleMeasure:   goterminal.New(os.Stdout),
+		updateOutputChan: make(chan UpdateOutputData, 10),
+	}
+}
+
 func (as *AppState) updateOutput() {
-	// See: https://github.com/apoorvam/goterminal/blob/master/writer_posix.go
-	as.cleanupConsole()
+	defer as.printStrBuilderMu.Unlock()
+	as.printStrBuilderMu.Lock()
+	prevLineWidthsBackup := as.backupBeforeCleanupConsole()
 	if as.latestLogText == "" {
 		as.latestLogText = waitingByteTempChar
 	}
@@ -366,14 +385,30 @@ func (as *AppState) updateOutput() {
 	} else {
 		as.printLinef(waitingByteTempChar)
 	}
-	as.flushConsolePrint()
+	// Output of cleanupConsole must be printed before our content
+	contentStr := as.printStrBuilder.String()
+	as.printStrBuilder.Reset()
+	go func() {
+		defer as.printWorkerStrBuilderMu.Unlock()
+		as.printWorkerStrBuilderMu.Lock()
+		data := <-as.updateOutputChan
+		as.printWorkerStrBuilder.Reset()
+		as.cleanupConsole(data.prevLineWidthsBackup)
+		as.printWorkerStrBuilder.WriteString(data.contentStr)
+		as.flushConsolePrint()
+	}()
+	as.updateOutputChan <- UpdateOutputData{
+		len(as.promptTokens) + len(as.generatedTokens),
+		contentStr,
+		prevLineWidthsBackup,
+	}
 }
 
 func (as *AppState) printLinef(format string, v ...any) {
 	s := fmt.Sprintf(format, v...)
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
-		line = as.excludeEscapeDirectivesRegexp.ReplaceAllString(line, "")
+		line = excludeEscapeDirectivesRegexp.ReplaceAllString(line, "")
 		if len(as.prevLineWidths) == 0 || i > 0 || as.prevLineWidths[len(as.prevLineWidths)-1] > 0 {
 			as.prevLineWidths = append(as.prevLineWidths, len(line))
 		} else {
@@ -390,9 +425,12 @@ func (as *AppState) printLinef(format string, v ...any) {
 }
 
 func (as *AppState) measureConsoleWidth() int {
-	var measureMu sync.Mutex
-	defer measureMu.Unlock()
-	measureMu.Lock()
+	// See: https://github.com/apoorvam/goterminal/blob/master/writer_posix.go
+	if as.ignoreConsoleMeasure {
+		return 80
+	}
+	defer as.measureMu.Unlock()
+	as.measureMu.Lock()
 	w, _ := as.consoleMeasure.GetTermDimensions()
 	for {
 		time.Sleep(300 * time.Millisecond)
@@ -404,15 +442,19 @@ func (as *AppState) measureConsoleWidth() int {
 	}
 }
 
-func (as *AppState) cleanupConsole() {
-	defer as.mu.Unlock()
-	as.mu.Lock()
+func (as *AppState) backupBeforeCleanupConsole() []int {
+	result := as.prevLineWidths
+	as.resetConsoleState()
+	return result
+}
+
+func (as *AppState) cleanupConsole(prevLineWidthsBackup []int) {
 	var sb strings.Builder
-	if as.prevLineWidths != nil && len(as.prevLineWidths) > 0 {
+	if prevLineWidthsBackup != nil && len(as.prevLineWidths) > 0 {
 		lineCountToClean := 0
 		currentConsoleWidth := as.measureConsoleWidth()
-		for i := len(as.prevLineWidths) - 1; i >= 0; i-- {
-			prevLineWidth := as.prevLineWidths[i]
+		for i := len(prevLineWidthsBackup) - 1; i >= 0; i-- {
+			prevLineWidth := prevLineWidthsBackup[i]
 			lineCountByCurrentConsoleWidth := int(math.Ceil(float64(prevLineWidth) / float64(currentConsoleWidth)))
 			if prevLineWidth == 0 {
 				lineCountByCurrentConsoleWidth = 1
@@ -426,13 +468,12 @@ func (as *AppState) cleanupConsole() {
 			}
 		}
 	}
-	as.printStrBuilder.WriteString(sb.String())
-	as.resetConsoleState()
+	as.printWorkerStrBuilder.WriteString(sb.String())
 }
 
 func (as *AppState) flushConsolePrint() {
-	fmt.Fprint(as.consoleOutWriter, as.printStrBuilder.String())
-	as.printStrBuilder.Reset()
+	fmt.Fprint(as.consoleOutWriter, as.printWorkerStrBuilder.String())
+	as.printWorkerStrBuilder.Reset()
 }
 
 func (as *AppState) resetConsoleState() {

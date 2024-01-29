@@ -70,6 +70,8 @@ func prepareInferenceEngine(t *testing.T) (*inference.InferenceEngine, chan stri
 
 func testSimulatedEmojiOutput(t *testing.T, inputStr string, expectedAssistantLines []string, expectedWaitingLines []string) {
 	t.Helper()
+	appState = NewAppState()
+	appState.ignoreConsoleMeasure = true
 	engine, consoleListenerChan := prepareInferenceEngine(t)
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
@@ -94,6 +96,10 @@ func testSimulatedEmojiOutput(t *testing.T, inputStr string, expectedAssistantLi
 			if !ok {
 				loop = false
 				break
+			}
+			if printedStr == "\n" {
+				// Ignore empty fmt.Fprintln() calls in main.go
+				continue
 			}
 			expectedAssistantLine := "!IGNORE"
 			expectedWaitingLine := "!IGNORE"
@@ -294,7 +300,6 @@ func TestSimulatedEmojiOutputMultipleCompositeEmojis(t *testing.T) {
 		/*itr 35*/ "🦸‍♂️👨‍👩‍👧‍[:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467][:ZERO WIDTH JOINER:\\U0000200D]……",
 		/*itr 36*/ "🦸‍♂️👨‍👩‍👧‍[:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467][:ZERO WIDTH JOINER:\\U0000200D]………",
 		/*itr 37*/ "🦸‍♂️👨‍👩‍👧‍👦[:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl_boy:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467\\U0000200D\\U0001F466]",
-		"",
 	}
 	expectedWaitingLines := []string{
 		//inputCompositeManSuperhero
