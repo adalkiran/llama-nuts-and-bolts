@@ -2,7 +2,6 @@ package ml
 
 import (
 	"context"
-	"math"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -162,17 +161,14 @@ func linearTransformation_General(input *Tensor, weights *Tensor, wOutFn linearT
 	weightsRowStride := weights.calculateByteOffset([]int{1, 0})
 	dstRowStride := dstF32.calculateByteOffset([]int{1, 0})
 
-	dstRowChanSize := float64(math.Ceil(float64(dstF32.Size[0]) / float64(100)))
-	if dstRowChanSize == 1 {
-		dstRowChanSize = math.Ceil(float64(dstF32.Size[0]) / float64(2))
-	}
+	dstRowChanSize := rowsSize
+	rowProcessorCount := rowsSize
+
 	dstRowChan := make(chan DstRow, int(dstRowChanSize))
 
-	rowProcessorCount := int(math.Ceil(dstRowChanSize / float64(5)))
 	for i := 0; i < rowProcessorCount; i++ {
 		go linearTransformation_ProcessRowChan(dstF32, dstRowChan)
 	}
-	runtime.Gosched()
 
 	if rowsSize > 1 {
 		for rowIdx := 0; rowIdx < rowsSize; rowIdx++ {

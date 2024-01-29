@@ -876,3 +876,71 @@ func TestLinearTransformationBF16(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestMatMulBF16(t *testing.T) {
+	groupSize := 2
+	inputRowSize := 2
+	inputColSize := 3
+
+	otherRowSize := 3
+	otherColSize := 4
+
+	expectedSize := []int{2, 2, 4}
+	expected := [][][]float32{
+		{
+			{3.7598e-02, 4.3457e-02, 4.9561e-02, 5.5420e-02},
+			{8.2520e-02, 9.7168e-02, 1.1230e-01, 1.2695e-01},
+		},
+		{
+			{3.7598e-02, 4.3457e-02, 4.9561e-02, 5.5420e-02},
+			{8.2520e-02, 9.7168e-02, 1.1230e-01, 1.2695e-01},
+		},
+	}
+
+	inputVals := [][][]dtype.BFloat16{
+		{
+			{dtype.BFloat16fromFloat32(0.1), dtype.BFloat16fromFloat32(0.2), dtype.BFloat16fromFloat32(0.3)},
+			{dtype.BFloat16fromFloat32(0.4), dtype.BFloat16fromFloat32(0.5), dtype.BFloat16fromFloat32(0.6)},
+		},
+		{
+			{dtype.BFloat16fromFloat32(0.1), dtype.BFloat16fromFloat32(0.2), dtype.BFloat16fromFloat32(0.3)},
+			{dtype.BFloat16fromFloat32(0.4), dtype.BFloat16fromFloat32(0.5), dtype.BFloat16fromFloat32(0.6)},
+		},
+	}
+
+	input := NewEmptyTensor([]int{groupSize, inputRowSize, inputColSize}, DT_BF16)
+	for iterator := IterateOver(input, 0); iterator.HasNext(); {
+		loc := iterator.Next()
+		if err := input.SetItem(loc, inputVals[loc[0]][loc[1]][loc[2]]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	otherVals := [][][]dtype.BFloat16{
+		{
+			{dtype.BFloat16fromFloat32(0.01), dtype.BFloat16fromFloat32(0.02), dtype.BFloat16fromFloat32(0.03), dtype.BFloat16fromFloat32(0.04)},
+			{dtype.BFloat16fromFloat32(0.05), dtype.BFloat16fromFloat32(0.06), dtype.BFloat16fromFloat32(0.07), dtype.BFloat16fromFloat32(0.08)},
+			{dtype.BFloat16fromFloat32(0.09), dtype.BFloat16fromFloat32(0.10), dtype.BFloat16fromFloat32(0.11), dtype.BFloat16fromFloat32(0.12)},
+		},
+		{
+			{dtype.BFloat16fromFloat32(0.01), dtype.BFloat16fromFloat32(0.02), dtype.BFloat16fromFloat32(0.03), dtype.BFloat16fromFloat32(0.04)},
+			{dtype.BFloat16fromFloat32(0.05), dtype.BFloat16fromFloat32(0.06), dtype.BFloat16fromFloat32(0.07), dtype.BFloat16fromFloat32(0.08)},
+			{dtype.BFloat16fromFloat32(0.09), dtype.BFloat16fromFloat32(0.10), dtype.BFloat16fromFloat32(0.11), dtype.BFloat16fromFloat32(0.12)},
+		},
+	}
+	other := NewEmptyTensor([]int{groupSize, otherRowSize, otherColSize}, DT_BF16)
+	for iterator := IterateOver(other, 0); iterator.HasNext(); {
+		loc := iterator.Next()
+		if err := other.SetItem(loc, otherVals[loc[0]][loc[1]][loc[2]]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	actual, err := MatMul(input, other)
+	if err != nil {
+		t.Error(err)
+	}
+	if err := CompareTestTensor(expected, expectedSize, actual, common.THRESHOLD_F32, false); err != nil {
+		t.Error(err)
+	}
+}

@@ -13,22 +13,28 @@ type OneTensorIterator struct {
 func (it *OneTensorIterator) Next() (loc []int) {
 	if len(it.size) == 0 {
 		it.currentIndex = it.itemCount
-		return it.loc
+		return it.copyOfLoc()
 	}
 	for dimension := it.maxMeaningfulDim; dimension >= 0; dimension-- {
 		if it.loc[dimension] < it.size[dimension]-1 {
 			it.loc[dimension]++
 			it.currentIndex++
-			return it.loc
+			return it.copyOfLoc()
 		} else if dimension > 0 {
 			it.loc[dimension] = 0
 		}
 	}
-	return it.loc
+	return it.copyOfLoc()
 }
 
 func (it *OneTensorIterator) HasNext() bool {
 	return it.currentIndex < it.itemCount-1
+}
+
+func (it *OneTensorIterator) copyOfLoc() []int {
+	result := make([]int, len(it.loc))
+	copy(result, it.loc)
+	return result
 }
 
 type TwoTensorIterator struct {
