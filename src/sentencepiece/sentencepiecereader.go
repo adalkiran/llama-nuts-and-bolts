@@ -19,9 +19,9 @@ func Load(vocabFilePath string) (*ModelProto, error) {
 	if err != nil {
 		return nil, err
 	}
-	model, ok := modelVal.(ModelProto)
+	model, ok := modelVal.(*ModelProto)
 	if !ok {
-		return nil, fmt.Errorf("cannot convert %v to ModelProto", model)
+		return nil, fmt.Errorf("cannot convert %v to *ModelProto", model)
 	}
-	return &model, nil
+	return model, nil
 }

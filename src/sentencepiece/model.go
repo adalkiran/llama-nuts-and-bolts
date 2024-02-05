@@ -114,13 +114,13 @@ func (t Type) String() string {
 
 var modelprotoDescriptor = protobuf.ProtoDescriptor{
 	MainObjectConstructorFn: func() interface{} {
-		result := ModelProto{}
+		result := &ModelProto{}
 		result.Pieces = new([]SentencePiece)
 		return result
 	},
 	MessageProcessorFns: map[protobuf.Number]func(interface{}, protobuf.Message){
 		1: func(mainObject interface{}, message protobuf.Message) {
-			mo := mainObject.(ModelProto)
+			mo := mainObject.(*ModelProto)
 			props := message.Value.(map[protobuf.Number]interface{})
 			pieceTypeVal, err := common.InterfaceToInt(props[3])
 			if err != nil {
@@ -133,7 +133,7 @@ var modelprotoDescriptor = protobuf.ProtoDescriptor{
 			// Do nothing, we don't need TrainerSpec at this time.
 		},
 		3: func(mainObject interface{}, message protobuf.Message) {
-			mo := mainObject.(ModelProto)
+			mo := mainObject.(*ModelProto)
 			props := message.Value.(map[protobuf.Number]interface{})
 			ns := NormalizerSpec{}
 			ns.Name = props[1].(string)
@@ -153,7 +153,6 @@ var modelprotoDescriptor = protobuf.ProtoDescriptor{
 			}
 			ns.NormalizationRuleTsv = stringVal
 			mo.NormalizerSpec = &ns
-			fmt.Println("NOTE TODO: MessageProcessorFns don't affect original object's fields")
 		},
 	},
 }
