@@ -1,9 +1,7 @@
 package ml
 
 import (
-	"encoding/binary"
 	"fmt"
-	"math"
 	"strings"
 	"unsafe"
 
@@ -187,14 +185,6 @@ func (t *Tensor) GetItemByOffset_AsFloat32(offset int) (float32, error) {
 	return t.DataType.FuncSet.ReadItem_AsFloat32(unsafe.Pointer(&t.RawData[offset])), nil
 }
 
-func (t *Tensor) GetItemByOffset_BF16(offset int) dtype.BFloat16 {
-	return dtype.ReadBFloat16LittleEndian(t.RawData[offset:])
-}
-
-func (t *Tensor) GetItemByOffset_F32(offset int) float32 {
-	return math.Float32frombits(binary.LittleEndian.Uint32(t.RawData[offset:]))
-}
-
 func (t *Tensor) SetItemByOffset(offset int, val any) error {
 	if t.DataType.FuncSet == nil {
 		return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
@@ -207,16 +197,6 @@ func (t *Tensor) SetItemByOffset_FromFloat32(offset int, val float32) error {
 		return fmt.Errorf("unsupported tensor datatype %s", t.DataType)
 	}
 	t.DataType.FuncSet.WriteItem_FromFloat32(unsafe.Pointer(&t.RawData[offset]), val)
-	return nil
-}
-
-func (t *Tensor) SetItemByOffset_BF16(offset int, val dtype.BFloat16) error {
-	dtype.WriteBFloat16LittleEndian(t.RawData[offset:], val)
-	return nil
-}
-
-func (t *Tensor) SetItemByOffset_F32(offset int, val float32) error {
-	binary.LittleEndian.PutUint32(t.RawData[offset:], math.Float32bits(val))
 	return nil
 }
 
