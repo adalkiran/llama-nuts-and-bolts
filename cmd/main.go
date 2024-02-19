@@ -88,7 +88,6 @@ func main() {
 	fmt.Printf("\n\n\n")
 
 	inferenceArgs := common.NewInferenceArgs()
-	inferenceArgs.Seed = 1234
 	inferenceArgs.SequenceLength = 200
 
 	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn)

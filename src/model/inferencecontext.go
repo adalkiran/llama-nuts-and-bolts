@@ -1,17 +1,12 @@
 package model
 
 import (
-	"math/rand"
-	"time"
-
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 )
 
 type InferenceContext struct {
 	SequenceLength int // context size used during inference
-
-	randomNumberGenerator *rand.Rand
 
 	CacheK []*ml.Tensor
 	CacheV []*ml.Tensor
@@ -24,15 +19,11 @@ func NewInferenceContext(model *Model, inferenceArgs common.InferenceArgs, logFn
 	context := &InferenceContext{
 		logFn: logFn,
 	}
-	if inferenceArgs.Seed == -1 {
-		inferenceArgs.Seed = time.Now().UnixNano()
-	}
 	if inferenceArgs.SequenceLength > 0 {
 		context.SequenceLength = inferenceArgs.SequenceLength
 	} else {
 		context.SequenceLength = model.ModelArgs.MaxSequenceLength
 	}
-	context.randomNumberGenerator = rand.New(rand.NewSource(inferenceArgs.Seed))
 
 	modelArgs := model.ModelArgs
 	context.CacheK = make([]*ml.Tensor, modelArgs.N_Layers)

@@ -1637,7 +1637,6 @@ func testSimulatedInternal(t *testing.T, onlyFirstLayer bool) {
 	promptTokens := []TokenId{1, 15043, 590, 1024, 338}
 
 	inferenceArgs := common.NewInferenceArgs()
-	inferenceArgs.Seed = 1234
 	inferenceArgs.SequenceLength = 8
 	infContext := NewInferenceContext(llamaModel, inferenceArgs, testSimulatedLog)
 

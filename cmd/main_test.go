@@ -62,7 +62,6 @@ func prepareInferenceEngine(t *testing.T) (*inference.InferenceEngine, chan stri
 	defer llamaModel.Free()
 
 	inferenceArgs := common.NewInferenceArgs()
-	inferenceArgs.Seed = 1234
 	inferenceArgs.SequenceLength = 200
 
 	return inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn), consoleListenerChan
