@@ -2,12 +2,11 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
 // https://github.com/microsoft/vscode-dev-containers/tree/v0.195.0/containers/javascript-node
 {
-	"name": "LLaMA Nuts and Bolts Backend Container",
+	"name": "LLaMA Nuts and Bolts CLI Container",
 	"dockerComposeFile": [
-		"../docker-compose.yml",
-		"../docker-compose.dev.yml"
+		"../docker-compose.yml"
 	],
-	"service": "backend",
+	"service": "cli",
 	"shutdownAction": "none",
 	"workspaceFolder": "/workspace",
 	"customizations": {
