@@ -51,7 +51,7 @@ func extractRuneData(str string) []RuneData {
 	return result
 }
 
-func processEmoji(decodingContext *generationDecodingContext, r rune, rsize int) string {
+func processEmoji(decodingContext *generationDecodingContext, r rune) string {
 	if decodingContext.decodingFinished {
 		decodingContext.decodingFinished = false
 	}

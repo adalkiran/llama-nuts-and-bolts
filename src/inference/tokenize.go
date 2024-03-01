@@ -66,7 +66,7 @@ func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, decodingContext 
 		if utf8.Valid(decodingContext.waitingBytes) {
 			r, rsize := utf8.DecodeRune(decodingContext.waitingBytes)
 			decodingContext.waitingBytes = decodingContext.waitingBytes[rsize:]
-			resultString += processEmoji(decodingContext, r, rsize)
+			resultString += processEmoji(decodingContext, r)
 		} else {
 			addedToWaiting = true
 		}

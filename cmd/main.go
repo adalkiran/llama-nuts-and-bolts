@@ -149,6 +149,7 @@ func main() {
 func listenGenerationChannels(wg *sync.WaitGroup, ctx context.Context, generatedPartCh <-chan inference.GeneratedPart, errorCh <-chan error) {
 	defer wg.Done()
 	loop := true
+	spacesAfterEmoji := ""
 	for loop {
 		select {
 		case generatedPart, ok := <-generatedPartCh:
@@ -161,13 +162,25 @@ func listenGenerationChannels(wg *sync.WaitGroup, ctx context.Context, generated
 				appState.generatedTokenIds = append(appState.generatedTokenIds, generatedPart.TokenId)
 				appState.generatedTokens = append(appState.generatedTokens, generatedPart.Token)
 			}
+
+			if len(spacesAfterEmoji) > 0 && len(generatedPart.WaitingRunesExtraStr) == 0 {
+				// If space characters should be added between the emoji and generatedPart.DecodedString
+				// which generated at previous iteration, add them
+				generatedPart.DecodedString = spacesAfterEmoji + generatedPart.DecodedString
+				spacesAfterEmoji = ""
+			} else {
+				// If there is some emoji in the generated string, add space characters between the emoji and waitingRunesExtraStr
+				spacesAfterEmoji = generateRequiredSpacesAfterEmoji(generatedPart.WaitingRunesExtraStr)
+				generatedPart.WaitingRunesExtraStr = spacesAfterEmoji + generatedPart.WaitingRunesExtraStr
+			}
+			appState.waitingRunesExtraStr = generatedPart.WaitingRunesExtraStr
+
 			if generatedPart.AddedToWaiting {
 				appState.addedToWaitingCount++
 			} else {
 				appState.addedToWaitingCount = 0
 				appState.generatedText += generatedPart.DecodedString
 			}
-			appState.waitingRunesExtraStr = generatedPart.WaitingRunesExtraStr
 			appState.generationState = generatedPart.GenerationState
 			appState.updateOutput()
 			appState.startTimeToken = time.Now()
@@ -183,6 +196,8 @@ func listenGenerationChannels(wg *sync.WaitGroup, ctx context.Context, generated
 		}
 	}
 	if len(appState.waitingRunesExtraStr) > 0 {
+		// If there is some emoji in the generated string, add space characters between the emoji and waitingRunesExtraStr
+		appState.generatedText += generateRequiredSpacesAfterEmoji(appState.waitingRunesExtraStr)
 		appState.generatedText += appState.waitingRunesExtraStr
 		appState.updateOutput()
 	}
@@ -294,6 +309,24 @@ func askUserPromptChoice(llamaModel *model.Model) PromptInput {
 		}
 		return userPromptInput
 	}
+}
+
+func generateRequiredSpacesAfterEmoji(waitingRunesExtraStr string) string {
+	if len(waitingRunesExtraStr) == 0 {
+		return ""
+	}
+	// If there is some emoji in the generated string, count "[" characters in the waitingRunesExtraStr,
+	// add spaces with count of this number between the emoji and waitingRunesExtraStr
+	count := 0
+	for _, char := range waitingRunesExtraStr {
+		if char == '[' {
+			count++
+		}
+	}
+	if count > 1 {
+		count = 2
+	}
+	return fmt.Sprintf("%*s", count, " ")
 }
 
 type PromptInput struct {
