@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"unsafe"
 )
@@ -92,6 +93,12 @@ func DetermineMachineEndian() string {
 	case [2]byte{0xAB, 0xCD}:
 		return "BIG_ENDIAN"
 	default:
-		panic("Could not determine native endianness.")
+		FriendlyPanic(fmt.Errorf("could not determine native endianness"))
+		return ""
 	}
+}
+
+func FriendlyPanic(err error) {
+	fmt.Printf("\n\nOops! Something went wrong:\n\nError: %s\n\n", err.Error())
+	os.Exit(1)
 }

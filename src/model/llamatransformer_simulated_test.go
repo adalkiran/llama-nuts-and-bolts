@@ -1504,7 +1504,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, skipCompareTestTensor 
 	return actualOutput
 }
 
-func testTransformerBlock_FeedForward_Forward(t *testing.T, skipCompareTestTensor bool, infContext *InferenceContext, feedForward *LlamaFeedForward, x *ml.Tensor) *ml.Tensor {
+func testTransformerBlock_FeedForward_Forward(t *testing.T, feedForward *LlamaFeedForward, x *ml.Tensor) *ml.Tensor {
 	/*
 		Goal in Python manner:
 		self.w2(F.silu(self.w1(x)) * self.w3(x))
@@ -1571,7 +1571,7 @@ func testTransformerBlock_Forward(t *testing.T, skipCompareTestTensor bool, infC
 	if err != nil {
 		t.Fatal(err)
 	}
-	ffnOutput := testTransformerBlock_FeedForward_Forward(t, skipCompareTestTensor, infContext, transformerBlock.feedForward, normalizedH)
+	ffnOutput := testTransformerBlock_FeedForward_Forward(t, transformerBlock.feedForward, normalizedH)
 	actualOutput, err := ml.Add(h, ffnOutput)
 	if err != nil {
 		t.Fatal(err)

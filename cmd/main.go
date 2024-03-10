@@ -51,25 +51,25 @@ func main() {
 	if debugMode {
 		debugLogWriter, err = os.Create("debug.log")
 		if err != nil {
-			panic(err)
+			common.FriendlyPanic(err)
 		}
 	}
 
 	common.GLogger, err = common.NewLogger(os.Stdout, debugLogWriter)
 	if err != nil {
-		panic(err)
+		common.FriendlyPanic(err)
 	}
 	defer common.GLogger.Close()
 
 	machineEndian := common.DetermineMachineEndian()
 	common.GLogger.ConsolePrintf("Determined machine endianness: %s", machineEndian)
 	if machineEndian != "LITTLE_ENDIAN" {
-		panic(fmt.Errorf("error: Endianness of your machine is not supported. Expected LITTLE_ENDIAN but got %s", machineEndian))
+		common.FriendlyPanic(fmt.Errorf("error: Endianness of your machine is not supported. Expected LITTLE_ENDIAN but got %s", machineEndian))
 	}
 
 	modelDir, err := searchForModelPath(modelsDirName, "7B-chat")
 	if err != nil {
-		panic(err)
+		common.FriendlyPanic(err)
 	}
 
 	common.GLogger.ConsolePrintf("Found model files in \"%s\"...", modelDir)
@@ -83,7 +83,9 @@ func main() {
 	}
 	defer llamaModel.Free()
 
-	fmt.Printf("Model \"%s\" was loaded.\n", modelDir)
+	fmt.Printf("Model \"%s\" was loaded.\n\n", modelDir)
+
+	fmt.Printf("Developed by: Adil Alper DALKIRAN")
 
 	fmt.Printf("\n\n\n")
 
@@ -231,7 +233,7 @@ func searchForModelPath(modelsDirName string, modelName string) (string, error) 
 		}
 		searchedDirectories = append(searchedDirectories, modelDir)
 	}
-	return "", fmt.Errorf("model directory \"%s\" and related files could not be found in:\n%s", modelsDirName, strings.Join(searchedDirectories, "\n"))
+	return "", fmt.Errorf("model directory \"%s\" and related files could not be found in:\n\n%s\n\nIf you haven't downloaded the model files from Meta's LLaMa website and put them in the \"models-original/7B-chat\" directory in the described way yet, please follow the instructions written in the \"Downloading the Official Model Files\" chapter at https://github.com/adalkiran/llama-nuts-and-bolts README file", modelsDirName, strings.Join(searchedDirectories, "\n"))
 }
 
 func askUserPromptChoice(llamaModel *model.Model) PromptInput {
