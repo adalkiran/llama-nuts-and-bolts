@@ -1,19 +1,19 @@
 package common
 
 import (
-	"os"
 	"fmt"
 	"golang.org/x/sys/windows"
+	"os"
 )
 
 var (
-	kernel32DLL	   = windows.NewLazySystemDLL("kernel32.dll")
+	kernel32DLL        = windows.NewLazySystemDLL("kernel32.dll")
 	getConsoleOutputCP = kernel32DLL.NewProc("GetConsoleOutputCP")
 	setConsoleOutputCP = kernel32DLL.NewProc("SetConsoleOutputCP")
 )
 
 func init() {
-	// See: https://github.com/fatih/color/blob/main/color_windows.go 
+	// See: https://github.com/fatih/color/blob/main/color_windows.go
 	// Opt-in for ansi color support for current process.
 	// See: https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences#output-sequences
 	var outMode uint32
