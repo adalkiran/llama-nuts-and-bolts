@@ -1,16 +1,347 @@
 # **LLaMA Nuts and Bolts**
 
-
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white&style=flat-square)](https://www.linkedin.com/in/alper-dalkiran/)
-[![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white&style=flat-square)](https://twitter.com/aalperdalkiran) <!---
-![HitCount](https://hits.dwyl.com/adalkiran/llama-nuts-and-bolts.svg?style=flat-square) --> \[Counter\]
+[![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=X&logoColor=white&style=flat-square)](https://twitter.com/aalperdalkiran)
+![HitCount](https://hits.dwyl.com/adalkiran/llama-nuts-and-bolts.svg?style=flat-square)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 
+A holistic way of understanding how LLaMA and its components run in practice, with code and [detailed documentation](./docs/). "The nuts and bolts" (practical side instead of theoretical facts, pure implementation details) of required components, infrastructure, and mathematical operations without using external dependencies or libraries.
 
-## *//TODO: Write here*
+This project intentionally **<u>doesn't have</u>** support for [GPGPU](https://en.wikipedia.org/wiki/General-purpose_computing_on_graphics_processing_units) (such as [nVidia CUDA](https://tr.wikipedia.org/wiki/CUDA), [OpenCL](https://tr.wikipedia.org/wiki/OpenCL)) as well as [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) because it doesn't aim to be a production application, for now. Instead, the project relies on CPU cores to perform all mathematical operations, including linear algebraic computations. To increase performance, the code has been optimized as much as necessary, utilizing parallelization via [goroutines](https://gobyexample.com/goroutines).
 
+![LLaMA Nuts and Bolts Screen Recording GIF](./docs/images/llama-nuts-and-bolts-screen-record.gif)<br>
+<sup>*LLaMA Nuts and Bolts Screen Recording GIF, captured while the application was running on the Apple MacBook Pro M1 Chip. Predefined prompts within the application were executed. The GIF is 20x faster.*</sup>
 
+## :thought_balloon: **WHY THIS PROJECT?**
 
-## **LICENSE**
+This project was developed for only educational purposes, and has not been tested for production or commercial usage. The goal is to make an experimental project that can perform inference on the LLaMa 2 7B-chat model completely outside of the Python ecosystem. Throughout this journey, the aim is to acquire knowledge and shed light on the abstracted internal layers of this technology.
+
+This journey is an intentional journey of literally *reinventing the wheel*. While reading [this journey in the documentation directory](./docs/), you will navigate toward the target with a deductive flow. You will encounter the same stops and obstacles I encountered during this journey.
+
+If you are curious like me about how the LLMs (Large Language Models) and transformers work and have delved into conceptual explanations and schematic drawings in the sources but hunger for deeper understanding, then this project is perfect for you too!
+
+## :dart: **COVERAGE**
+
+Due to any of the existing libraries (except the built-in packages and a few helpers) wasn't used, all of the required functions were implemented by this project in the style of Go. However, the main goal of this project is to do inference only on the LLaMa 2 7B-chat model, the functionality fulfills only the requirements of this specific model. Not much, not less, because the goal of our project is not to be a production-level tensor framework.
+
+The project provides a CLI (command line interface) application allowing users to choose from predefined prompts or write custom prompts. It then performs inference on the model and displays the generated text on the console. The application supports "streaming," enabling immediate display of generated tokens on the screen without waiting for the entire process to complete.
+
+As you can see in the chapters in [the documentation directory](./docs/), covered things are:
+
+* All diagrams about the model and the flow are listed in [Chapter 20](./docs/20-DIAGRAMS.md),
+* Parallelization and concurrency in Go, see [Chapter 13](./docs/13-GENERATING-NEXT-TOKENS.md),
+* Implementing [Memory Mapping](https://en.wikipedia.org/wiki/Memory-mapped_file) that allows us to map a large file content to memory address space in Go for both Linux/MacOS and Windows platforms, see [Chapter 2](./docs/02-LOADING-TORCH-MODEL.md),
+* Implementing [BFloat16 (Brain Floating Point)](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format) data type which isn't supported by the Go language, from scratch, see [Chapter 7](./docs/07-BFLOAT16-DATA-TYPE.md),
+* Implementing support for "streaming" output via [Go channels](https://go101.org/article/channel.html), see [Chapter 13](./docs/13-GENERATING-NEXT-TOKENS.md),
+* Loading a [PyTorch](https://pytorch.org/) model weights file ("consolidated.00.pth") which was saved as [Pickle (.pkl)](https://github.com/python/cpython/blob/main/Lib/pickle.py) format, from scratch, see [Chapter 2](./docs/02-LOADING-TORCH-MODEL.md) and [Chapter 3](./docs/03-LOADING-TORCH-MODEL-DETAILS.md),
+* Loading the model arguments JSON file ("params.json"), see [Chapter 4](./docs/04-LOADING-MODEL-ARGS.md),
+* Loading a [SentencePiece (SPM)](https://github.com/google/sentencepiece) tokenizer model file ("tokenizer.model") which was saved as [Protocol Buffers (Protobuf)](https://protobuf.dev/) format, from scratch, see [Chapter 5](./docs/05-LOADING-TOKENIZER-MODEL.md) and  see [Chapter 6](./docs/06-LOADING-TOKENIZER-MODEL-DETAILS.md),
+* Implementing a [Tensor](https://en.wikipedia.org/wiki/Tensor_(machine_learning)) type, tensor aritmetic and machine learning mathematical operation functions, see [Chapter 8](./docs/08-TENSOR.md),
+* Working with  [C contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays) arrays in multi-dimensional form, see [Chapter 8](./docs/08-TENSOR.md),
+* Building the blocks of LLaMa 2 model architecture, see [Chapter 9](./docs/09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE.md),
+* Implementing [RoPE \(Rotary Positional Embeddings\)](https://arxiv.org/abs/2104.09864v5) and precomputing frequency tensor, see [Chapter 10](./docs/10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS.md) and [Chapter 10.BONUS](./docs/10.BONUS-PRECOMPUTING-FREQUENCY-TENSOR.ipynb),
+* Understanding tokens, vocabulary, and tokenization, see [Chapter 12](./docs/12-TOKENIZATION.md),
+* Generating the next token, internals of transformer block, being an auto-regressive model, multi-head self-attention, and much more, see [Chapter 13](./docs/13-GENERATING-NEXT-TOKENS.md), [Chapter 14](./docs/14-MAKING-PREDICTION-WITH-LLAMA-MODEL-1.md), [Chapter 15](./docs/15-MAKING-PREDICTION-WITH-LLAMA-MODEL-2.md), [Chapter 16](./docs/16-MAKING-PREDICTION-WITH-LLAMA-MODEL-3.md),
+* Understanding internals of the [Unicode Standard](https://en.wikipedia.org/wiki/Unicode), [UTF-8](https://en.wikipedia.org/wiki/UTF-8) encoding, and how emojis are represented and rendered, see [Chapter 17](./docs/17-UNICODE-UTF-8-EMOJIS.md),
+* And, so much more!
+
+## :triangular_ruler: **MODEL DIAGRAM**
+
+This diagram has extensive and comprehensive content and tries to reveal all of the details as much as possible. These reasons made it to have a considerable length. To use the space here efficiently, it was enclosed within an expandable section as follows:
+
+<details>
+  <summary><b>Click to expand to see the Complete Model Diagram</b></summary>
+
+<br>
+The whole flow of LLaMa 7B-Chat model without abstraction:<br><br>
+
+![Complete Model Diagram](./docs/images/DIAG01-complete-model.drawio.svg)
+
+</details>
+
+## :package: **INSTALLATION and BUILDING**
+
+### Downloading the Official Model Files
+
+LLaMa model weights files can be found in several formats on the Internet. Meta's official format, HuggingFace format, GGUF format, etc... But our project uses only the official format.
+
+>Note: [Download chapter of original LLaMa repository](https://github.com/facebookresearch/llama?tab=readme-ov-file#download) and this [How to Install Llama 2 Locally](https://medium.com/@tushitdavergtu/how-to-install-llama-2-locally-d3e3c6c8eb4c) article may help you too.
+
+<details>
+  <summary><b>Click to expand the details of downloading instructions</b></summary>
+
+* Request access from Meta Website [https://llama.meta.com/llama-downloads/](https://llama.meta.com/llama-downloads/) by filling the form. The email address must be valid and it's enough to mark "Llama 2 & Llama Chat" checkbox in the model list,
+* You will receive an email from Meta including the instructions for downloading the files,
+* Download the [download.sh](https://github.com/facebookresearch/llama/blob/main/download.sh) file from the official LLaMa repository,
+* Create a parent directory, and copy the ```download.sh``` script there:
+
+    ```sh
+    $ mkdir llama-models
+    $ cd llama-models
+    ```
+
+* Give executable permission to the download.sh file:
+
+    ```sh
+    llama-models$ chmod +x download.sh
+    ```
+
+* Pre-requisites: Make sure you have ```wget``` and ```md5sum``` installed,
+* Run the script:
+
+    ```sh
+    llama-models$ ./download.sh
+    ```
+
+* The download script asks for the URL was come with the email:
+
+    ```sh
+    llama-models$ ./download.sh
+    Enter the URL from email:
+    ```
+
+* Copy the URL written after ```When asked for your unique custom URL, please insert the following``` text in the email, and press ENTER,
+* It asks for the model names that you want to download:
+
+    ```sh
+    llama-models$ ./download.sh
+    Enter the URL from email: # URL was entered and ENTER was pressed
+
+    Enter the list of models to download without spaces (7B,13B,70B,7B-chat,13B-chat,70B-chat), or press Enter for all:
+    ```
+
+* Write ```7B-chat``` and press ENTER, be careful on writing as it is because it is case-sensitive,
+* If everyting goes well, you will see a progress like:
+
+    ```sh
+    ...
+    Enter the list of models to download without spaces 
+    (7B,13B,70B,7B-chat,13B-chat,70B-chat), or press Enter for all: 7B-chat
+
+    Downloading LICENSE and Acceptable Usage Policy
+    ...
+    ./LICENSE                           100%[==================================================>]   6,86K  --.-KB/s
+    ...
+    './LICENSE' was saved [7020/7020]
+    ...
+    ./tokenizer.model                   100%[==================================================>] 488,01K  --.-KB/s
+    ...
+    './tokenizer.model' was saved [499723/499723]
+    ...
+    ... - './tokenizer.model' was saved [499723/499723]
+    ...
+    ./llama-2-7b-chat/consolidated.00.pth   0%[                                                 ]  --,--M  --.-KB/s
+    ...
+    ```
+
+* If you get HTTP 403 error:
+    * Check if you wrote the model name correctly as  ```7B-chat```
+    * Check if the download link you copied ends with ```Select``` text, it shouldn't contain it, as described in the [llama github issue](https://github.com/facebookresearch/llama/issues/351#issuecomment-1641012729)
+
+* If you did everything correct, wait for the progress finishes. It will download ~13GB of files.
+
+</details>
+
+* If you have issues with downloading process, check out the links above and click on the collapsible paragraph above to expand.
+
+* If everyting went well, you will have a directory (in our example it's named ```llama-models```)
+
+    ```sh
+    llama-models (parent directory)
+    |-download.sh
+    |-LICENSE
+    |-USE_POLICY.md
+    |-tokenizer_checklist.chk
+    |-tokenizer.model # our tokenizer model file
+    |-llama-2-7b-chat
+    |  |-checklist.chk
+    |  |-consolidated.00.pth # our model weights file
+    |  |-params.json # our model arguments file
+    ```
+
+### Cloning the repository and maintaining proper directory structure
+
+* Clone this repo and enter into this directory,
+* You will see the empty directory named ```models-original```,
+
+    ```sh
+    llama-nuts-and-bolts (parent directory)
+    |-...
+    |-models-original
+    |  |-.gitkeep
+    |-...
+    ```
+
+* Create a new directory named ```7B-chat``` (case sensitive), and move the files into the new directory as follows:
+
+    ```sh
+    move: llama-models/tokenizer.model -> llama-nuts-and-bolts/models-original/7B-chat/tokenizer.model
+    move: llama-models/llama-2-7b-chat/consolidated.00.pth -> llama-nuts-and-bolts/models-original/7B-chat/consolidated.00.pth
+    move: llama-models/llama-2-7b-chat/params.json -> llama-nuts-and-bolts/models-original/7B-chat/params.json
+    ```
+
+* You should have the following directory structure:
+
+    ```sh
+    llama-nuts-and-bolts (parent directory)
+    |-...
+    |-models-original
+    |  |-7B-chat
+    |  |  |-consolidated.00.pth
+    |  |  |-tokenizer.model
+    |  |  |-params.json
+    |  |-.gitkeep
+    |-...
+    ```
+
+### Production Mode - Native Environment
+
+Alongide you can run this project in a dockerized or virtualized environment, it's more suggested that to run this project without virtualization. You will see the performance difference between them.
+
+The most performant option is to build the project and to run the executable.
+
+You can build the project for your system's operating system, the executable will be named as ```llama-nb```:
+
+```sh
+# For Linux/MacOS, use:
+$ go build -o llama-nb cmd/main.go
+# For Windows, use:
+$ go build -o llama-nb.exe cmd/main.go
+```
+
+Or, you can build the project for every supported platforms into the ```./output``` directory (you can check out the contents of the [scripts/build.sh](./scripts/build.sh) file). It will build the project for darwin (MacOS), linux, and windows platforms, 386, amd64 (Intel x64), and arm64 (64 bit ARM architecture including Apple Silicon M1/M2/M3).
+
+```sh
+$ cd llama-nuts-and-bolts
+$ ./scripts/build.sh
+# Check out the "output" directory in the project directory
+```
+
+Or, you can run the project via:
+
+```sh
+$ cd llama-nuts-and-bolts
+$ go run cmd/main.go
+```
+
+### Production Mode - Dockerized Environment
+
+On Linux or WSL2 on Windows, you can use [./docker-compose.yml](./docker-compose.yml) as
+
+```sh
+$ docker-compose up -d
+```
+
+This command initiates a container named ```llama-nuts-and-bolts-cli-1``` in daemon mode in idle mode.
+
+You can run the project via:
+
+```sh
+$ docker exec -it llama-nuts-and-bolts-cli-1 go run cmd/main.go
+```
+
+Or, you can build the project for Linux (the container's OS), the executable will be named as ```llama-nb```:
+
+```sh
+$ docker exec -it llama-nuts-and-bolts-cli-1 go build -o llama-nb cmd/main.go
+```
+
+Or, you can build the project for every supported platforms into the ```./output``` directory (you can check out the contents of the [scripts/build.sh](./scripts/build.sh) file). It will build the project for darwin (MacOS), linux, and windows platforms, 386, amd64 (Intel x64), and arm64 (64 bit ARM architecture including Apple Silicon M1/M2/M3).
+
+```sh
+$ docker exec -it llama-nuts-and-bolts-cli-1 ./scripts/build.sh
+# Check out the "output" directory in the project directory
+```
+
+### Production Mode - Dockerized Environment / Without WSL2
+
+Docker Desktop on Windows supports two modes: WSL 2 Mode (Windows Subsystem for Linux) and Windows virtualization mode. If you want to run second, you can use the [docker/windows-amd64/Dockerfile](./docker/windows-amd64/Dockerfile) and the [docker/windows-amd64/docker-compose.yml](./docker/windows-amd64/docker-compose.yml).
+
+### Development Mode - Dockerized Environment
+
+You can use [./docker-compose.yml](./docker-compose.yml) with Docker Compose and create a development environment in the container via VSCode. For more information, you can check out my other project *WebRTC Nuts and Bolts*'s Readme chapter: [Development Mode: VS Code Remote - Containers](https://github.com/adalkiran/webrtc-nuts-and-bolts/blob/main/README.md#development-mode-vs-code-remote---containers).
+
+>I've been using VS Code Remote Containers while developing this project and most of my other projects.
+
+## :computer: **RUNNING**
+
+Run the project with executing ```go run ...``` command or executing the compiled executable. It's more suggested that to run this project's executable after building it, and without virtualization for higher performance.
+
+When you run the project, you will see the following screen. It prints the summary of the loading process of model files and a summary of model details.
+
+![First start of the application](./docs/images/SS01-first-start.png)
+
+### Printing Model Metadata
+
+If you select the first item in the menu by pressing 0 key and ENTER, the application prints the metadata of LLaMa 2 7B-chat model on the console:
+
+![Printing metadata 1](./docs/images/SS02-print-metadata-1.png)
+![Printing metadata 2](./docs/images/SS02-print-metadata-2.png)
+
+### Executing a Prompt
+
+Alongside you can select one of predefined prompts in the menu, you can select one of latest two items (```Other, manual input```) to input your custom prompts.
+
+With the ```[Text completion]``` choices, the model is used only to perform text completion task. New tokens will be generated according to the input prompt text.
+
+With the ```[Chat mode]``` choices, the application surrounds the prompt with ```"[INST]"``` and ```"[/INST]"``` strings to specify "this is an instruction prompt". Also it surrounds the system prompt part with ```<<SYS>>\n``` and ```\n<</SYS>>\n\n``` strings to specify this part is a *system prompt*.
+
+At the end, a chat mode prompt string will be look like following:
+
+```sh
+"[INST] <<SYS>>
+Always answer with emojis
+<</SYS>>
+
+How to go from Beijing to NY? [/INST]"
+```
+
+And the output of this prompt is like the following (consists of emojis with their names and unicode escape sequences):
+
+![Example emoji output](./docs/images/SS03-example-emoji-output.png)
+
+## :bricks: **ASSUMPTIONS**
+
+The full-compliant, generic, production-ready, and battle-tested tensor frameworks should have support for a wide range of platforms, acceleration devices/processors/platforms, use cases, and lots of convertibility between data types, etc.
+
+In **LLaMA Nuts and Bolts** scenario, some assumptions have been made to focus only on required set of details.
+
+| Full-compliant applications/frameworks | LLaMA Nuts and Bolts |
+|---|---|
+| Use existing robust libraries to read/write file formats, perform calculations, etc. | This project aims to *reinvent the wheel*, so it doesn't use any existing library. It implements everything it requires, precisely as much as necessary. |
+| Should support a wide range of different data types and perform calculations between different typed tensors in an optimized and performant way. | Has a limited elasticity for only required operations. |
+| Should support a wide range of different file formats. | Has a limited support for only required file formats with only required instructions. |
+| Should support *top-k*, *top-p*, and, *temperature* concepts of the LLMs (Large Language Models) to randomize the outputs, explained [here](https://ivibudh.medium.com/a-guide-to-controlling-llm-model-output-exploring-top-k-top-p-and-temperature-parameters-ed6a31313910). | This project doesn't have support for randomized outputs intentionally, just gives the outputs that have the highest probability. |
+| Should support different acceleration technologies such as [nVidia CUDA](https://tr.wikipedia.org/wiki/CUDA), [OpenCL](https://tr.wikipedia.org/wiki/OpenCL), [Metal Framework](https://developer.apple.com/documentation/metal), [AVX2 instructions](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions), and [ARM Neon instructions](https://developer.arm.com/Architectures/Neon), that enable us [GPGPU](https://en.wikipedia.org/wiki/General-purpose_computing_on_graphics_processing_units) or [SIMD (Single instruction, multiple data)](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) usage. | This project doesn't have support for [GPGPU](https://en.wikipedia.org/wiki/General-purpose_computing_on_graphics_processing_units) and [SIMD (Single instruction, multiple data)](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) intentionally because it doesn't aim to be a production application, for now. However, for a few days, I had tried an experiment with [ARM Neon instructions](https://developer.arm.com/Architectures/Neon) on my MacBook Pro M1, it  worked successfully with float32 data type, but with the CPU cycles required to convert BFloat16 to float32 negated the saved time that came with ARM Neon.<br><br>Also, I've realized that the Go compiler doesn't have support for 2-byte floats, even though I've tried using CGO. So, I gave up on this issue. If you're curious about it, you can check out the single commit on the experiment branch [arm_neon_experiment](https://github.com/adalkiran/llama-nuts-and-bolts/commit/7fd3ad4e1268a79fe6e404780b3ebce39cb0710e). |
+
+## :star: **CONTRIBUTING and SUPPORTING the PROJECT**
+
+You are welcome to [create issues](https://github.com/adalkiran/llama-nuts-and-bolts/issues/new) to report any bugs or problems you encounter. At present, I'm not sure whether this project should be expanded to cover more concepts or not. Only time will tell :blush:.
+
+If you liked and found my project helpful and valuable, I would greatly appreciate it if you could give the repo a star :star: on GitHub. Your support and feedback not only help the project improve and grow but also contribute to reaching a wider audience within the community. Additionally, it motivates me to create even more innovative projects in the future.
+
+## :book: **REFERENCES**
+
+I want to thank to contributors of the awesome sources which were referred during development of this project and writing this documentation. You can find these sources below, also in between the lines in code and documentation.
+
+You can find a complete and categorized list of refereces in [19. REFERENCES](./docs/19-REFERENCES.md) chapter of the [LLaMA Nuts and Bolts documentation](./docs/).
+
+The following resources are  most crucial ones, but it's suggested that to check out the [19. REFERENCES](./docs/19-REFERENCES.md) chapter:
+
+* [Meta LLaMa website](https://llama.meta.com/)
+* [Original LLaMa 2 Python repository of Meta](https://github.com/facebookresearch/llama/)
+* [Georgi Gerganov](https://github.com/ggerganov)'s [llama.cpp](https://github.com/ggerganov/llama.cpp)
+* [Wikipedia](https://en.wikipedia.org)
+* [PyTorch Documentation](https://pytorch.org/)
+* [Youtube - Andrej Karpathy - Let's build GPT: from scratch, in code, spelled out.](https://www.youtube.com/watch?v=kCc8FmEb1nY)
+* [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288)
+* [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971v1)
+* [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+* [Youtube - Umar Jamil - LLaMA explained: KV-Cache, Rotary Positional Embedding, RMS Norm, Grouped Query Attention, SwiGLU](https://www.youtube.com/watch?v=Mn_9W1nCFLo)
+* [Youtube - DeepLearning Hero - RoPE (Rotary positional embeddings) explained: The positional workhorse of modern LLMs](https://www.youtube.com/watch?v=GQPOtyITy54)
+* [Youtube - Intermation - Computer Organization and Design Fundamentals - Ep 020: Unicode Code Points and UTF-8 Encoding](https://www.youtube.com/watch?v=tbdym9ZtepQ&list=PLxfrSxK7P38X7XfG4X8Y9cdOURvC7ObMF)
+* Several documents, articles, and code samples: In the code and documentation of this project, you can find several code or document links that were cited.
+
+## :scroll: **LICENSE**
 
 LLaMA Nuts and Bolts is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full license text.
