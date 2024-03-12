@@ -6,6 +6,7 @@ name: Build and Release
 # This workflow runs linter, builds, runs unit tests, then publishes a new release for the main branch.
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - 'main'

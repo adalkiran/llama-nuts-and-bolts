@@ -6,6 +6,7 @@ name: Build and Test
 # This workflow only runs linter, builds and runs unit tests for development branches.
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - '**'
