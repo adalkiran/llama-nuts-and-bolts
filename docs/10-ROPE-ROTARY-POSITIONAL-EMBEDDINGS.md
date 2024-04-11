@@ -23,28 +23,30 @@ We have several alternatives to calculate the positional embeddings. Some of the
 * As suggested in the paper [Attention Is All You Need](https://arxiv.org/abs/1706.03762), using sinusoidal functions. Each dimension of the positional encoding corresponds to a sinusoid:
 
     $$
-    \begin{gather}
+    \begin{gathered}
         PE_(pos,2i) = \sin(pos/10000^\frac{2i}{d_{model}}) \\
         PE_(pos,2i+1) = \cos(pos/10000^\frac{2i}{d_{model}})
-    \end{gather}
+    \end{gathered}
     $$
 
     This means that, we have ```128``` dimensions for each position, ```i``` will loop from ```0``` to ```64``` (half of ```128```). Our ```PE``` positional embedding array for ```3th``` position will be like:
 
     $$
-    \begin{gather}
+    \begin{gathered}
         PE = \left\lbrace
+        \begin{array}{l}
         \sin\left(\frac{3}{10000^\frac{0}{128}}\right),
         \cos\left(\frac{3}{10000^\frac{0}{128}}\right),
         \sin\left(\frac{3}{10000^\frac{2}{128}}\right),
-        \cos\left(\frac{3}{10000^\frac{2}{128}}\right),
-        \dots,
+        \cos\left(\frac{3}{10000^\frac{2}{128}}\right), \\
+        \dots, \\
         \sin\left(\frac{3}{10000^\frac{124}{128}}\right),
         \cos\left(\frac{3}{10000^\frac{124}{128}}\right),
         \sin\left(\frac{3}{10000^\frac{126}{128}}\right),
         \cos\left(\frac{3}{10000^\frac{126}{128}}\right)
+        \end{array}
         \right\rbrace \\
-    \end{gather}
+    \end{gathered}
     $$
 
 * As suggested in the paper [RoFormer](https://arxiv.org/abs/2104.09864v5), using sinusoidal functions in slightly different ways, as described following parts,
@@ -68,10 +70,10 @@ With this approach, we have a chance to combine multiple approaches and we have 
 * In the approach of [RoFormer](https://arxiv.org/abs/2104.09864v5) that we used in this project, takes the items of ```128``` dimension of an attention head as ```64``` pairs. Then, it obtains a complex number from each pair by taking the first item of the pair as *real part* and the second item of the pair as *imaginary part* of a complex number.
 
 $$
-\begin{gather}
+\begin{gathered}
     \text{where }i^2=-1, i\text{ is the imaginary unit,} \\
     out = abs \cdot \cos(angle) + abs \cdot \sin(angle) \cdot i
-\end{gather}
+\end{gathered}
 $$
 
 * Taking the items of an attention head as float pairs and representing them as complex numbers in polar coordinate system makes our method more suitable for its mathematical nature. Also, this allows it to represent these complex numbers as a matrix, which allows us to perform matrix operations.
@@ -140,15 +142,15 @@ def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
 The original equation in section "3.2.2 General form" of [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864):
 
 $$
-\begin{gather}
+\begin{gathered}
 \Theta = \left\lbrace \theta_i = 10000^{-\frac{2(i - 1)}{dim}}, i \in [1, 2, \dots, \frac{dim}{2}] \right\rbrace
-\end{gather}
+\end{gathered}
 $$
 
 If we expand it for ```dim=128``` in our case:
 
 $$
-\begin{gather}
+\begin{gathered}
 \Theta = \left\lbrace
   \theta_1 = 10000^{-\frac{2(1 - 1)}{128}},
   \theta_2 = 10000^{-\frac{2(2 - 1)}{128}},
@@ -175,13 +177,13 @@ $$
   \theta_{63} = \frac{1}{10000^{\frac{124}{128}}},
   \theta_{64} = \frac{1}{10000^{\frac{126}{128}}}
 \right\rbrace
-\end{gather}
+\end{gathered}
 $$
 
 If it will be expressed with variable names in the code:
 
 $$
-\begin{gather}
+\begin{gathered}
 freqs =
 \left\lbrace
     \text{item}_{i} = \frac{1}{theta^{\frac{val}{dim}}}
@@ -197,9 +199,9 @@ freqs =
     \text{item}_2 = \frac{1}{10000^{\frac{4}{128}}},
     \dots,
     \text{item} _{62} = \frac{1}{10000^{\frac{124}{128}}},
-    \text{item} _{63} = \frac{1}{10000^{\frac{126}{128}}},
+    \text{item} _{63} = \frac{1}{10000^{\frac{126}{128}}}
 \right\rbrace
-\end{gather}
+\end{gathered}
 $$
 
 <sup>from [src/model/llamatransformer.go](../src/model/llamatransformer.go)</sup>
@@ -391,15 +393,15 @@ func Outer(vec1 *Tensor, vec2 *Tensor) (*Tensor, error) {
 
 ## **10.5. Calculating Frequency Tensor as Cis (Polar Coordinates)**
 
-[cis](https://en.wikipedia.org/wiki/Cis_(mathematics)) is described at Wikipedia:
+[cis](https://en.wikipedia.org/wiki/Cis_%28mathematics%29) is described at Wikipedia:
 
 >cis is a mathematical notation defined by cis x = cos x + i sin x,[nb 1] where cos is the cosine function, i is the imaginary unit and sin is the sine function. x is the argument of the complex number (angle between line to point and x-axis in polar form).
 
 $$
-\begin{gather}
+\begin{gathered}
 \text{where }i^2=-1, i\text{ is the imaginary unit,} \\
 cis x = cos x + i \cdot sin x
-\end{gather}
+\end{gathered}
 $$
 
 With this notation, we can express a point's location in cartesian coordinate system with cosine and sine of one angle, which is called as [polar coordinates](https://en.wikipedia.org/wiki/Polar_coordinate_system).
@@ -441,10 +443,10 @@ By calling [ml.Polar(ones, freqs)](../src/ml/operations_impl.go) function, a ten
 >Constructs a complex tensor whose elements are Cartesian coordinates corresponding to the polar coordinates with absolute value abs and angle.
 
 $$
-\begin{gather}
+\begin{gathered}
 \text{where }i^2=-1, i\text{ is the imaginary unit,} \\
 out = abs \cdot \cos(angle) + abs \cdot \sin(angle) \cdot i
-\end{gather}
+\end{gathered}
 $$
 
 In our case, the ```abs``` argument is a tensor full of ```1``` values. ```angle``` argument is our ```freqs``` variable.
@@ -525,7 +527,7 @@ $$
 * Positional Encoding tensor for 5 positions, without converting to complex number:
 
 $$
-\begin{gather}
+\begin{gathered}
 \text{where }PE_{pos,i} \in \mathbb{R}^{dim = 128}, \\
 \\
 PE = \left\lbrack
@@ -533,13 +535,13 @@ PE = \left\lbrack
     PE_{pos0}, PE_{pos1}, PE_{pos2}, PE_{pos3}, PE_{pos4}
 \end{array}
 \right\rbrack
-\end{gather}
+\end{gathered}
 $$
 
 <br>
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos0}=
     \left\lbrace
     \begin{array}{l}
@@ -556,11 +558,11 @@ $$
         \cos\left(\frac{0}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\
-\end{gather}
+\end{gathered}
 $$
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos1}=
     \left\lbrace
     \begin{array}{l}
@@ -577,11 +579,11 @@ $$
         \cos\left(\frac{1}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\
-\end{gather}
+\end{gathered}
 $$
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos2}=
     \left\lbrace
     \begin{array}{l}
@@ -598,11 +600,11 @@ $$
         \cos\left(\frac{2}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\
-\end{gather}
+\end{gathered}
 $$
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos3}=
     \left\lbrace
     \begin{array}{l}
@@ -619,11 +621,11 @@ $$
         \cos\left(\frac{3}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\
-\end{gather}
+\end{gathered}
 $$
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos4}=
     \left\lbrace
     \begin{array}{l}
@@ -640,7 +642,7 @@ $$
         \cos\left(\frac{4}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\
-\end{gather}
+\end{gathered}
 $$
 
 <br><br>
@@ -648,7 +650,7 @@ $$
 * Positional Encoding tensor for 5 positions, after converting to complex number:
 
 $$
-\begin{gather}
+\begin{gathered}
 \text{where }PE_{pos,i} \in \mathbb{C}^{\frac{dim}{2} = 64}, i^2=-1, i\text{ is the imaginary unit,}
 \\
 \\
@@ -657,13 +659,13 @@ PE = \left\lbrack
     PE_{pos0}, PE_{pos1}, PE_{pos2}, PE_{pos3}, PE_{pos4}
 \end{array}
 \right\rbrack
-\end{gather}
+\end{gathered}
 $$
 
 <br>
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos0}=
     \left\lbrace
     \begin{array}{l}
@@ -675,11 +677,11 @@ $$
         \sin\left(\frac{0}{10000^{\frac{126}{128}}}\right) + i \cos\left(\frac{0}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\
-\end{gather} \\\\
+\end{gathered} \\\\
 $$
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos1}=
     \left\lbrace
     \begin{array}{l}
@@ -691,11 +693,11 @@ $$
         \sin\left(\frac{1}{10000^{\frac{126}{128}}}\right) + i \cos\left(\frac{1}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\\\
-\end{gather} \\
+\end{gathered} \\
 $$
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos2}=
     \left\lbrace
     \begin{array}{l}
@@ -707,11 +709,11 @@ $$
         \sin\left(\frac{2}{10000^{\frac{126}{128}}}\right) + i \cos\left(\frac{2}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\\\
-\end{gather} \\
+\end{gathered} \\
 $$
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos3}=
     \left\lbrace
     \begin{array}{l}
@@ -723,11 +725,11 @@ $$
         \sin\left(\frac{3}{10000^{\frac{126}{128}}}\right) + i \cos\left(\frac{3}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\
-\end{gather} \\\\
+\end{gathered} \\\\
 $$
 
 $$
-\begin{gather}
+\begin{gathered}
     PE_{pos4}=
     \left\lbrace
     \begin{array}{l}
@@ -739,7 +741,7 @@ $$
         \sin\left(\frac{4}{10000^{\frac{126}{128}}}\right) + i \cos\left(\frac{4}{10000^{\frac{126}{128}}}\right)
     \end{array}
     \right\rbrace \\
-\end{gather} \\
+\end{gathered} \\
 $$
 
 ## **10.7. Visualized Form of Some Samples from The Frequency Tensor**

@@ -61,7 +61,7 @@ At first draft of this project, an 3rd party BFloat16 Go library was used, but b
 * To implement LLaMa Transformer Model blocks and model loader. Inspired by [original LLaMa 2 Python repository of Meta](https://github.com/facebookresearch/llama/blob/main/llama/model.py).
     >Implementation can be found in [src/model](../src/model) directory.
 
-* To implement [Tensor](https://en.wikipedia.org/wiki/Tensor_(machine_learning)) type, tensor aritmetic and machine learning mathematical operation functions.
+* To implement [Tensor](https://en.wikipedia.org/wiki/Tensor_%28machine_learning%29) type, tensor aritmetic and machine learning mathematical operation functions.
     >Implementation can be found in [src/ml](../src/ml) directory.
 
 * To implement a console application which gets together these components, and provides a CLI (command line interface).

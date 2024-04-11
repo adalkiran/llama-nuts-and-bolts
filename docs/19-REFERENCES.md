@@ -56,8 +56,8 @@ I want to thank to contributors of the awesome sources which were referred durin
 
 ### Machine Learning Concepts
 
-* [Tensor](https://en.wikipedia.org/wiki/Tensor_(machine_learning))
-* [Cis \(mathematics\)](https://en.wikipedia.org/wiki/Cis_(mathematics))
+* [Tensor](https://en.wikipedia.org/wiki/Tensor_%28machine_learning%29)
+* [Cis \(mathematics\)](https://en.wikipedia.org/wiki/Cis_%28mathematics%29)
 * [Polar Coordinate System](https://en.wikipedia.org/wiki/Polar_coordinate_system)
 * [Logits](https://en.wikipedia.org/wiki/Logit)
 * [Argmax](https://en.wikipedia.org/wiki/Arg_max)
@@ -146,6 +146,9 @@ I want to thank to contributors of the awesome sources which were referred durin
 * [Youtube - Intermation - Computer Organization and Design Fundamentals - Ep 021: UTF-8 Encoding Examples](https://www.youtube.com/watch?v=c_hfKgektt4&list=PLxfrSxK7P38X7XfG4X8Y9cdOURvC7ObMF)
 * [Youtube - Studying With Alex - Unicode, in friendly terms: ASCII, UTF-8, code points, character encodings, and more](https://www.youtube.com/watch?v=ut74oHojxqo)
 
+### Other
+
+* Modified "Bolt, bolts, construction icon" by Rafiico Creative Studio Co., Ltd. [CC BY](https://creativecommons.org/licenses/by/3.0/)
 <br>
 
 ---

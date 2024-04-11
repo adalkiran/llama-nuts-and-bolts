@@ -1,13 +1,13 @@
 # **8. TENSOR**
 
-In mathematics and computer science, [tensors](https://en.wikipedia.org/wiki/Tensor_(machine_learning)) are fundamental structures to represent multi-dimensional arrays of numbers. Tensors are generalized form of scalars, vectors, and matrices, which have higher dimensions. Tensors are widely used in fields like mathematics, physics, engineering, computer graphics, and machine learning.
+In mathematics and computer science, [tensors](https://en.wikipedia.org/wiki/Tensor_%28machine_learning%29) are fundamental structures to represent multi-dimensional arrays of numbers. Tensors are generalized form of scalars, vectors, and matrices, which have higher dimensions. Tensors are widely used in fields like mathematics, physics, engineering, computer graphics, and machine learning.
 
-Quantitive magnitudes without any direction are called [scalars](https://en.wikipedia.org/wiki/Scalar_(mathematics)), quantities having a magnitude and a direction, represented by one-dimensional arrays are called [vectors](https://en.wikipedia.org/wiki/Vector), and objects with two-dimensions, arranged in rows and columns are called [matrices](https://en.wikipedia.org/wiki/Matrix_(mathematics)) are tensors.
+Quantitive magnitudes without any direction are called [scalars](https://en.wikipedia.org/wiki/Scalar_%28mathematics%29), quantities having a magnitude and a direction, represented by one-dimensional arrays are called [vectors](https://en.wikipedia.org/wiki/Vector), and objects with two-dimensions, arranged in rows and columns are called [matrices](https://en.wikipedia.org/wiki/Matrix_%28mathematics%29) are tensors.
 
 The number of dimensions in which the object is expressed is called *degree of the tensor*. While scalars, vectors, and matrices have degrees of zero, one, and two, respectively, tensors can have degree of three or higher.
 
 >Source: [Tensor - Wikipedia (Turkish)](https://tr.wikipedia.org/wiki/Tens%C3%B6r) | [Tensor (machine learning)
-](https://en.wikipedia.org/wiki/Tensor_(machine_learning))
+](https://en.wikipedia.org/wiki/Tensor_%28machine_learning%29)
 
 ## **8.1. Introduction to Tensors**
 
@@ -69,18 +69,19 @@ A tensor type should have at least the following features:
 
     ```go
     func (t *Tensor) calculateByteOffset(loc []int) int {
-    offset := 0
-    for i := 0; i < len(loc); i++ {
-        offset += loc[i] * t.ByteStride[i]
+        offset := 0
+        for i := 0; i < len(loc); i++ {
+            offset += loc[i] * t.ByteStride[i]
+        }
+        return offset
     }
-    return offset
     ```
 
     In some places this ```calculateByteOffset``` method is used directly, in other places (the places using unsafe memory access) the starting pointer address is calculated with this metohd, then local offsets is added to the base pointer address.
 
 * **Shape (Size):**
 
-    In Python world, it is called as "Shape", I saw in C world "Size" word is used for same aim. Because as I told in [0. THE JOURNEY](../docs/00-THE-JOURNEY.md), I've started to the project with exploring the [llama.cpp](https://github.com/ggerganov/llama.cpp) project. [llama.cpp](https://github.com/ggerganov/llama.cpp) uses "Size" word in its terminology, I've used "Size" too, then I didn't changed further.
+    In Python world, it is called as "Shape", I saw in C world "Size" word is used for same aim. Because as I told in [0. THE JOURNEY](./00-THE-JOURNEY.md), I've started to the project with exploring the [llama.cpp](https://github.com/ggerganov/llama.cpp) project. [llama.cpp](https://github.com/ggerganov/llama.cpp) uses "Size" word in its terminology, I've used "Size" too, then I didn't changed further.
 
     Thanks to the all data is stored as contiguous ```[]byte``` array, it doesn't matter we reshape a tensor with shape ```[4, 3]``` to ```[3, 4]```. Or the same is correct for ```[32, 128]``` to ```[32, 8, 16]```. While this reshaping operation, the raw data isn't changed physically, only the Size property of the tensor is changed. Reshaping operation has some constraints, like total item count can't be different between old shape and new shape.
 

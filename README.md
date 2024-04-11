@@ -1,11 +1,12 @@
-# **LLaMA Nuts and Bolts**
+# <img src="docs/images/icon.svg" width="24"></img> **LLaMA Nuts and Bolts**
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white&style=flat-square)](https://www.linkedin.com/in/alper-dalkiran/)
 [![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=X&logoColor=white&style=flat-square)](https://twitter.com/aalperdalkiran)
 ![HitCount](https://hits.dwyl.com/adalkiran/llama-nuts-and-bolts.svg?style=flat-square)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 
-A holistic way of understanding how LLaMA and its components run in practice, with code and [detailed documentation](./docs/). "The nuts and bolts" (practical side instead of theoretical facts, pure implementation details) of required components, infrastructure, and mathematical operations without using external dependencies or libraries.
+A holistic way of understanding how LLaMA and its components run in practice, with code and detailed documentation ([GitHub Pages](https://adalkiran.github.io/llama-nuts-and-bolts/) | [GitHub](./docs/)). "The nuts and bolts" (practical side instead of theoretical facts, pure implementation details) of required components, infrastructure, and mathematical operations without using external dependencies or libraries.
+
 
 This project intentionally **<u>doesn't have</u>** support for [GPGPU](https://en.wikipedia.org/wiki/General-purpose_computing_on_graphics_processing_units) (such as [nVidia CUDA](https://tr.wikipedia.org/wiki/CUDA), [OpenCL](https://tr.wikipedia.org/wiki/OpenCL)) as well as [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) because it doesn't aim to be a production application, for now. Instead, the project relies on CPU cores to perform all mathematical operations, including linear algebraic computations. To increase performance, the code has been optimized as much as necessary, utilizing parallelization via [goroutines](https://gobyexample.com/goroutines).
 
@@ -16,9 +17,13 @@ This project intentionally **<u>doesn't have</u>** support for [GPGPU](https://e
 
 This project was developed for only educational purposes, and has not been tested for production or commercial usage. The goal is to make an experimental project that can perform inference on the LLaMa 2 7B-chat model completely outside of the Python ecosystem. Throughout this journey, the aim is to acquire knowledge and shed light on the abstracted internal layers of this technology.
 
-This journey is an intentional journey of literally *reinventing the wheel*. While reading [this journey in the documentation directory](./docs/), you will navigate toward the target with a deductive flow. You will encounter the same stops and obstacles I encountered during this journey.
+This journey is an intentional journey of literally *reinventing the wheel*. While reading this journey in the documentation directory ([GitHub Pages](https://adalkiran.github.io/llama-nuts-and-bolts/) | [GitHub](./docs/)), you will navigate toward the target with a deductive flow. You will encounter the same stops and obstacles I encountered during this journey.
 
 If you are curious like me about how the LLMs (Large Language Models) and transformers work and have delved into conceptual explanations and schematic drawings in the sources but hunger for deeper understanding, then this project is perfect for you too!
+
+## :blue_book: **DOCUMENTATION**
+
+The journey can be found documented step by step at [LLaMA Nuts and Bolts - GitHub Pages](https://adalkiran.github.io/llama-nuts-and-bolts/) website with a visually better experience, or at [docs directory](./docs/).
 
 ## :dart: **COVERAGE**
 
@@ -26,23 +31,23 @@ Due to any of the existing libraries (except the built-in packages and a few hel
 
 The project provides a CLI (command line interface) application allowing users to choose from predefined prompts or write custom prompts. It then performs inference on the model and displays the generated text on the console. The application supports "streaming," enabling immediate display of generated tokens on the screen without waiting for the entire process to complete.
 
-As you can see in the chapters in [the documentation directory](./docs/), covered things are:
+As you can see in the chapters in the documentation directory ([GitHub Pages](https://adalkiran.github.io/llama-nuts-and-bolts/) | [GitHub](./docs/)), covered things are:
 
-* All diagrams about the model and the flow are listed in [Chapter 20](./docs/20-DIAGRAMS.md),
-* Parallelization and concurrency in Go, see [Chapter 13](./docs/13-GENERATING-NEXT-TOKENS.md),
-* Implementing [Memory Mapping](https://en.wikipedia.org/wiki/Memory-mapped_file) that allows us to map a large file content to memory address space in Go for both Linux/MacOS and Windows platforms, see [Chapter 2](./docs/02-LOADING-TORCH-MODEL.md),
-* Implementing [BFloat16 (Brain Floating Point)](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format) data type which isn't supported by the Go language, from scratch, see [Chapter 7](./docs/07-BFLOAT16-DATA-TYPE.md),
-* Implementing support for "streaming" output via [Go channels](https://go101.org/article/channel.html), see [Chapter 13](./docs/13-GENERATING-NEXT-TOKENS.md),
-* Loading a [PyTorch](https://pytorch.org/) model weights file ("consolidated.00.pth") which was saved as [Pickle (.pkl)](https://github.com/python/cpython/blob/main/Lib/pickle.py) format, from scratch, see [Chapter 2](./docs/02-LOADING-TORCH-MODEL.md) and [Chapter 3](./docs/03-LOADING-TORCH-MODEL-DETAILS.md),
-* Loading the model arguments JSON file ("params.json"), see [Chapter 4](./docs/04-LOADING-MODEL-ARGS.md),
-* Loading a [SentencePiece (SPM)](https://github.com/google/sentencepiece) tokenizer model file ("tokenizer.model") which was saved as [Protocol Buffers (Protobuf)](https://protobuf.dev/) format, from scratch, see [Chapter 5](./docs/05-LOADING-TOKENIZER-MODEL.md) and  see [Chapter 6](./docs/06-LOADING-TOKENIZER-MODEL-DETAILS.md),
-* Implementing a [Tensor](https://en.wikipedia.org/wiki/Tensor_(machine_learning)) type, tensor aritmetic and machine learning mathematical operation functions, see [Chapter 8](./docs/08-TENSOR.md),
-* Working with  [C contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays) arrays in multi-dimensional form, see [Chapter 8](./docs/08-TENSOR.md),
-* Building the blocks of LLaMa 2 model architecture, see [Chapter 9](./docs/09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE.md),
-* Implementing [RoPE \(Rotary Positional Embeddings\)](https://arxiv.org/abs/2104.09864v5) and precomputing frequency tensor, see [Chapter 10](./docs/10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS.md) and [Chapter 10.BONUS](./docs/10.BONUS-PRECOMPUTING-FREQUENCY-TENSOR.ipynb),
-* Understanding tokens, vocabulary, and tokenization, see [Chapter 12](./docs/12-TOKENIZATION.md),
-* Generating the next token, internals of transformer block, being an auto-regressive model, multi-head self-attention, and much more, see [Chapter 13](./docs/13-GENERATING-NEXT-TOKENS.md), [Chapter 14](./docs/14-MAKING-PREDICTION-WITH-LLAMA-MODEL-1.md), [Chapter 15](./docs/15-MAKING-PREDICTION-WITH-LLAMA-MODEL-2.md), [Chapter 16](./docs/16-MAKING-PREDICTION-WITH-LLAMA-MODEL-3.md),
-* Understanding internals of the [Unicode Standard](https://en.wikipedia.org/wiki/Unicode), [UTF-8](https://en.wikipedia.org/wiki/UTF-8) encoding, and how emojis are represented and rendered, see [Chapter 17](./docs/17-UNICODE-UTF-8-EMOJIS.md),
+* All diagrams about the model and the flow are listed in [Chapter 20](https://adalkiran.github.io/llama-nuts-and-bolts/20-DIAGRAMS/),
+* Parallelization and concurrency in Go, see [Chapter 13](https://adalkiran.github.io/llama-nuts-and-bolts/13-GENERATING-NEXT-TOKENS/),
+* Implementing [Memory Mapping](https://en.wikipedia.org/wiki/Memory-mapped_file) that allows us to map a large file content to memory address space in Go for both Linux/MacOS and Windows platforms, see [Chapter 2](https://adalkiran.github.io/llama-nuts-and-bolts/02-LOADING-TORCH-MODEL/),
+* Implementing [BFloat16 (Brain Floating Point)](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format) data type which isn't supported by the Go language, from scratch, see [Chapter 7](https://adalkiran.github.io/llama-nuts-and-bolts/07-BFLOAT16-DATA-TYPE/),
+* Implementing support for "streaming" output via [Go channels](https://go101.org/article/channel.html), see [Chapter 13](https://adalkiran.github.io/llama-nuts-and-bolts/13-GENERATING-NEXT-TOKENS/),
+* Loading a [PyTorch](https://pytorch.org/) model weights file ("consolidated.00.pth") which was saved as [Pickle (.pkl)](https://github.com/python/cpython/blob/main/Lib/pickle.py) format, from scratch, see [Chapter 2](https://adalkiran.github.io/llama-nuts-and-bolts/02-LOADING-TORCH-MODEL/) and [Chapter 3](https://adalkiran.github.io/llama-nuts-and-bolts/03-LOADING-TORCH-MODEL-DETAILS/),
+* Loading the model arguments JSON file ("params.json"), see [Chapter 4](https://adalkiran.github.io/llama-nuts-and-bolts/04-LOADING-MODEL-ARGS/),
+* Loading a [SentencePiece (SPM)](https://github.com/google/sentencepiece) tokenizer model file ("tokenizer.model") which was saved as [Protocol Buffers (Protobuf)](https://protobuf.dev/) format, from scratch, see [Chapter 5](https://adalkiran.github.io/llama-nuts-and-bolts/05-LOADING-TOKENIZER-MODEL/) and  see [Chapter 6](https://adalkiran.github.io/llama-nuts-and-bolts/06-LOADING-TOKENIZER-MODEL-DETAILS/),
+* Implementing a [Tensor](https://en.wikipedia.org/wiki/Tensor_%28machine_learning%29) type, tensor aritmetic and machine learning mathematical operation functions, see [Chapter 8](https://adalkiran.github.io/llama-nuts-and-bolts/08-TENSOR/),
+* Working with  [C contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays) arrays in multi-dimensional form, see [Chapter 8](https://adalkiran.github.io/llama-nuts-and-bolts/08-TENSOR/),
+* Building the blocks of LLaMa 2 model architecture, see [Chapter 9](https://adalkiran.github.io/llama-nuts-and-bolts/09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE/),
+* Implementing [RoPE \(Rotary Positional Embeddings\)](https://arxiv.org/abs/2104.09864v5) and precomputing frequency tensor, see [Chapter 10](https://adalkiran.github.io/llama-nuts-and-bolts/10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS/) and [Chapter 10.BONUS](./docs/10.BONUS-PRECOMPUTING-FREQUENCY-TENSOR.ipynb),
+* Understanding tokens, vocabulary, and tokenization, see [Chapter 12](https://adalkiran.github.io/llama-nuts-and-bolts/12-TOKENIZATION/),
+* Generating the next token, internals of transformer block, being an auto-regressive model, multi-head self-attention, and much more, see [Chapter 13](https://adalkiran.github.io/llama-nuts-and-bolts/13-GENERATING-NEXT-TOKENS/), [Chapter 14](https://adalkiran.github.io/llama-nuts-and-bolts/14-MAKING-PREDICTION-WITH-LLAMA-MODEL-1/), [Chapter 15](https://adalkiran.github.io/llama-nuts-and-bolts/15-MAKING-PREDICTION-WITH-LLAMA-MODEL-2/), [Chapter 16](https://adalkiran.github.io/llama-nuts-and-bolts/16-MAKING-PREDICTION-WITH-LLAMA-MODEL-3/),
+* Understanding internals of the [Unicode Standard](https://en.wikipedia.org/wiki/Unicode), [UTF-8](https://en.wikipedia.org/wiki/UTF-8) encoding, and how emojis are represented and rendered, see [Chapter 17](https://adalkiran.github.io/llama-nuts-and-bolts/17-UNICODE-UTF-8-EMOJIS/),
 * And, so much more!
 
 ## :triangular_ruler: **MODEL DIAGRAM**
@@ -324,9 +329,9 @@ If you liked and found my project helpful and valuable, I would greatly apprecia
 
 I want to thank to contributors of the awesome sources which were referred during development of this project and writing this documentation. You can find these sources below, also in between the lines in code and documentation.
 
-You can find a complete and categorized list of refereces in [19. REFERENCES](./docs/19-REFERENCES.md) chapter of the [LLaMA Nuts and Bolts documentation](./docs/).
+You can find a complete and categorized list of refereces in [19. REFERENCES](https://adalkiran.github.io/llama-nuts-and-bolts/19-REFERENCES/) chapter of the LLaMA Nuts and Bolts documentation ([GitHub Pages](https://adalkiran.github.io/llama-nuts-and-bolts/) | [GitHub](./docs/)).
 
-The following resources are  most crucial ones, but it's suggested that to check out the [19. REFERENCES](./docs/19-REFERENCES.md) chapter:
+The following resources are  most crucial ones, but it's suggested that to check out the [19. REFERENCES](https://adalkiran.github.io/llama-nuts-and-bolts/19-REFERENCES/) chapter:
 
 * [Meta LLaMa website](https://llama.meta.com/)
 * [Original LLaMa 2 Python repository of Meta](https://github.com/facebookresearch/llama/)
