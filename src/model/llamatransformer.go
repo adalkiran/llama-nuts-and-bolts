@@ -77,6 +77,10 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 	// Calculate dimension of each head
 	modelArgs.HeadDim = int(modelArgs.Dim / modelArgs.N_Heads) // 128
 
+	if modelArgs.RopeTheta <= 0 {
+		modelArgs.RopeTheta = 500000.0
+	}
+
 	if result.tok_embd, err = getTensor(model, "tok_embeddings.weight", []int{vocabSize, dim}); err != nil {
 		return nil, err
 	}
@@ -102,7 +106,7 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 		return nil, err
 	}
 
-	if result.PrecomputedFreqsCis, err = precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2); err != nil {
+	if result.PrecomputedFreqsCis, err = precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2, modelArgs.RopeTheta); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -526,7 +530,32 @@ func attentionRepeatKV(x *ml.Tensor, N_Rep int) (*ml.Tensor, error) {
 	if N_Rep == 1 {
 		return x, nil
 	}
-	return nil, fmt.Errorf("currently only 7B model is supported, N_Rep > 1 case was not implemented yet, because of this")
+	sequenceLength, n_KVHeads, headDim := x.Size[0], x.Size[1], x.Size[2]
+
+	expanded := ml.NewEmptyTensor([]int{sequenceLength, n_KVHeads, N_Rep, headDim}, x.DataType)
+	var err error
+	x, err = x.Reshape([]int{sequenceLength, n_KVHeads, 1, headDim})
+	if err != nil {
+		return nil, err
+	}
+	for i := 0; i < sequenceLength; i++ {
+		for j := 0; j < n_KVHeads; j++ {
+			slice, err := x.Slice([]int{i, j, 0}, []int{i, j, 1})
+			if err != nil {
+				return nil, err
+			}
+			for rep := 0; rep < N_Rep; rep++ {
+				if err = expanded.SetSlice([]int{i, j, rep}, []int{i, j, rep + 1}, slice); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	if expanded, err = expanded.Reshape([]int{sequenceLength, n_KVHeads * N_Rep, headDim}); err != nil {
+		return nil, err
+	}
+	return expanded, nil
+
 }
 
 func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error) {
@@ -630,7 +659,7 @@ func (rms *RMSNorm) doNormalization(x *ml.Tensor) (*ml.Tensor, error) {
 	return h, nil
 }
 
-func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {
+func precomputeFreqsCis(dim int, end int, theta float64) (*ml.Tensor, error) {
 	// Comment from Llama code
 	// See: https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L80
 	/*
@@ -648,8 +677,6 @@ func precomputeFreqsCis(dim int, end int) (*ml.Tensor, error) {
 		Returns:
 			torch.Tensor: Precomputed frequency tensor with complex exponentials.
 	*/
-	theta := 10000.0
-
 	dimFloat := float32(dim)
 	freqs, err := ml.ARange(0, dim, 2, ml.DT_BF16)
 	if err != nil {

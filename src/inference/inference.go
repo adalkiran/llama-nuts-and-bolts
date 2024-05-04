@@ -6,7 +6,6 @@ import (
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/model"
-	"github.com/adalkiran/llama-nuts-and-bolts/src/sentencepiece"
 )
 
 type GenerationState byte
@@ -20,7 +19,7 @@ const (
 type GeneratedPart struct {
 	DecodedString        string
 	TokenId              model.TokenId
-	Token                sentencepiece.SentencePiece
+	Token                model.TokenPiece
 	AddedToWaiting       bool
 	WaitingRunesExtraStr string
 	IsResendOfWaiting    bool
@@ -138,7 +137,7 @@ func (ie *InferenceEngine) generateStringInternal(promptTokens []model.TokenId, 
 			result := GeneratedPart{
 				TokenId:              waitingPart.TokenId,
 				Token:                waitingPart.Token,
-				DecodedString:        fmt.Sprintf("<0x%02X>", waitingPart.Token.ByteFallback),
+				DecodedString:        waitingPart.Token.ByteFallbackString(),
 				AddedToWaiting:       false,
 				WaitingRunesExtraStr: "",
 				IsResendOfWaiting:    true,
@@ -231,7 +230,7 @@ func (ie *InferenceEngine) generateTokensInternal(promptTokens []model.TokenId, 
 		}
 		common.GLogger.DebugPrintf("Generated token for curPos: %d, prevPos: %d, token id: %d", curPos, prevPos, nextTokenId)
 
-		eosReached := nextTokenId == ie.model.Vocabulary.EndOfSentenceId
+		_, eosReached := ie.model.Vocabulary.StopTokenIds[nextTokenId]
 		prevPos = curPos
 		if eosReached {
 			generatedTokensCh <- generationStepResult[model.TokenId]{

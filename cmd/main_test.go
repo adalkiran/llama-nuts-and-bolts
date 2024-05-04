@@ -49,7 +49,7 @@ func prepareInferenceEngine(t *testing.T) (*inference.InferenceEngine, chan stri
 		ListenerChan: consoleListenerChan,
 	}
 
-	modelDir := "../models-original/7B-chat"
+	modelDir := "../models-original/Meta-Llama-3-8B-Instruct"
 	if _, err := os.Stat(modelDir); err != nil {
 		t.Skipf("Model directory \"%s\" is not found, passing this test: %s", modelDir, "TestSimulated")
 		return nil, nil
@@ -69,6 +69,7 @@ func prepareInferenceEngine(t *testing.T) (*inference.InferenceEngine, chan stri
 
 func testSimulatedEmojiOutput(t *testing.T, inputStr string, expectedAssistantLines []string, expectedWaitingLines []string) {
 	t.Helper()
+	inputStr = common.ReplaceHexWithChar(inputStr)
 	appState = NewAppState()
 	appState.ignoreConsoleMeasure = true
 	engine, consoleListenerChan := prepareInferenceEngine(t)
@@ -76,7 +77,7 @@ func testSimulatedEmojiOutput(t *testing.T, inputStr string, expectedAssistantLi
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tokens, err := engine.Tokenize(inputStr, false)
+	tokens, err := engine.TokenizeString(inputStr, false)
 	if err != nil {
 		common.GLogger.ConsoleFatal(err)
 	}
@@ -138,6 +139,7 @@ func testSimulatedEmojiOutput(t *testing.T, inputStr string, expectedAssistantLi
 			}
 			iteration++
 		case <-common.WaitGroupDone(&wg):
+			runtime.Gosched()
 			close(consoleListenerChan)
 		}
 	}
@@ -146,27 +148,23 @@ func testSimulatedEmojiOutput(t *testing.T, inputStr string, expectedAssistantLi
 func TestSimulatedEmojiOutputTurkeyFlag(t *testing.T) {
 	inputPartT := "<0xF0><0x9F><0x87><0xB9>" // Character: 🇹
 	inputPartR := "<0xF0><0x9F><0x87><0xB7>" // Character: 🇷
-	inputPartEOS := "</s>"
+	inputPartEOS := "<|eot_id|>"
 	inputStr := inputPartT + inputPartR + inputPartEOS // Character: 🇹🇷
 	expectedAssistantLines := []string{
 		"…",
 		"……",
-		"………",
 		"🇹 [:REGIONAL INDICATOR SYMBOL LETTER T:\\U0001F1F9]",
 		"🇹 [:REGIONAL INDICATOR SYMBOL LETTER T:\\U0001F1F9]…",
 		"🇹 [:REGIONAL INDICATOR SYMBOL LETTER T:\\U0001F1F9]……",
-		"🇹 [:REGIONAL INDICATOR SYMBOL LETTER T:\\U0001F1F9]………",
 		"🇹🇷 [:flag_for_turkey:\\U0001F1F9\\U0001F1F7]",
 		"🇹🇷 [:flag_for_turkey:\\U0001F1F9\\U0001F1F7]",
 	}
 	expectedWaitingLines := []string{
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x87>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x87>\"",
 		"",
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x87>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x87>\"",
 		"",
 		"",
 	}
@@ -181,14 +179,12 @@ func TestSimulatedEmojiOutputEmojiWithText(t *testing.T) {
 	expectedAssistantLines := []string{
 		"…",
 		"……",
-		"………",
 		"👀 [:eyes:\\U0001F440]",
 		"👀 [:eyes:\\U0001F440] I",
 	}
 	expectedWaitingLines := []string{
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x91>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x91>\"",
 		"",
 		"",
 	}
@@ -204,37 +200,29 @@ func TestSimulatedEmojiOutputMultipleEmojis(t *testing.T) {
 	expectedAssistantLines := []string{
 		"…",
 		"……",
-		"………",
 		"🛬 [:airplane_arrival:\\U0001F6EC]",
 		"🛬 [:airplane_arrival:\\U0001F6EC]…",
 		"🛬 [:airplane_arrival:\\U0001F6EC]……",
-		"🛬 [:airplane_arrival:\\U0001F6EC]………",
 		"🛬🕰  [:airplane_arrival:\\U0001F6EC][:MANTELPIECE CLOCK:\\U0001F570]",
 		"🛬🕰  [:airplane_arrival:\\U0001F6EC][:MANTELPIECE CLOCK:\\U0001F570]…",
 		"🛬🕰  [:airplane_arrival:\\U0001F6EC][:MANTELPIECE CLOCK:\\U0001F570]……",
-		"🛬🕰  [:airplane_arrival:\\U0001F6EC][:MANTELPIECE CLOCK:\\U0001F570]………",
 		"🛬🕰🚂  [:airplane_arrival:\\U0001F6EC][:MANTELPIECE CLOCK:\\U0001F570][:locomotive:\\U0001F682]",
 		"🛬🕰🚂  [:airplane_arrival:\\U0001F6EC][:MANTELPIECE CLOCK:\\U0001F570][:locomotive:\\U0001F682]…",
 		"🛬🕰🚂  [:airplane_arrival:\\U0001F6EC][:MANTELPIECE CLOCK:\\U0001F570][:locomotive:\\U0001F682]……",
-		"🛬🕰🚂  [:airplane_arrival:\\U0001F6EC][:MANTELPIECE CLOCK:\\U0001F570][:locomotive:\\U0001F682]………",
 		"🛬🕰🚂🌄  [:airplane_arrival:\\U0001F6EC][:MANTELPIECE CLOCK:\\U0001F570][:locomotive:\\U0001F682][:sunrise_over_mountains:\\U0001F304]",
 	}
 	expectedWaitingLines := []string{
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x9B>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x9B>\"",
 		"",
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x95>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x95>\"",
 		"",
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x9A>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x9A>\"",
 		"",
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x8C>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x8C>\"",
 		"",
 	}
 	testSimulatedEmojiOutput(t, inputStr, expectedAssistantLines, expectedWaitingLines)
@@ -261,106 +249,74 @@ func TestSimulatedEmojiOutputMultipleCompositeEmojis(t *testing.T) {
 	expectedAssistantLines := []string{
 		/*itr  0*/ "…",
 		/*itr  1*/ "……",
-		/*itr  2*/ "………",
 
 		/*itr  3*/ "🦸 [:superhero:\\U0001F9B8]",
-		/*itr  4*/ "🦸 [:superhero:\\U0001F9B8]…",
-		/*itr  5*/ "🦸 [:superhero:\\U0001F9B8]……",
 		/*itr  6*/ "🦸‍  [:superhero:\\U0001F9B8][:ZERO WIDTH JOINER:\\U0000200D]",
 		/*itr  7*/ "🦸‍  [:superhero:\\U0001F9B8][:ZERO WIDTH JOINER:\\U0000200D]…",
-		/*itr  8*/ "🦸‍  [:superhero:\\U0001F9B8][:ZERO WIDTH JOINER:\\U0000200D]……",
 		/*itr  9*/ "🦸‍♂  [:superhero:\\U0001F9B8][:ZERO WIDTH JOINER:\\U0000200D][:MALE SIGN:\\U00002642]",
-		/*itr 10*/ "🦸‍♂  [:superhero:\\U0001F9B8][:ZERO WIDTH JOINER:\\U0000200D][:MALE SIGN:\\U00002642]…",
-		/*itr 11*/ "🦸‍♂  [:superhero:\\U0001F9B8][:ZERO WIDTH JOINER:\\U0000200D][:MALE SIGN:\\U00002642]……",
 		/*itr 12*/ "🦸‍♂️ [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F]",
 		/*itr 13*/ "🦸‍♂️ [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F]…",
 		/*itr 14*/ "🦸‍♂️ [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F]……",
-		/*itr 15*/ "🦸‍♂️ [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F]………",
 
 		/*itr 16*/ "🦸‍♂️👨  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468]",
-		/*itr 17*/ "🦸‍♂️👨  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468]…",
-		/*itr 18*/ "🦸‍♂️👨  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468]……",
 		/*itr 19*/ "🦸‍♂️👨‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D]",
 		/*itr 20*/ "🦸‍♂️👨‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D]…",
 		/*itr 21*/ "🦸‍♂️👨‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D]……",
-		/*itr 22*/ "🦸‍♂️👨‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D]………",
 		/*itr 23*/ "🦸‍♂️👨‍👩  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D][:woman:\\U0001F469]",
-		/*itr 24*/ "🦸‍♂️👨‍👩  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D][:woman:\\U0001F469]…",
-		/*itr 25*/ "🦸‍♂️👨‍👩  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D][:woman:\\U0001F469]……",
 		/*itr 26*/ "🦸‍♂️👨‍👩‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D][:woman:\\U0001F469][:ZERO WIDTH JOINER:\\U0000200D]",
 		/*itr 27*/ "🦸‍♂️👨‍👩‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D][:woman:\\U0001F469][:ZERO WIDTH JOINER:\\U0000200D]…",
 		/*itr 28*/ "🦸‍♂️👨‍👩‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D][:woman:\\U0001F469][:ZERO WIDTH JOINER:\\U0000200D]……",
-		/*itr 29*/ "🦸‍♂️👨‍👩‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:man:\\U0001F468][:ZERO WIDTH JOINER:\\U0000200D][:woman:\\U0001F469][:ZERO WIDTH JOINER:\\U0000200D]………",
 		/*itr 30*/ "🦸‍♂️👨‍👩‍👧  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467]",
-		/*itr 31*/ "🦸‍♂️👨‍👩‍👧  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467]…",
-		/*itr 32*/ "🦸‍♂️👨‍👩‍👧  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467]……",
 		/*itr 33*/ "🦸‍♂️👨‍👩‍👧‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467][:ZERO WIDTH JOINER:\\U0000200D]",
 		/*itr 34*/ "🦸‍♂️👨‍👩‍👧‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467][:ZERO WIDTH JOINER:\\U0000200D]…",
 		/*itr 35*/ "🦸‍♂️👨‍👩‍👧‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467][:ZERO WIDTH JOINER:\\U0000200D]……",
-		/*itr 36*/ "🦸‍♂️👨‍👩‍👧‍  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467][:ZERO WIDTH JOINER:\\U0000200D]………",
 		/*itr 37*/ "🦸‍♂️👨‍👩‍👧‍👦  [:man_superhero:\\U0001F9B8\\U0000200D\\U00002642\\U0000FE0F][:family_man_woman_girl_boy:\\U0001F468\\U0000200D\\U0001F469\\U0000200D\\U0001F467\\U0000200D\\U0001F466]",
 	}
 	expectedWaitingLines := []string{
 		//inputCompositeManSuperhero
 		//  - inputSuperhero
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0xA6>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0xA6>\"",
 		"",
 
 		//  - inputZwj
-		"\"<0xE2>\"",
-		"\"<0xE2>\", \"<0x80>\"",
 		"",
 
 		//  - inpuutMaleSign
-		"\"<0xE2>\"",
-		"\"<0xE2>\", \"<0x99>\"",
+		"\"<0xE2><0x99>\"",
 		"",
 
 		//  - inputVariationSelector
-		"\"<0xEF>\"",
-		"\"<0xEF>\", \"<0xB8>\"",
 		"",
 
 		//inputCompositeFamily
 		//  - inputPartMan
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x91>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x91>\"",
 		"",
 
 		//  - inputZwj
-		"\"<0xE2>\"",
-		"\"<0xE2>\", \"<0x80>\"",
 		"",
 
 		//  - inputPartWoman
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x91>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x91>\"",
 		"",
 
 		//  - inputZwj
-		"\"<0xE2>\"",
-		"\"<0xE2>\", \"<0x80>\"",
 		"",
 
 		//  - inputPartGirl
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x91>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x91>\"",
 		"",
 
 		//  - inputZwj
-		"\"<0xE2>\"",
-		"\"<0xE2>\", \"<0x80>\"",
 		"",
 
 		//  - inputPartBoy
-		"\"<0xF0>\"",
-		"\"<0xF0>\", \"<0x9F>\"",
-		"\"<0xF0>\", \"<0x9F>\", \"<0x91>\"",
+		"\"<0xF0><0x9F>\"",
+		"\"<0xF0><0x9F>\", \"<0x91>\"",
 		"",
 	}
 	testSimulatedEmojiOutput(t, inputStr, expectedAssistantLines, expectedWaitingLines)

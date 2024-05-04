@@ -6,7 +6,7 @@ import (
 
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
-	"github.com/adalkiran/llama-nuts-and-bolts/src/sentencepiece"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/tiktoken"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/torch"
 )
 
@@ -84,11 +84,12 @@ func loadModelArgs(modelDir string, model *Model) error {
 func loadVocab(modelDir string, model *Model) error {
 	vocabFilePath := filepath.Join(modelDir, "tokenizer.model")
 	common.GLogger.ConsolePrintf("Loading vocabulary/tokens file: \"%s\"...", vocabFilePath)
-	vocabModelProto, err := sentencepiece.Load(vocabFilePath)
+	vocabBpe, err := tiktoken.Load(vocabFilePath)
 	if err != nil {
 		return err
 	}
-	model.Vocabulary = NewVocabulary(vocabModelProto)
+
+	model.Vocabulary = NewVocabulary(vocabBpe)
 	common.GLogger.ConsolePrintf("Found %d tokens in the model.", len(model.Vocabulary.IdToToken))
 	return nil
 }
@@ -127,7 +128,7 @@ func PrintMeta(model *Model) {
 	fmt.Printf("Properties from model files:\n")
 	fmt.Printf("%-60s = %s\n", "Format", "Torch model")
 	fmt.Printf("%-60s = %s\n", "Architecture", model.ModelArchitecture.String())
-	fmt.Printf("%-60s = %s\n", "Vocabulary type", "SPM (SentencePiece)")
+	fmt.Printf("%-60s = %s\n", "Vocabulary type", "BPE (Byte-Pair Encoding)")
 
 	fmt.Printf("\nProperties from model configuration:\n")
 

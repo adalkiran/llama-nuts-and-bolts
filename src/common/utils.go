@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
+	"strconv"
 	"sync"
 	"unsafe"
 )
@@ -66,20 +68,42 @@ func InterfaceArrToIntArr(arr []interface{}) ([]int, error) {
 	return result, nil
 }
 
-func InterfaceToBool(val interface{}, defaultValue bool) bool {
-	intVal, err := InterfaceToInt(val)
-	if err != nil {
-		return defaultValue
-	}
-	return intVal == 1
-}
-
 func AlmostEqualFloat32(a float32, b float32, threshold float64) bool {
 	if a == b {
 		// This check is for -Inf and +Inf values
 		return true
 	}
 	return math.Abs(float64(a)-float64(b)) <= threshold
+}
+
+func ReplaceHexWithChar(input string) string {
+	regex := regexp.MustCompile(`<0x([0-9A-Fa-f]{1,2})>`)
+
+	output := ""
+	pos := 0
+	waitingBytes := make([]byte, 0)
+	for _, match := range regex.FindAllStringIndex(input, -1) {
+		matchPos := match[0]
+		matchEndPos := match[1]
+		if matchPos-pos > 0 {
+			if len(waitingBytes) > 0 {
+				output += string(waitingBytes)
+				waitingBytes = waitingBytes[:0]
+			}
+			output += input[pos : matchPos-pos+1]
+		}
+		hexStr := input[matchPos:matchEndPos][3 : matchEndPos-matchPos-1]
+		hexInt, err := strconv.ParseInt(hexStr, 16, 32)
+		if err != nil {
+			continue
+		}
+		waitingBytes = append(waitingBytes, byte(hexInt))
+		pos = matchEndPos
+	}
+	if len(waitingBytes) > 0 {
+		output += string(waitingBytes)
+	}
+	return output
 }
 
 func DetermineMachineEndian() string {

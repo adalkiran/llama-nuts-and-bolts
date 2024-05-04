@@ -356,7 +356,7 @@ func (t *Tensor) SetSlice(locStart []int, locEnd []int, val *Tensor) error {
 		return fmt.Errorf("tensor  \"%s\" %d and tensor \"%s\" %d don't have compatible dimensions", val.Name, len(val.Size), t.Name, len(t.Size))
 	}
 	for dstDimension := 0; dstDimension < len(locStart); dstDimension++ {
-		if locEnd[dstDimension] >= t.Size[dstDimension] {
+		if locEnd[dstDimension] > t.Size[dstDimension] {
 			return fmt.Errorf("tensor  \"%s\" %v and locEnd=%v are not compatible", t.Name, t.Size, locEnd)
 		}
 	}

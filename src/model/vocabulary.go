@@ -1,47 +1,50 @@
 package model
 
 import (
-	"github.com/adalkiran/llama-nuts-and-bolts/src/sentencepiece"
-)
+	"regexp"
 
-const (
-	unknownToken          = "<unk>"
-	beginOfSentenceToken  = "<s>"
-	endOfSentenceToken    = "</s>"
-	whitespaceEscapeToken = "\xe2\x96\x81"
-	unknownOutputToken    = "\xe2\x96\x85"
+	"github.com/adalkiran/llama-nuts-and-bolts/src/tiktoken"
 )
 
 type Vocabulary struct {
 	TokenToId map[string]TokenId
-	IdToToken []sentencepiece.SentencePiece
+	IdToToken []string
 
 	BeginOfSentenceId TokenId
 	EndOfSentenceId   TokenId
 	UnknownId         TokenId
 	PadId             TokenId
+	StopTokenIds      map[TokenId]struct{}
+
+	SplitRegexp *regexp.Regexp
 }
 
-func NewVocabulary(vocabModelProto *sentencepiece.ModelProto) *Vocabulary {
+func NewVocabulary(vocabBpe *tiktoken.ModelData) *Vocabulary {
 	result := &Vocabulary{
-		TokenToId:         make(map[string]TokenId, len(*vocabModelProto.Pieces)),
-		IdToToken:         *vocabModelProto.Pieces,
-		UnknownId:         -1,
-		BeginOfSentenceId: -1,
-		EndOfSentenceId:   -1,
-		PadId:             -1,
+		TokenToId:         make(map[string]TokenId, len(vocabBpe.MergeableRanks)+len(vocabBpe.SpecialTokens)),
+		IdToToken:         make([]string, len(vocabBpe.MergeableRanks)+len(vocabBpe.SpecialTokens)),
+		UnknownId:         TokenId(vocabBpe.UnknownId),
+		BeginOfSentenceId: TokenId(vocabBpe.BeginOfSentenceId),
+		EndOfSentenceId:   TokenId(vocabBpe.EndOfSentenceId),
+		PadId:             TokenId(vocabBpe.PadId),
+		StopTokenIds:      make(map[TokenId]struct{}, len(vocabBpe.StopTokenIds)),
+		//SplitRegexp:       regexp.MustCompile(`(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`),
+		SplitRegexp: regexp.MustCompile(`(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+`),
 	}
-	for i, token := range result.IdToToken {
-		result.TokenToId[token.Piece] = TokenId(i)
+	for token, rank := range vocabBpe.MergeableRanks {
+		result.TokenToId[token] = TokenId(rank)
 	}
-	if id, ok := result.TokenToId[unknownToken]; ok {
-		result.UnknownId = id
+	for token, rank := range vocabBpe.SpecialTokens {
+		result.TokenToId[token] = TokenId(rank)
 	}
-	if id, ok := result.TokenToId[beginOfSentenceToken]; ok {
-		result.BeginOfSentenceId = id
+	for token, rank := range vocabBpe.MergeableRanks {
+		result.IdToToken[rank] = token
 	}
-	if id, ok := result.TokenToId[endOfSentenceToken]; ok {
-		result.EndOfSentenceId = id
+	for token, rank := range vocabBpe.SpecialTokens {
+		result.IdToToken[rank] = token
+	}
+	for _, stopTokenId := range vocabBpe.StopTokenIds {
+		result.StopTokenIds[TokenId(stopTokenId)] = struct{}{}
 	}
 	return result
 }

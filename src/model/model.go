@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/ml"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/pickle"
@@ -69,6 +71,37 @@ func (m *Model) GetBytesCount() int {
 	for _, key := range m.Tensors.GetKeys() {
 		tensor, _ := m.Tensors.Get(key)
 		result += tensor.GetBytesCount()
+	}
+	return result
+}
+
+type TokenPiece struct {
+	Piece string // piece must not be empty.
+	Rank  int32
+
+	IsByte       bool
+	ByteFallback []byte
+}
+
+func (tp TokenPiece) String() string {
+	var pieceType, pieceStr string
+	if tp.IsByte {
+		pieceType = "BYTE"
+		pieceStr = tp.ByteFallbackString()
+	} else {
+		pieceType = "NORMAL"
+		pieceStr = tp.Piece
+	}
+	return fmt.Sprintf("\"%s\" rank: %d, type: %s", pieceStr, tp.Rank, pieceType)
+}
+
+func (tp TokenPiece) ByteFallbackString() string {
+	if tp.ByteFallback == nil {
+		return ""
+	}
+	result := ""
+	for _, b := range tp.ByteFallback {
+		result += fmt.Sprintf("<0x%02X>", b)
 	}
 	return result
 }

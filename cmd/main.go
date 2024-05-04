@@ -17,12 +17,9 @@ import (
 	"github.com/adalkiran/llama-nuts-and-bolts/src/common"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/inference"
 	"github.com/adalkiran/llama-nuts-and-bolts/src/model"
-	"github.com/adalkiran/llama-nuts-and-bolts/src/sentencepiece"
 	"github.com/apoorvam/goterminal"
 )
 
-const B_INST, E_INST = "[INST]", "[/INST]"
-const B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
 const waitingByteTempChar = "\u2026" // Unicode character ellipsis …
 const modelsDirName = "models-original"
 const debugMode = false
@@ -41,7 +38,7 @@ var predefinedPrompts = []PromptInput{
 var appState *AppState
 
 func main() {
-	fmt.Println("Welcome to Llama Nuts and Bolts!")
+	fmt.Println("Welcome to Llama 3 Nuts and Bolts!")
 	fmt.Print("=================================\n\n\n")
 
 	appState = NewAppState()
@@ -67,7 +64,7 @@ func main() {
 		common.FriendlyPanic(fmt.Errorf("error: Endianness of your machine is not supported. Expected LITTLE_ENDIAN but got %s", machineEndian))
 	}
 
-	modelDir, err := searchForModelPath(modelsDirName, "7B-chat")
+	modelDir, err := searchForModelPath(modelsDirName, "Meta-Llama-3-8B-Instruct")
 	if err != nil {
 		common.FriendlyPanic(err)
 	}
@@ -95,25 +92,30 @@ func main() {
 	engine := inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn)
 
 	userPrompt := askUserPromptChoice(llamaModel)
-	userPromptStr := userPrompt.Prompt
+
+	var tokens []model.TokenId
+
 	if userPrompt.IsChatMode {
-		systemPrompt := ""
-		if userPrompt.SystemPrompt != "" {
-			systemPrompt = fmt.Sprintf("%s%s%s", B_SYS, userPrompt.SystemPrompt, E_SYS)
+		userPromptParts := []inference.PromptPart{
+			{Header: "system", Content: userPrompt.SystemPrompt},
+			{Header: "user", Content: userPrompt.Prompt},
 		}
-		userPromptStr = fmt.Sprintf("%s %s%s %s", B_INST, systemPrompt, userPrompt.Prompt, E_INST)
+		tokens, err = engine.Tokenize(userPromptParts)
+		if err != nil {
+			common.GLogger.ConsoleFatal(err)
+		}
 	} else {
+		userPromptStr := userPrompt.Prompt
 		if !strings.HasSuffix(userPromptStr, " ") {
 			userPromptStr += " "
+		}
+		tokens, err = engine.TokenizeString(userPromptStr, true)
+		if err != nil {
+			common.GLogger.ConsoleFatal(err)
 		}
 	}
 
 	fmt.Printf("\n\n\n")
-
-	tokens, err := engine.Tokenize(userPromptStr, true)
-	if err != nil {
-		common.GLogger.ConsoleFatal(err)
-	}
 
 	appState.promptTokens, appState.promptText = engine.TokenBatchToString(tokens)
 
@@ -126,7 +128,7 @@ func main() {
 	appState.updateOutput()
 
 	appState.generatedTokenIds = make([]model.TokenId, 0)
-	appState.generatedTokens = make([]sentencepiece.SentencePiece, 0)
+	appState.generatedTokens = make([]model.TokenPiece, 0)
 
 	var wg sync.WaitGroup
 
@@ -157,6 +159,7 @@ func listenGenerationChannels(wg *sync.WaitGroup, ctx context.Context, generated
 		case generatedPart, ok := <-generatedPartCh:
 			if !ok {
 				loop = false
+				appState.waitingRunesExtraStr = ""
 				fmt.Fprintln(appState.consoleOutWriter)
 				break
 			}
@@ -233,7 +236,7 @@ func searchForModelPath(modelsDirName string, modelName string) (string, error) 
 		}
 		searchedDirectories = append(searchedDirectories, modelDir)
 	}
-	return "", fmt.Errorf("model directory \"%s\" and related files could not be found in:\n\n%s\n\nIf you haven't downloaded the model files from Meta's LLaMa website and put them in the \"models-original/7B-chat\" directory in the described way yet, please follow the instructions written in the \"Downloading the Official Model Files\" chapter at https://github.com/adalkiran/llama-nuts-and-bolts README file", modelsDirName, strings.Join(searchedDirectories, "\n"))
+	return "", fmt.Errorf("model directory \"%s\" and related files could not be found in:\n\n%s\n\nIf you haven't downloaded the model files from Meta's LLaMa website and put them in the \"models-original/Meta-Llama-3-8B-Instruct\" directory in the described way yet, please follow the instructions written in the \"Downloading the Official Model Files\" chapter at https://github.com/adalkiran/llama-nuts-and-bolts README file", modelsDirName, strings.Join(searchedDirectories, "\n"))
 }
 
 func askUserPromptChoice(llamaModel *model.Model) PromptInput {
@@ -364,14 +367,14 @@ type AppState struct {
 
 	sequenceLength       int
 	promptText           string
-	promptTokens         []sentencepiece.SentencePiece
+	promptTokens         []model.TokenPiece
 	generatedText        string
 	waitingRunesExtraStr string
 	literalProgressText  string
 
 	generationState     inference.GenerationState
 	generatedTokenIds   []model.TokenId
-	generatedTokens     []sentencepiece.SentencePiece
+	generatedTokens     []model.TokenPiece
 	addedToWaitingCount int
 	startTimeTotal      time.Time
 	startTimeToken      time.Time
@@ -403,6 +406,7 @@ func (as *AppState) updateOutput() {
 	if as.promptText != "" {
 		generatedText := as.generatedText
 		generatedText += as.waitingRunesExtraStr
+		//as.waitingRunesExtraStr = ""
 		for i := 0; i < as.addedToWaitingCount; i++ {
 			generatedText += waitingByteTempChar
 		}
@@ -414,7 +418,7 @@ func (as *AppState) updateOutput() {
 			waitingTokensTextItems := make([]string, appState.addedToWaitingCount)
 			addedToWaitingTokens := appState.generatedTokens[len(appState.generatedTokens)-appState.addedToWaitingCount : len(appState.generatedTokens)]
 			for i, addedToWaitingToken := range addedToWaitingTokens {
-				waitingTokensTextItems[i] = fmt.Sprintf("\"%s\"", addedToWaitingToken.Piece)
+				waitingTokensTextItems[i] = fmt.Sprintf("\"%s\"", addedToWaitingToken.ByteFallbackString())
 			}
 			waitingTokensText = fmt.Sprintf("%s, possibly a part of an upcoming emoji)", strings.Join(waitingTokensTextItems, ", "))
 		}

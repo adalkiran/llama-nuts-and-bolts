@@ -94,9 +94,6 @@ func processEmoji(decodingContext *generationDecodingContext, r rune) string {
 
 func searchMinimumEmojiCount(str string) ([]string, bool) {
 	strOriginal := str
-	//foundEmojiCount := 1
-	//for foundEmojiCount > 0 {
-	//	foundEmojiCount = 0
 	for i := 0; i < len(str); {
 		increment_i := true
 		for j := len(str); j > i; {
@@ -137,7 +134,6 @@ func searchMinimumEmojiCount(str string) ([]string, bool) {
 			i += rsize
 		}
 	}
-	//}
 
 	runeSizes := make([]int, 0)
 	for len(str) > 0 {

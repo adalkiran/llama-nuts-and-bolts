@@ -10,15 +10,15 @@ import (
 // See: https://github.com/ggerganov/llama.cpp/blob/master/convert.py
 
 type ModelArgs struct {
-	Dim              int     `json:"dim"`
-	N_Layers         int     `json:"n_layers"`
-	N_Heads          int     `json:"n_heads"`
-	N_KVHeads        int     `json:"n_kv_heads"`
-	VocabSize        int     `json:"vocab_size"`         // defined later by tokenizer
-	MultipleOf       int     `json:"multiple_of"`        // make SwiGLU hidden layer size multiple of large power of 2
-	FFNDimMultiplier float64 `json:"ffn_dim_multiplier"` // Optional
-	NormEpsilon      float32 `json:"norm_eps"`
-
+	Dim               int     `json:"dim"`
+	N_Layers          int     `json:"n_layers"`
+	N_Heads           int     `json:"n_heads"`
+	N_KVHeads         int     `json:"n_kv_heads"`
+	VocabSize         int     `json:"vocab_size"`         // defined later by tokenizer
+	MultipleOf        int     `json:"multiple_of"`        // make SwiGLU hidden layer size multiple of large power of 2
+	FFNDimMultiplier  float64 `json:"ffn_dim_multiplier"` // Optional
+	NormEpsilon       float32 `json:"norm_eps"`
+	RopeTheta         float64 `json:"rope_theta"` // Optional
 	MaxSequenceLength int
 
 	N_Rep   int
