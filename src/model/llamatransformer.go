@@ -106,7 +106,7 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 		return nil, err
 	}
 
-	if result.PrecomputedFreqsCis, err = precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2, modelArgs.RopeTheta); err != nil {
+	if result.PrecomputedFreqsCis, err = precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2, modelArgs.RopeTheta, modelArgs.UseScaledRope); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -525,8 +525,7 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 }
 
 func attentionRepeatKV(x *ml.Tensor, N_Rep int) (*ml.Tensor, error) {
-	// See: https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L164
-	// repeat_kv function was not implemented because currently we support only 7B model
+	// See: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L99
 	if N_Rep == 1 {
 		return x, nil
 	}
@@ -555,7 +554,6 @@ func attentionRepeatKV(x *ml.Tensor, N_Rep int) (*ml.Tensor, error) {
 		return nil, err
 	}
 	return expanded, nil
-
 }
 
 func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error) {
@@ -564,10 +562,10 @@ func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error
 	dim := modelArgs.Dim // 4096
 	var err error
 
-	// See: https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L378
+	// See: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L252
 	// Set it to 4 * dim at first
 	result.FFNHiddenDim = 4 * modelArgs.Dim
-	// See: https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L331C4-L331C4
+	// See: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L223
 	// Then, do this calculation below:
 	result.FFNHiddenDim = int(2 * result.FFNHiddenDim / 3)
 	if modelArgs.FFNDimMultiplier > -1 {
@@ -659,9 +657,42 @@ func (rms *RMSNorm) doNormalization(x *ml.Tensor) (*ml.Tensor, error) {
 	return h, nil
 }
 
-func precomputeFreqsCis(dim int, end int, theta float64) (*ml.Tensor, error) {
+func applyScaling(freqs *ml.Tensor) error {
+	// See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L41
+	// Values obtained from grid search
+	scaleFactor := float32(8.0)
+	lowFreqFactor := float32(1.0)
+	highFreqFactor := float32(4.0)
+	oldContextLen := float32(8192) // original llama3 length
+	lowFreqWavelen := oldContextLen / lowFreqFactor
+	highFreqWavelen := oldContextLen / highFreqFactor
+	for i := 0; i < freqs.Size[0]; i++ {
+		freq, err := freqs.GetItem_AsFloat32([]int{i})
+		if err != nil {
+			return err
+		}
+		var newFreq float32
+		wavelen := 2 * math.Pi / freq
+		if wavelen < highFreqWavelen {
+			newFreq = freq
+		} else if wavelen > lowFreqWavelen {
+			newFreq = freq / scaleFactor
+		} else {
+			smooth := (oldContextLen/wavelen - lowFreqFactor) / (highFreqFactor - lowFreqFactor)
+			newFreq = (1-smooth)*freq/scaleFactor + smooth*freq
+
+		}
+		if err := freqs.SetItem_FromFloat32([]int{i}, newFreq); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func precomputeFreqsCis(dim int, end int, theta float64, useScaled bool) (*ml.Tensor, error) {
 	// Comment from Llama code
-	// See: https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L80
+	// See Llama 2 Comment: https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L80
+	// See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L66
 	/*
 		Precompute the frequency tensor for complex exponentials (cis) with given dimensions.
 
@@ -692,6 +723,13 @@ func precomputeFreqsCis(dim int, end int, theta float64) (*ml.Tensor, error) {
 	t, err := ml.ARange(0, end, 1, ml.DT_BF16)
 	if err != nil {
 		return nil, err
+	}
+
+	if useScaled {
+		err = applyScaling(freqs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	freqs, err = ml.Outer(t, freqs)

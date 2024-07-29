@@ -50,17 +50,20 @@ func Load(vocabFilePath string) (*ModelData, error) {
 		"<|end_of_text|>",
 		"<|reserved_special_token_0|>",
 		"<|reserved_special_token_1|>",
-		"<|reserved_special_token_2|>",
-		"<|reserved_special_token_3|>",
+		"<|finetune_right_pad_id|>",
+		"<|step_id|>",
 		"<|start_header_id|>",
 		"<|end_header_id|>",
-		"<|reserved_special_token_4|>",
+		"<|eom_id|>", // end of message
 		"<|eot_id|>", // end of turn
+		"<|python_tag|>",
 	}
 
-	for i := 5; i < reservedSpecialTokensCount-5; i++ {
-		specialTokensArr = append(specialTokensArr, fmt.Sprintf("<|reserved_special_token_%d|>", i))
+	reservedTokensArr := make([]string, reservedSpecialTokensCount-len(specialTokensArr))
+	for i := 0; i < len(reservedTokensArr); i++ {
+		reservedTokensArr[i] = fmt.Sprintf("<|reserved_special_token_%d|>", 2+i)
 	}
+	specialTokensArr = append(specialTokensArr, reservedTokensArr...)
 
 	specialTokens := make(map[string]int)
 	for i, token := range specialTokensArr {
@@ -75,7 +78,7 @@ func Load(vocabFilePath string) (*ModelData, error) {
 		EndOfSentenceId:   specialTokens["<|end_of_text|>"],
 		PadId:             -1,
 		UnknownId:         -1,
-		StopTokenIds:      []int{specialTokens["<|end_of_text|>"], specialTokens["<|eot_id|>"]},
+		StopTokenIds:      []int{specialTokens["<|eom_id|>"], specialTokens["<|eot_id|>"]},
 	}
 
 	return result, nil

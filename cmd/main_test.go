@@ -49,7 +49,7 @@ func prepareInferenceEngine(t *testing.T) (*inference.InferenceEngine, chan stri
 		ListenerChan: consoleListenerChan,
 	}
 
-	modelDir := "../models-original/Meta-Llama-3-8B-Instruct"
+	modelDir := "../models-original/Meta-Llama-3.1-8B-Instruct"
 	if _, err := os.Stat(modelDir); err != nil {
 		t.Skipf("Model directory \"%s\" is not found, passing this test: %s", modelDir, "TestSimulated")
 		return nil, nil

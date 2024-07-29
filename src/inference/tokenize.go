@@ -40,6 +40,9 @@ func (ie *InferenceEngine) Tokenize(promptParts []PromptPart) ([]model.TokenId, 
 	})
 
 	for _, promptPart := range promptParts {
+		if !promptPart.IsLastAssistant && len(promptPart.Content) == 0 {
+			continue
+		}
 		// <|start_header_id|>
 		result = append(result, vocabulary.TokenToId[B_HEADER])
 		text += B_HEADER

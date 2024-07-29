@@ -38,7 +38,7 @@ var predefinedPrompts = []PromptInput{
 var appState *AppState
 
 func main() {
-	fmt.Println("Welcome to Llama 3 Nuts and Bolts!")
+	fmt.Println("Welcome to Llama 3.1 Nuts and Bolts!")
 	fmt.Print("=================================\n\n\n")
 
 	appState = NewAppState()
@@ -64,7 +64,7 @@ func main() {
 		common.FriendlyPanic(fmt.Errorf("error: Endianness of your machine is not supported. Expected LITTLE_ENDIAN but got %s", machineEndian))
 	}
 
-	modelDir, err := searchForModelPath(modelsDirName, "Meta-Llama-3-8B-Instruct")
+	modelDir, err := searchForModelPath(modelsDirName, "Meta-Llama-3.1-8B-Instruct")
 	if err != nil {
 		common.FriendlyPanic(err)
 	}
@@ -236,7 +236,7 @@ func searchForModelPath(modelsDirName string, modelName string) (string, error) 
 		}
 		searchedDirectories = append(searchedDirectories, modelDir)
 	}
-	return "", fmt.Errorf("model directory \"%s\" and related files could not be found in:\n\n%s\n\nIf you haven't downloaded the model files from Meta's LLaMa website and put them in the \"models-original/Meta-Llama-3-8B-Instruct\" directory in the described way yet, please follow the instructions written in the \"Downloading the Official Model Files\" chapter at https://github.com/adalkiran/llama-nuts-and-bolts README file", modelsDirName, strings.Join(searchedDirectories, "\n"))
+	return "", fmt.Errorf("model directory \"%s\" and related files could not be found in:\n\n%s\n\nIf you haven't downloaded the model files from Meta's Llama website and put them in the \"models-original/Meta-Llama-3.1-8B-Instruct\" directory in the described way yet, please follow the instructions written in the \"Downloading the Official Model Files\" chapter at https://github.com/adalkiran/llama-nuts-and-bolts README file", modelsDirName, strings.Join(searchedDirectories, "\n"))
 }
 
 func askUserPromptChoice(llamaModel *model.Model) PromptInput {
@@ -291,7 +291,7 @@ func askUserPromptChoice(llamaModel *model.Model) PromptInput {
 			IsChatMode: userChoiceNum == len(predefinedPrompts)+2,
 		}
 		if userPromptInput.IsChatMode {
-			fmt.Print("\033[1mWrite down your \"system prompt\" (optional, will be surrounded by <<SYS>> and <</SYS>>) and press Enter:\033[0m ")
+			fmt.Print("\033[1mWrite down your \"system prompt\" (optional, will be surrounded by <|start_header_id|>system<|end_header_id|> and <|eot_id|>) and press Enter:\033[0m ")
 			if userPromptInput.Prompt, err = reader.ReadString('\n'); err != nil {
 				fmt.Printf("\nerror: %v\n", err)
 				continue
@@ -299,7 +299,7 @@ func askUserPromptChoice(llamaModel *model.Model) PromptInput {
 			userPromptInput.SystemPrompt = strings.TrimRight(userPromptInput.Prompt, "\r\n")
 		}
 		if userPromptInput.IsChatMode {
-			fmt.Print("\033[1mWrite down your prompt (will be surrounded by [INST] and [/INST]) and press Enter:\033[0m ")
+			fmt.Print("\033[1mWrite down your prompt (will be surrounded by <|start_header_id|>user<|end_header_id|> and <|eot_id|>) and press Enter:\033[0m ")
 		} else {
 			fmt.Print("\033[1mWrite down your prompt and press Enter:\033[0m ")
 		}
