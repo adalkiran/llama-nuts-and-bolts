@@ -149,11 +149,11 @@ The original equation in section "3.2.2 General form" of [RoFormer: Enhanced Tra
 
 $$
 \begin{gathered}
-\Theta = \left\lbrace \theta_i = 500000^{-\frac{2(i - 1)}{dim}}, i \in [1, 2, \dots, \frac{dim}{2}] \right\rbrace
+\Theta = \left\lbrace \theta_i =  10000^{-\frac{2(i - 1)}{dim}}, i \in [1, 2, \dots, \frac{dim}{2}] \right\rbrace
 \end{gathered}
 $$
 
-If we expand it for ```dim=128``` in our case:
+If we expand it for ```dim=128``` and use ```500000``` instead of ```10000``` in our case:
 
 $$
 \begin{gathered}
@@ -186,7 +186,7 @@ $$
 \end{gathered}
 $$
 
-**<u>Update with Llama 3.1:</u>** The Llama 3.1 version comes with a small adjustment on frequencies. Implementation detail will be discussed in the following subchapters. Currently we represent this operation with $scl\left(...\right)$.
+**<u>Update with Llama 3.1:</u>** The Llama 3.1 version comes with a small adjustment on frequencies. Implementation detail will be discussed in the following subchapters. Currently we represent this operation with ```scl(...)```.
 
 If it will be expressed with variable names in the code and scaling is applied:
 
