@@ -22,8 +22,8 @@ type ModelType uint8
 
 func (mt ModelType) String() string {
 	switch mt {
-	case ModelType7B:
-		return "7B"
+	case ModelType8B:
+		return "8B"
 	}
 	return "UNKNOWN"
 }
@@ -37,7 +37,7 @@ const (
 	ModelArchitectureLlama   ModelArchitecture = 1
 
 	ModelTypeUnknown ModelType = 0
-	ModelType7B      ModelType = 1
+	ModelType8B      ModelType = 1
 )
 
 type Model struct {

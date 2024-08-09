@@ -160,7 +160,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, skipCompareTestTensor 
 		t.Fatal(err)
 	}
 
-	// lat.attn_wk: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+	// lat.attn_wk: [out_features, in_features] -> shape: [1024 4096] -> [N_KVHeads * HeadDim, Dim]
 	actualXk, err := ml.LinearTransformation(x, attention.attn_wk)
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func testTransformerBlock_Attention_Forward(t *testing.T, skipCompareTestTensor 
 		t.Fatal(err)
 	}
 
-	// lat.attn_wv: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+	// lat.attn_wv: [out_features, in_features] -> shape: [1024 4096] -> [N_KVHeads * HeadDim, Dim]
 	actualXv, err := ml.LinearTransformation(x, attention.attn_wv)
 	if err != nil {
 		t.Fatal(err)

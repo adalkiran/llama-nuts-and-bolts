@@ -59,7 +59,7 @@ func LoadModelEx(modelDir string, includeTensors bool, includeVocab bool) (*Mode
 		model.ModelArchitecture = ModelArchitectureLlama
 		switch model.ModelArgs.N_Layers {
 		case 32:
-			model.ModelType = ModelType7B
+			model.ModelType = ModelType8B
 		}
 
 		if model.Transformer, err = NewLlamaTransformer(model); err != nil {

@@ -14,12 +14,12 @@ import (
 )
 
 type LlamaTransformer struct {
-	tok_embd *ml.Tensor // Original: "tok_embeddings.weight"  |  ggml: "token_embd.weight" | shape: [32000 4096] -> [VocabSize, Dim]
+	tok_embd *ml.Tensor // Original: "tok_embeddings.weight"  |  ggml: "token_embd.weight" | shape: [128256 4096] -> [VocabSize, Dim]
 
 	Layers []*LlamaTransformerBlock
 
 	output_norm *RMSNorm   // Weights Original: "norm.weight"  |  ggml: "output_norm.weight" | shape: [4096] -> [Dim]
-	output      *ml.Tensor // Original: "output.weight"  |  ggml: "output.weight" | [out_features, in_features] -> shape: [32000 4096] -> [VocabSize, Dim]
+	output      *ml.Tensor // Original: "output.weight"  |  ggml: "output.weight" | [out_features, in_features] -> shape: [128256 4096] -> [VocabSize, Dim]
 
 	PrecomputedFreqsCis *ml.Tensor // Precomputed frequency tensor for complex exponentials (cis)
 }
@@ -43,17 +43,17 @@ type LlamaAttention struct {
 	HeadDim   int
 
 	attn_wq *ml.Tensor // Original: "layers.0.attention.wq.weight"  |  ggml: "blk.0.attn_q.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
-	attn_wk *ml.Tensor // Original: "layers.0.attention.wk.weight"  |  ggml: "blk.0.attn_k.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
-	attn_wv *ml.Tensor // Original: "layers.0.attention.wv.weight"  |  ggml: "blk.0.attn_v.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+	attn_wk *ml.Tensor // Original: "layers.0.attention.wk.weight"  |  ggml: "blk.0.attn_k.weight" | [out_features, in_features] -> shape: [1024 4096] -> [N_KVHeads * HeadDim, Dim]
+	attn_wv *ml.Tensor // Original: "layers.0.attention.wv.weight"  |  ggml: "blk.0.attn_v.weight" | [out_features, in_features] -> shape: [1024 4096] -> [N_KVHeads * HeadDim, Dim]
 	attn_wo *ml.Tensor // Original: "layers.0.attention.wo.weight"  |  ggml: "blk.0.attn_output.weight" | [out_features, in_features] -> shape: [4096 4096] -> [N_Heads * HeadDim, Dim]
 }
 
 type LlamaFeedForward struct {
 	FFNHiddenDim int
 
-	ffn_gate *ml.Tensor // Original: "layers.0.feed_forward.w1.weight"  |  ggml: "blk.0.ffn_gate.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w1
-	ffn_down *ml.Tensor // Original: "layers.0.feed_forward.w2.weight"  |  ggml: "blk.0.ffn_down.weight" | [out_features, in_features] -> shape: [4096 11008] -> [Dim, FFNHiddenDim] | w2
-	ffn_up   *ml.Tensor // Original: "layers.0.feed_forward.w3.weight"  |  ggml: "blk.0.ffn_up.weight" | [out_features, in_features] -> shape: [11008 4096] -> [FFNHiddenDim, Dim] | w3
+	ffn_gate *ml.Tensor // Original: "layers.0.feed_forward.w1.weight"  |  ggml: "blk.0.ffn_gate.weight" | [out_features, in_features] -> shape: [14336 4096] -> [FFNHiddenDim, Dim] | w1
+	ffn_down *ml.Tensor // Original: "layers.0.feed_forward.w2.weight"  |  ggml: "blk.0.ffn_down.weight" | [out_features, in_features] -> shape: [4096 14336] -> [Dim, FFNHiddenDim] | w2
+	ffn_up   *ml.Tensor // Original: "layers.0.feed_forward.w3.weight"  |  ggml: "blk.0.ffn_up.weight" | [out_features, in_features] -> shape: [14336 4096] -> [FFNHiddenDim, Dim] | w3
 }
 
 type RMSNorm struct {
@@ -68,7 +68,7 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 	var err error
 	// Compare (VocabSize, Dim) vs. "tok_embeddings.weight" tensor shape
 	dim := modelArgs.Dim             // 4096
-	vocabSize := modelArgs.VocabSize // 32000
+	vocabSize := modelArgs.VocabSize // 128256
 
 	if modelArgs.N_KVHeads < 0 {
 		modelArgs.N_KVHeads = modelArgs.N_Heads
@@ -321,7 +321,7 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 			return
 		}
 		common.GLogger.DebugPrintf("[Calling in goroutine] ml.LinearTransformation for x shape(%v) and LlamaAttention.attn_wk weights shape(%v) -> tensor xk", x.Size, lat.attn_wk.Size)
-		// lat.attn_wk: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+		// lat.attn_wk: [out_features, in_features] -> shape: [1024 4096] -> [N_KVHeads * HeadDim, Dim]
 		xk, err := ml.LinearTransformation(x, lat.attn_wk)
 		if err != nil {
 			cancel(err)
@@ -340,7 +340,7 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 			return
 		}
 		common.GLogger.DebugPrintf("[Calling in goroutine] ml.LinearTransformation for x shape(%v) and LlamaAttention.attn_wv weights shape(%v) -> tensor xv", x.Size, lat.attn_wv.Size)
-		// lat.attn_wv: [out_features, in_features] -> shape: [4096 4096] -> [N_KVHeads * HeadDim, Dim]
+		// lat.attn_wv: [out_features, in_features] -> shape: [1024 4096] -> [N_KVHeads * HeadDim, Dim]
 		xv, err := ml.LinearTransformation(x, lat.attn_wv)
 		if err != nil {
 			cancel(err)
@@ -389,7 +389,7 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		Apply rotary embeddings
 	*/
 
-	if xq, xk, err = applyRotaryEmbeddings(xq, xk, freqsCis); err != nil { // example shape=[5,32,128] dtype=DT_BF16
+	if xq, xk, err = applyRotaryEmbeddings(xq, xk, freqsCis); err != nil {
 		return nil, err
 	}
 
@@ -419,9 +419,11 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 		Repeat k/v heads if N_KVHeads < N_Heads
 	*/
 
+	// example shape=[5, 8, 128] (cacheLen + sequenceLength, N_KVHeads, HeadDim)
 	if keys, err = attentionRepeatKV(keys, lat.N_Rep); err != nil { // example shape=[5, 32, 128] (cacheLen + sequenceLength, N_Heads, HeadDim)
 		return nil, err
 	}
+	// example shape=[5, 8, 128] (cacheLen + sequenceLength, N_KVHeads, HeadDim)
 	if values, err = attentionRepeatKV(values, lat.N_Rep); err != nil { // example shape=[5, 32, 128] (cacheLen + sequenceLength, N_Heads, HeadDim)
 		return nil, err
 	}
@@ -754,8 +756,8 @@ func applyRotaryEmbeddings(xq *ml.Tensor, xk *ml.Tensor, freqs_cis *ml.Tensor) (
 	if err != nil {
 		return nil, nil, err
 	}
-	// xk shape=[5,32,128] dtype=DT_BF16
-	xk_, err := xk.ViewAsComplex64WithReshape() // shape=[5,32,64] dtype=DT_COMPLEX
+	// xk shape=[5,8,128] dtype=DT_BF16
+	xk_, err := xk.ViewAsComplex64WithReshape() // shape=[5,8,64] dtype=DT_COMPLEX
 	if err != nil {
 		return nil, nil, err
 	}
@@ -775,13 +777,13 @@ func applyRotaryEmbeddings(xq *ml.Tensor, xk *ml.Tensor, freqs_cis *ml.Tensor) (
 		return nil, nil, err
 	}
 
-	if xkOut, err = ml.MultiplyElementwise(xk_, freqs_cis); err != nil { // shape=[5,32,64] dtype=DT_COMPLEX
+	if xkOut, err = ml.MultiplyElementwise(xk_, freqs_cis); err != nil { // shape=[5,8,64] dtype=DT_COMPLEX
 		return nil, nil, err
 	}
-	if xkOut, err = xkOut.ViewAsFloat32WithReshape(); err != nil { // shape=[5,32,128] dtype=DT_F32
+	if xkOut, err = xkOut.ViewAsFloat32WithReshape(); err != nil { // shape=[5,8,128] dtype=DT_F32
 		return nil, nil, err
 	}
-	if xkOut, err = xkOut.ToBFloat16(); err != nil { // shape=[5,32,128] dtype=DT_BF16
+	if xkOut, err = xkOut.ToBFloat16(); err != nil { // shape=[5,8,128] dtype=DT_BF16
 		return nil, nil, err
 	}
 	return xqOut, xkOut, nil
