@@ -28,10 +28,10 @@ func LoadModelEx(modelDir string, includeTensors bool, includeVocab bool) (*Mode
 func loadVocab(modelDir string, model *Model) error {
     vocabFilePath := filepath.Join(modelDir, "tokenizer.model")
     common.GLogger.ConsolePrintf("Loading vocabulary/tokens file: \"%s\"...", vocabFilePath)
-	vocabBpe, err := tiktoken.Load(vocabFilePath)
-	if err != nil {
-		return err
-	}
+    vocabBpe, err := tiktoken.Load(vocabFilePath)
+    if err != nil {
+        return err
+    }
 
     model.Vocabulary = NewVocabulary(vocabModelProto)
     common.GLogger.ConsolePrintf("Found %d tokens in the model.", len(model.Vocabulary.IdToToken))
@@ -70,51 +70,51 @@ aXQ= 275 //"it"
 
 ```go
 func Load(vocabFilePath string) (*ModelData, error) {
-	mergeableRanks, err := loadTiktokenBpe(vocabFilePath)
-	if err != nil {
-		return nil, err
-	}
-	baseTokensCount := len(mergeableRanks)
+    mergeableRanks, err := loadTiktokenBpe(vocabFilePath)
+    if err != nil {
+        return nil, err
+    }
+    baseTokensCount := len(mergeableRanks)
 
-	reservedSpecialTokensCount := 256
+    reservedSpecialTokensCount := 256
 
-	specialTokensArr := []string{
-		"<|begin_of_text|>",
-		"<|end_of_text|>",
-		"<|reserved_special_token_0|>",
-		"<|reserved_special_token_1|>",
-		"<|finetune_right_pad_id|>",
-		"<|step_id|>",
-		"<|start_header_id|>",
-		"<|end_header_id|>",
-		"<|eom_id|>", // end of message
-		"<|eot_id|>", // end of turn
-		"<|python_tag|>",
-	}
+    specialTokensArr := []string{
+        "<|begin_of_text|>",
+        "<|end_of_text|>",
+        "<|reserved_special_token_0|>",
+        "<|reserved_special_token_1|>",
+        "<|finetune_right_pad_id|>",
+        "<|step_id|>",
+        "<|start_header_id|>",
+        "<|end_header_id|>",
+        "<|eom_id|>", // end of message
+        "<|eot_id|>", // end of turn
+        "<|python_tag|>",
+    }
 
-	reservedTokensArr := make([]string, reservedSpecialTokensCount-len(specialTokensArr))
-	for i := 0; i < len(reservedTokensArr); i++ {
-		reservedTokensArr[i] = fmt.Sprintf("<|reserved_special_token_%d|>", 2+i)
-	}
-	specialTokensArr = append(specialTokensArr, reservedTokensArr...)
+    reservedTokensArr := make([]string, reservedSpecialTokensCount-len(specialTokensArr))
+    for i := 0; i < len(reservedTokensArr); i++ {
+        reservedTokensArr[i] = fmt.Sprintf("<|reserved_special_token_%d|>", 2+i)
+    }
+    specialTokensArr = append(specialTokensArr, reservedTokensArr...)
 
-	specialTokens := make(map[string]int)
-	for i, token := range specialTokensArr {
-		specialTokens[token] = baseTokensCount + i
-	}
+    specialTokens := make(map[string]int)
+    for i, token := range specialTokensArr {
+        specialTokens[token] = baseTokensCount + i
+    }
 
-	result := &ModelData{
-		MergeableRanks: mergeableRanks,
-		SpecialTokens:  specialTokens,
+    result := &ModelData{
+        MergeableRanks: mergeableRanks,
+        SpecialTokens:  specialTokens,
 
-		BeginOfSentenceId: specialTokens["<|begin_of_text|>"],
-		EndOfSentenceId:   specialTokens["<|end_of_text|>"],
-		PadId:             -1,
-		UnknownId:         -1,
-		StopTokenIds:      []int{specialTokens["<|eom_id|>"], specialTokens["<|eot_id|>"]},
-	}
+        BeginOfSentenceId: specialTokens["<|begin_of_text|>"],
+        EndOfSentenceId:   specialTokens["<|end_of_text|>"],
+        PadId:             -1,
+        UnknownId:         -1,
+        StopTokenIds:      []int{specialTokens["<|eom_id|>"], specialTokens["<|eot_id|>"]},
+    }
 
-	return result, nil
+    return result, nil
 }
 ```
 
@@ -127,16 +127,16 @@ Then, we assign [Vocabulary](../src/model/vocabulary.go) object to ```model.Voca
 
 ```go
 func loadVocab(modelDir string, model *Model) error {
-	vocabFilePath := filepath.Join(modelDir, "tokenizer.model")
-	common.GLogger.ConsolePrintf("Loading vocabulary/tokens file: \"%s\"...", vocabFilePath)
-	vocabBpe, err := tiktoken.Load(vocabFilePath)
-	if err != nil {
-		return err
-	}
+    vocabFilePath := filepath.Join(modelDir, "tokenizer.model")
+    common.GLogger.ConsolePrintf("Loading vocabulary/tokens file: \"%s\"...", vocabFilePath)
+    vocabBpe, err := tiktoken.Load(vocabFilePath)
+    if err != nil {
+        return err
+    }
 
-	model.Vocabulary = NewVocabulary(vocabBpe)
-	common.GLogger.ConsolePrintf("Found %d tokens in the model.", len(model.Vocabulary.IdToToken))
-	return nil
+    model.Vocabulary = NewVocabulary(vocabBpe)
+    common.GLogger.ConsolePrintf("Found %d tokens in the model.", len(model.Vocabulary.IdToToken))
+    return nil
 }
 ```
 

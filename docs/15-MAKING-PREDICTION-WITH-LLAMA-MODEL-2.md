@@ -37,7 +37,7 @@ We can see output lines in the "debug.log" file if debugging is enabled, as foll
 
 ```sh
 [DEBUG] ... Calling LlamaTransformerBlock.Forward for layer: 1 / 32, startPos: 0 -> tensor currentTensor ...
-[DEBUG] ... LlamaTransformerBlock.Forward started for x: shape([22 4096]), startPos: 0, freqsCis: shape([32 64]), mask: shape([]) ...
+[DEBUG] ... LlamaTransformerBlock.Forward started for x: shape([22 4096]), startPos: 0, freqsCis: shape([22 64]), mask: shape([]) ...
 [DEBUG] ... Calling RMSNorm for tensor x shape([22 4096]) and LlamaTransformerBlock.attn_norm weights shape([4096]) -> tensor normalizedX ...
 ```
 
@@ -220,7 +220,7 @@ We can see output lines in the "debug.log" file if debugging is enabled, as foll
 [DEBUG] ... [Calling in goroutine] ml.LinearTransformation for x shape([22 4096]) and LlamaAttention.attn_wv weights shape([1024 4096]) -> tensor xv ...
 [DEBUG] ... [Calling in goroutine] ml.LinearTransformation for x shape([22 4096]) and LlamaAttention.attn_wq weights shape([4096 4096]) -> tensor xq ...
 [DEBUG] ... [Calling in goroutine] ml.LinearTransformation for x shape([22 4096]) and LlamaAttention.attn_wk weights shape([1024 4096]) -> tensor xk ...
-[DEBUG] ... Parallel results, xq: shape([22 4096]), xk: shape([22 1024]), xv: shape([32 1024]) ...
+[DEBUG] ... Parallel results, xq: shape([22 4096]), xk: shape([22 1024]), xv: shape([22 1024]) ...
 ```
 
 >Note: As you can see the logs above, the order of ```[Scheduling goroutine]``` and ```[Calling in goroutine]``` lines are different, it shows they were executed parallelly.
@@ -291,9 +291,9 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
         Apply rotary embeddings
     */
 
-	if xq, xk, err = applyRotaryEmbeddings(xq, xk, freqsCis); err != nil {
-		return nil, err
-	}
+    if xq, xk, err = applyRotaryEmbeddings(xq, xk, freqsCis); err != nil {
+        return nil, err
+    }
 
     common.GLogger.DebugPrintf("applyRotaryEmbeddings results, xq: shape(%v), xk: shape(%v)", xq.Size, xk.Size)
     ...
@@ -489,11 +489,11 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
         Repeat k/v heads if N_KVHeads < N_Heads
     */
 
-	// example shape=[5, 8, 128] (cacheLen + sequenceLength, N_KVHeads, HeadDim)
+    // example shape=[5, 8, 128] (cacheLen + sequenceLength, N_KVHeads, HeadDim)
     if keys, err = attentionRepeatKV(keys, lat.N_Rep); err != nil { // example shape=[5, 32, 128] (cacheLen + sequenceLength, N_Heads, HeadDim)
         return nil, err
     }
-	// example shape=[5, 8, 128] (cacheLen + sequenceLength, N_KVHeads, HeadDim)
+    // example shape=[5, 8, 128] (cacheLen + sequenceLength, N_KVHeads, HeadDim)
     if values, err = attentionRepeatKV(values, lat.N_Rep); err != nil { // example shape=[5, 32, 128] (cacheLen + sequenceLength, N_Heads, HeadDim)
         return nil, err
     }
@@ -505,35 +505,35 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 
 ```go
 func attentionRepeatKV(x *ml.Tensor, N_Rep int) (*ml.Tensor, error) {
-	// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L103
-	if N_Rep == 1 {
-		return x, nil
-	}
-	sequenceLength, n_KVHeads, headDim := x.Size[0], x.Size[1], x.Size[2]
+    // See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L103
+    if N_Rep == 1 {
+        return x, nil
+    }
+    sequenceLength, n_KVHeads, headDim := x.Size[0], x.Size[1], x.Size[2]
 
-	expanded := ml.NewEmptyTensor([]int{sequenceLength, n_KVHeads, N_Rep, headDim}, x.DataType)
-	var err error
-	x, err = x.Reshape([]int{sequenceLength, n_KVHeads, 1, headDim})
-	if err != nil {
-		return nil, err
-	}
-	for i := 0; i < sequenceLength; i++ {
-		for j := 0; j < n_KVHeads; j++ {
-			slice, err := x.Slice([]int{i, j, 0}, []int{i, j, 1})
-			if err != nil {
-				return nil, err
-			}
-			for rep := 0; rep < N_Rep; rep++ {
-				if err = expanded.SetSlice([]int{i, j, rep}, []int{i, j, rep + 1}, slice); err != nil {
-					return nil, err
-				}
-			}
-		}
-	}
-	if expanded, err = expanded.Reshape([]int{sequenceLength, n_KVHeads * N_Rep, headDim}); err != nil {
-		return nil, err
-	}
-	return expanded, nil
+    expanded := ml.NewEmptyTensor([]int{sequenceLength, n_KVHeads, N_Rep, headDim}, x.DataType)
+    var err error
+    x, err = x.Reshape([]int{sequenceLength, n_KVHeads, 1, headDim})
+    if err != nil {
+        return nil, err
+    }
+    for i := 0; i < sequenceLength; i++ {
+        for j := 0; j < n_KVHeads; j++ {
+            slice, err := x.Slice([]int{i, j, 0}, []int{i, j, 1})
+            if err != nil {
+                return nil, err
+            }
+            for rep := 0; rep < N_Rep; rep++ {
+                if err = expanded.SetSlice([]int{i, j, rep}, []int{i, j, rep + 1}, slice); err != nil {
+                    return nil, err
+                }
+            }
+        }
+    }
+    if expanded, err = expanded.Reshape([]int{sequenceLength, n_KVHeads * N_Rep, headDim}); err != nil {
+        return nil, err
+    }
+    return expanded, nil
 }
 ```
 

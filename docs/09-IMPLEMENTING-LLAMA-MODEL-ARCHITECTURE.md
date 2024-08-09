@@ -355,35 +355,35 @@ In ```NewLlamaFeedForward(...)```:
 
 ```go
 func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error) {
-	result := &LlamaFeedForward{}
-	modelArgs := model.ModelArgs
-	dim := modelArgs.Dim // 4096
-	var err error
+    result := &LlamaFeedForward{}
+    modelArgs := model.ModelArgs
+    dim := modelArgs.Dim // 4096
+    var err error
 
-	// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L256
-	// Set it to 4 * dim at first
-	result.FFNHiddenDim = 4 * modelArgs.Dim
-	// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L227
-	// Then, do this calculation below:
-	result.FFNHiddenDim = int(2 * result.FFNHiddenDim / 3)
-	if modelArgs.FFNDimMultiplier > -1 {
-		result.FFNHiddenDim = int(modelArgs.FFNDimMultiplier * float64(result.FFNHiddenDim))
-	}
-	// Ensure ffnHiddenDim is multiple of modelArgs.MultipleOf value
-	result.FFNHiddenDim = int(modelArgs.MultipleOf * ((result.FFNHiddenDim + modelArgs.MultipleOf - 1) / modelArgs.MultipleOf))
+    // See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L256
+    // Set it to 4 * dim at first
+    result.FFNHiddenDim = 4 * modelArgs.Dim
+    // See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L227
+    // Then, do this calculation below:
+    result.FFNHiddenDim = int(2 * result.FFNHiddenDim / 3)
+    if modelArgs.FFNDimMultiplier > -1 {
+        result.FFNHiddenDim = int(modelArgs.FFNDimMultiplier * float64(result.FFNHiddenDim))
+    }
+    // Ensure ffnHiddenDim is multiple of modelArgs.MultipleOf value
+    result.FFNHiddenDim = int(modelArgs.MultipleOf * ((result.FFNHiddenDim + modelArgs.MultipleOf - 1) / modelArgs.MultipleOf))
 
-	// ffn_gate, ffn_down, ffn_up are Linear units, so weight shapes are ordered reversely as [out_features, in_features]
-	if result.ffn_gate, err = getLayerTensor(model, "layers.%d.feed_forward.w1.weight", layerIndex, []int{result.FFNHiddenDim, dim}); err != nil {
-		return nil, err
-	}
-	if result.ffn_down, err = getLayerTensor(model, "layers.%d.feed_forward.w2.weight", layerIndex, []int{dim, result.FFNHiddenDim}); err != nil {
-		return nil, err
-	}
-	if result.ffn_up, err = getLayerTensor(model, "layers.%d.feed_forward.w3.weight", layerIndex, []int{result.FFNHiddenDim, dim}); err != nil {
-		return nil, err
-	}
+    // ffn_gate, ffn_down, ffn_up are Linear units, so weight shapes are ordered reversely as [out_features, in_features]
+    if result.ffn_gate, err = getLayerTensor(model, "layers.%d.feed_forward.w1.weight", layerIndex, []int{result.FFNHiddenDim, dim}); err != nil {
+        return nil, err
+    }
+    if result.ffn_down, err = getLayerTensor(model, "layers.%d.feed_forward.w2.weight", layerIndex, []int{dim, result.FFNHiddenDim}); err != nil {
+        return nil, err
+    }
+    if result.ffn_up, err = getLayerTensor(model, "layers.%d.feed_forward.w3.weight", layerIndex, []int{result.FFNHiddenDim, dim}); err != nil {
+        return nil, err
+    }
 
-	return result, nil
+    return result, nil
 }
 ```
 
@@ -459,7 +459,7 @@ Returns:
 func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
     result := &LlamaTransformer{}
     ...
-	if result.PrecomputedFreqsCis, err = precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2, modelArgs.RopeTheta, modelArgs.UseScaledRope); err != nil {
+    if result.PrecomputedFreqsCis, err = precomputeFreqsCis(int(dim/modelArgs.N_Heads), modelArgs.MaxSequenceLength*2, modelArgs.RopeTheta, modelArgs.UseScaledRope); err != nil {
         return nil, err
     }
     return result, nil

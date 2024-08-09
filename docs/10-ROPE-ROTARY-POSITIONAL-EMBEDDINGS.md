@@ -218,35 +218,35 @@ You can find original Python implementation of [apply_scaling(...)](https://gith
 
 ```go
 func applyScaling(freqs *ml.Tensor) error {
-	// See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L45
-	// Values obtained from grid search
-	scaleFactor := float32(8.0)
-	lowFreqFactor := float32(1.0)
-	highFreqFactor := float32(4.0)
-	oldContextLen := float32(8192) // original llama3 length
-	lowFreqWavelen := oldContextLen / lowFreqFactor
-	highFreqWavelen := oldContextLen / highFreqFactor
-	for i := 0; i < freqs.Size[0]; i++ {
-		freq, err := freqs.GetItem_AsFloat32([]int{i})
-		if err != nil {
-			return err
-		}
-		var newFreq float32
-		wavelen := 2 * math.Pi / freq
-		if wavelen < highFreqWavelen {
-			newFreq = freq
-		} else if wavelen > lowFreqWavelen {
-			newFreq = freq / scaleFactor
-		} else {
-			smooth := (oldContextLen/wavelen - lowFreqFactor) / (highFreqFactor - lowFreqFactor)
-			newFreq = (1-smooth)*freq/scaleFactor + smooth*freq
+    // See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L45
+    // Values obtained from grid search
+    scaleFactor := float32(8.0)
+    lowFreqFactor := float32(1.0)
+    highFreqFactor := float32(4.0)
+    oldContextLen := float32(8192) // original llama3 length
+    lowFreqWavelen := oldContextLen / lowFreqFactor
+    highFreqWavelen := oldContextLen / highFreqFactor
+    for i := 0; i < freqs.Size[0]; i++ {
+        freq, err := freqs.GetItem_AsFloat32([]int{i})
+        if err != nil {
+            return err
+        }
+        var newFreq float32
+        wavelen := 2 * math.Pi / freq
+        if wavelen < highFreqWavelen {
+            newFreq = freq
+        } else if wavelen > lowFreqWavelen {
+            newFreq = freq / scaleFactor
+        } else {
+            smooth := (oldContextLen/wavelen - lowFreqFactor) / (highFreqFactor - lowFreqFactor)
+            newFreq = (1-smooth)*freq/scaleFactor + smooth*freq
 
-		}
-		if err := freqs.SetItem_FromFloat32([]int{i}, newFreq); err != nil {
-			return err
-		}
-	}
-	return nil
+        }
+        if err := freqs.SetItem_FromFloat32([]int{i}, newFreq); err != nil {
+            return err
+        }
+    }
+    return nil
 }
 
 func precomputeFreqsCis(dim int, end int, theta float64, useScaled bool) (*ml.Tensor, error) {
@@ -258,12 +258,12 @@ func precomputeFreqsCis(dim int, end int, theta float64, useScaled bool) (*ml.Te
         return float32(1.0 / math.Pow(theta, float64(val/dimFloat)))
     })
     ...
-	if useScaled {
-		err = applyScaling(freqs)
-		if err != nil {
-			return nil, err
-		}
-	}
+    if useScaled {
+        err = applyScaling(freqs)
+        if err != nil {
+            return nil, err
+        }
+    }
     ...
 }
 ```

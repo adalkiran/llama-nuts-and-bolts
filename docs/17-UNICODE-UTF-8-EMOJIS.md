@@ -88,20 +88,20 @@ This detection process seems simple at first sight, but emojis consisting of mul
 ```go
 func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, decodingContext *generationDecodingContext) (token model.TokenPiece, resultString string, addedToWaiting bool) {
     ...
-	if token.IsByte {
-		if decodingContext.waitingBytes == nil {
-			decodingContext.waitingBytes = make([]byte, 0)
-		}
-		decodingContext.waitingBytes = append(decodingContext.waitingBytes, token.ByteFallback...)
-		if utf8.Valid(decodingContext.waitingBytes) {
-			r, rsize := utf8.DecodeRune(decodingContext.waitingBytes)
-			decodingContext.waitingBytes = decodingContext.waitingBytes[rsize:]
-			resultString += processEmoji(decodingContext, r)
-		} else {
-			addedToWaiting = true
-		}
-		return
-	} else {
+    if token.IsByte {
+        if decodingContext.waitingBytes == nil {
+            decodingContext.waitingBytes = make([]byte, 0)
+        }
+        decodingContext.waitingBytes = append(decodingContext.waitingBytes, token.ByteFallback...)
+        if utf8.Valid(decodingContext.waitingBytes) {
+            r, rsize := utf8.DecodeRune(decodingContext.waitingBytes)
+            decodingContext.waitingBytes = decodingContext.waitingBytes[rsize:]
+            resultString += processEmoji(decodingContext, r)
+        } else {
+            addedToWaiting = true
+        }
+        return
+    } else {
         ...
     }
 }

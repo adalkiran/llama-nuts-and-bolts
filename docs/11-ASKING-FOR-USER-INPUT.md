@@ -50,7 +50,7 @@ func main() {
     ...
     fmt.Printf("Model \"%s\" was loaded.\n", modelDir)
 
-	fmt.Printf("Developed by: Adil Alper DALKIRAN")
+    fmt.Printf("Developed by: Adil Alper DALKIRAN")
 
     fmt.Printf("\n\n\n")
 
@@ -59,29 +59,29 @@ func main() {
 
     engine := inference.NewInferenceEngine(llamaModel, inferenceArgs, logFn)
 
-	userPrompt := askUserPromptChoice(llamaModel)
+    userPrompt := askUserPromptChoice(llamaModel)
 
-	var tokens []model.TokenId
+    var tokens []model.TokenId
 
-	if userPrompt.IsChatMode {
-		userPromptParts := []inference.PromptPart{
-			{Header: "system", Content: userPrompt.SystemPrompt},
-			{Header: "user", Content: userPrompt.Prompt},
-		}
-		tokens, err = engine.Tokenize(userPromptParts)
-		if err != nil {
-			common.GLogger.ConsoleFatal(err)
-		}
-	} else {
-		userPromptStr := userPrompt.Prompt
-		if !strings.HasSuffix(userPromptStr, " ") {
-			userPromptStr += " "
-		}
-		tokens, err = engine.TokenizeString(userPromptStr, true)
-		if err != nil {
-			common.GLogger.ConsoleFatal(err)
-		}
-	}
+    if userPrompt.IsChatMode {
+        userPromptParts := []inference.PromptPart{
+            {Header: "system", Content: userPrompt.SystemPrompt},
+            {Header: "user", Content: userPrompt.Prompt},
+        }
+        tokens, err = engine.Tokenize(userPromptParts)
+        if err != nil {
+            common.GLogger.ConsoleFatal(err)
+        }
+    } else {
+        userPromptStr := userPrompt.Prompt
+        if !strings.HasSuffix(userPromptStr, " ") {
+            userPromptStr += " "
+        }
+        tokens, err = engine.TokenizeString(userPromptStr, true)
+        if err != nil {
+            common.GLogger.ConsoleFatal(err)
+        }
+    }
 
     fmt.Printf("\n\n\n")
     ...
