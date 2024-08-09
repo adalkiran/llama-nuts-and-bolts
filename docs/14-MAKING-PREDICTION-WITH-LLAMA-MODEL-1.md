@@ -9,11 +9,17 @@ In this chapter, following [15. MAKING PREDICTION with LLAMA MODEL - 2](./15-MAK
 **Important note:** The given example tensor shapes and values are for the first iteration that the prompt tokens is processed at, for this input prompt string:
 
 ```go
-promptString = "[INST] <<SYS>>\nYou are Einstein\n<</SYS>>\n\nDescribe your theory. [/INST]"
+promptString = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+You are Einstein<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Describe your theory.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+"
 
 // the shape of original inputTokens is {200},
-// prompt tokens length is 32,
-// shape of inputTokens argument is {32}, because it is the part of inputTokens containing prompt tokens.
+// prompt tokens length is 22,
+// shape of inputTokens argument is {22}, because it is the part of inputTokens containing prompt tokens.
 ```
 
 ## **14.1. Warming up**
@@ -36,16 +42,16 @@ We can see output lines in the "debug.log" file if debugging is enabled, as foll
 [DEBUG] ... Created input tokens tensor: shape([200]) ...
 [DEBUG] ... =======================================
 
-[DEBUG] ... Running Transformer.Forward for curPos: 32, prevPos: 0, inputTokensSlice: shape([32])...
+[DEBUG] ... Running Transformer.Forward for curPos: 22, prevPos: 0, inputTokensSlice: shape([32])...
 ```
 
 ## **14.2. Making preparations**
 
 Our ```LlamaTransformer.Forward(...)``` method calls the ```LlamaTransformer.prepare(...)``` method, to make it to create:
 
-* ```inputTensor```: The tensor contains embedding vectors of the token ids in ```inputTokens``` tensor, with shape of ```{32, 4096}``` (remember the ```inputTokensSlice``` has shape of ```{32}``` in our first iteration example case and ```4096``` is one dimension size of LLaMa model's embedding layer),
-* ```freqsCis```: The tensor contains a slice of ```LlamaTransformer.PrecomputedFreqsCis``` taken by between indices 0 and 31. The ```LlamaTransformer.PrecomputedFreqsCis``` tensor was precomputed before and we have covered this subject in previous chapters. The shape of the ```freqsCis``` tensor is ```{32, 64}``` in our first iteration example case,
-* ```mask```: A triangular upper tensor consists of "negative infinities" and "ones (1s)", with shape of ```{32, 32}``` in our first iteration example case,
+* ```inputTensor```: The tensor contains embedding vectors of the token ids in ```inputTokens``` tensor, with shape of ```{22, 4096}``` (remember the ```inputTokensSlice``` has shape of ```{22}``` in our first iteration example case and ```4096``` is one dimension size of Llama model's embedding layer),
+* ```freqsCis```: The tensor contains a slice of ```LlamaTransformer.PrecomputedFreqsCis``` taken by between indices 0 and 21. The ```LlamaTransformer.PrecomputedFreqsCis``` tensor was precomputed before and we have covered this subject in previous chapters. The shape of the ```freqsCis``` tensor is ```{22, 64}``` in our first iteration example case,
+* ```mask```: A triangular upper tensor consists of "negative infinities" and "ones (1s)", with shape of ```{22, 22}``` in our first iteration example case,
 * ```err```: If the function finishes with an error, this represents it, otherwise ```nil```.
 
 <sup>from [src/model/llamatransformer.go](../src/model/llamatransformer.go)</sup>
@@ -75,9 +81,9 @@ func (lt *LlamaTransformer) prepare(inputTokens *ml.Tensor, startPos int) (input
 <sup>*Diagram: **Creating inputTensor**. For the complete diagram, [click here](./20-DIAGRAMS.md#complete-model-diagram).*</sup>
 
 The ```inputTensor``` is created via [ml.Fwd_Get_Rows](../src/ml/operations_impl.go) function.
-This step aims to retrieve embedding vectors of the token ids in ```inputTokens``` tensor (in our case it contains 32 token id integers), the result will be a tensor with shape of ```{32, 4096}```.
+This step aims to retrieve embedding vectors of the token ids in ```inputTokens``` tensor (in our case it contains 32 token id integers), the result will be a tensor with shape of ```{22, 4096}```.
 
-We have the embedding layer tensor at ```lt.tok_embd``` already loaded to ```LlamaTransformer``` struct. In our case, shape of our embedding layer is ```{32000, 4096}```, which has 32000 rows corresponding to supported tokens in our vocabulary, 4096 columns corresponding to dimensions of one token embedding vector.
+We have the embedding layer tensor at ```lt.tok_embd``` already loaded to ```LlamaTransformer``` struct. In our case, shape of our embedding layer is ```{128256, 4096}```, which has 128256 rows corresponding to supported tokens in our vocabulary, 4096 columns corresponding to dimensions of one token embedding vector.
 
 This function simply takes token embedding vectors with ```{1, 4096}``` shape by using our token ids as item indices/row indices in a list. It finds start and end indices at the ```embedding.RawData``` byte array of corresponding row, for each token independently, then collects all of them into ```dst``` tensor.
 
@@ -121,8 +127,8 @@ func Fwd_Get_Rows(embedding *Tensor, tokens *Tensor) (*Tensor, error) {
 We can see output lines in the "debug.log" file if debugging is enabled, as follows:
 
 ```sh
-[DEBUG] ... LlamaTransformer.Forward started for inputTokens: shape([32]), startPos: 0 -> tensor inputTensor...
-[DEBUG] ... LlamaTransformer.prepare started for inputTokens: shape([32]), startPos: 0. sequenceLength: 32...
+[DEBUG] ... LlamaTransformer.Forward started for inputTokens: shape([22]), startPos: 0 -> tensor inputTensor...
+[DEBUG] ... LlamaTransformer.prepare started for inputTokens: shape([22]), startPos: 0. sequenceLength: 22...
 ```
 
 ### **14.2.2. Creating the freqsCis tensor**
@@ -137,9 +143,9 @@ func (lt *LlamaTransformer) prepare(inputTokens *ml.Tensor, startPos int) (input
 }
 ```
 
-We've precomputed the ```lt.PrecomputedFreqsCis``` in previous steps. It has the shape of ```{8192, 64}```, which has 8192 rows corresponding to 2 times of 4096 max sequence length, 64 columns corresponding to half of dimensions of ```dim / N_Heads (head count) = 4096 / 32 = 128```. It is 64, because we take 128 numbers as pairs to create one complex number, one as real part and other one as imaginary part. For more information, refer to [10. ROPE ROTARY POSITIONAL EMBEDDINGS](./10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS.md) and [10.BONUS. PRECOMPUTING FREQUENCY TENSOR](./10.BONUS-PRECOMPUTING-FREQUENCY-TENSOR.ipynb).
+We've precomputed the ```lt.PrecomputedFreqsCis``` in previous steps. It has the shape of ```{4096, 64}```, which has 4096 rows corresponding to 2 times of 2048 max sequence length, 64 columns corresponding to half of dimensions of ```dim / N_Heads (head count) = 4096 / 32 = 128```. It is 64, because we take 128 numbers as pairs to create one complex number, one as real part and other one as imaginary part. For more information, refer to [10. ROPE ROTARY POSITIONAL EMBEDDINGS](./10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS.md) and [10.BONUS. PRECOMPUTING FREQUENCY TENSOR](./10.BONUS-PRECOMPUTING-FREQUENCY-TENSOR.ipynb).
 
-Here, we take a slice of the ```lt.PrecomputedFreqsCis``` into ```freqsCis``` with shape of ```{32, 64}``` in our case.
+Here, we take a slice of the ```lt.PrecomputedFreqsCis``` into ```freqsCis``` with shape of ```{22, 64}``` in our case.
 
 ### **14.2.3. Creating the mask tensor**
 
@@ -166,13 +172,13 @@ func (lt *LlamaTransformer) prepare(inputTokens *ml.Tensor, startPos int) (input
 }
 ```
 
-In [Wikipedia](https://en.wikipedia.org/wiki/LLaMA), it writes:
+In [Wikipedia](https://en.wikipedia.org/wiki/Llama), it writes:
 
 ```sh
-LLaMA (Large Language Model Meta AI) is a family of autoregressive large language models (LLMs), released by Meta AI starting in February 2023.
+Llama (Large Language Model Meta AI) is a family of autoregressive large language models (LLMs), released by Meta AI starting in February 2023.
 ```
 
-LLaMa is an auto-regressive model, which means, remember this is a time-series model, it always handles the information behind the current position. So, if we add ```-Inf``` (negative infinity) value to the values we want to ignore and add ```0``` (zero) to the values we want to pay attention to, our goal could be achieved.
+Llama is an auto-regressive model, which means, remember this is a time-series model, it always handles the information behind the current position. So, if we add ```-Inf``` (negative infinity) value to the values we want to ignore and add ```0``` (zero) to the values we want to pay attention to, our goal could be achieved.
 
 To achieve this goal, we generate a ```mask``` tensor consisting of ```-Inf``` values at the upper triangle and ```0``` values at the lower triangle via [ml.TriangularUpper](../src/ml/operations_impl.go) function. This tensor will be used in our attention layer further.
 
@@ -186,24 +192,24 @@ To achieve this goal, we generate a ```mask``` tensor consisting of ```-Inf``` v
     [   0,    0,    0,    ...,    0,    0, -Inf],
     [   0,    0,    0,    ...,    0,    0,    0]
 ]
-shape=[32 32], dtype=BF16
+shape=[22 22], dtype=BF16
 ```
 
 Sources:
 
 * [Autoregressive Model - ScienceDirect](https://www.sciencedirect.com/topics/mathematics/autoregressive-model)
-* [Youtube - LLaMA explained... - "KV Cache" section - Mask part](https://www.youtube.com/watch?v=Mn_9W1nCFLo&t=3240s)
+* [Youtube - Llama explained... - "KV Cache" section - Mask part](https://www.youtube.com/watch?v=Mn_9W1nCFLo&t=3240s)
 
 We can see output lines in the "debug.log" file if debugging is enabled, as follows:
 
 ```sh
-[DEBUG] ... LlamaTransformer.prepare finished inputTensor: shape([32 4096]), freqsCis: shape([32 64]), mask: shape([32 32])...
+[DEBUG] ... LlamaTransformer.prepare finished inputTensor: shape([22 4096]), freqsCis: shape([22 64]), mask: shape([22 22])...
 ```
 
 ## **14.3. Performing Forward Pass Through Each Transformer Block - LlamaTransformerBlock.Forward(...)**
 
 >**Recap:**<br>
->The most important part of the transformer models that provide accurate outputs is [the attention mechanism](https://arxiv.org/abs/1706.03762). Each "block" of LLaMa consists of a self-attention and a feed-forward neural network parts. The details will be explained further, but also we call these "block"s as "layer"s.
+>The most important part of the transformer models that provide accurate outputs is [the attention mechanism](https://arxiv.org/abs/1706.03762). Each "block" of Llama consists of a self-attention and a feed-forward neural network parts. The details will be explained further, but also we call these "block"s as "layer"s.
 >
 >A ```LlamaTransformerBlock``` object consists of ```attn_norm``` (RMS normalization), ```attention``` (Attention mechanism), ```ffn_norm``` (RMS normalization), and ```feedForward``` (Feed Forward Neural Network) modules. These modules operate respectively.
 >
@@ -212,7 +218,7 @@ We can see output lines in the "debug.log" file if debugging is enabled, as foll
 ![STAGE 5: Forward Pass Through Each Transformer Block Diagram](./images/DIAG01-STAGE05-forward-pass-through-each-transformer-block.drawio.svg)
 <sup>*Diagram: **Forward Pass Through Each Transformer Block**. For the complete diagram, [click here](./20-DIAGRAMS.md#complete-model-diagram).*</sup>
 
-These "blocks" are also called as "layer"s. In our case, we use LLaMa 2 7B-chat model, in 7B model has 32 layers. Because we have ```model.ModelArgs.N_Layers = 32``` as read from "params.json" configuration file. We've defined these "layers"/"transformer block layers" in previous steps as described in [09. IMPLEMENTING LLAMA MODEL ARCHITECTURE](./09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE.md).
+These "blocks" are also called as "layer"s. In our case, we use Llama 3.1 8B-Instruct model, in 8B model has 32 layers. Because we have ```model.ModelArgs.N_Layers = 32``` as read from "params.json" configuration file. We've defined these "layers"/"transformer block layers" in previous steps as described in [09. IMPLEMENTING LLAMA MODEL ARCHITECTURE](./09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE.md).
 
 We initiate a for loop to iterate over 32 layers defined at ```lt.Layers``` and call ```LlamaTransformerBlock.Forward(...)``` method.
 
@@ -248,7 +254,7 @@ We can see output lines in the "debug.log" file if debugging is enabled, as foll
 [DEBUG] ... Calling LlamaTransformerBlock.Forward for layer: 2 / 32, startPos: 0 -> tensor currentTensor ...
 ...
 [DEBUG] ... Calling LlamaTransformerBlock.Forward for layer: 32 / 32, startPos: 0 -> tensor currentTensor ...
-[DEBUG] ... Returning tensor output: shape([32 4096]) ...
+[DEBUG] ... Returning tensor output: shape([22 4096]) ...
 ```
 
 <br>

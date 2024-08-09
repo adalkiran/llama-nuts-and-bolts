@@ -1,4 +1,4 @@
-# **LLaMA Nuts and Bolts: Documentation**
+# **Llama Nuts and Bolts: Documentation**
 
 Here is the adventure of generation of the next tokens from start to finish, documented step by step as:
 
@@ -14,7 +14,7 @@ Here is the adventure of generation of the next tokens from start to finish, doc
 <br>
 [5. LOADING TOKENIZER MODEL](./05-LOADING-TOKENIZER-MODEL.md)
 <br>
-[6. LOADING TOKENIZER MODEL \(DETAILS\)](./06-LOADING-TOKENIZER-MODEL-DETAILS.md)
+[6. OBSOLETE - LOADING LLAMA 2 TOKENIZER MODEL](./06-OBSOLETE-LOADING-LLAMA-2-TOKENIZER-MODEL.md)
 <br>
 [7. BFLOAT16 DATA TYPE](./07-BFLOAT16-DATA-TYPE.md)
 <br>

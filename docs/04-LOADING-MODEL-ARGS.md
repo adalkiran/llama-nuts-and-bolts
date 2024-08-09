@@ -27,12 +27,14 @@ Now, we have ```model.ModelArgs``` object with similar values:
 Dim: 4096
 N_Layers: 32
 N_Heads: 32
-N_KVHeads: -1 // if -1, it will be equal to N_Heads
-VocabSize: -1 // if -1, it will be size of tokenizer.model
-MultipleOf: 256
-FFNDimMultiplier: -1 // will be calculated further
-NormEpsilon: 0.000001
-MaxSequenceLength: 4096
+N_KVHeads: 8 // if -1, it will be equal to N_Heads
+VocabSize: 128256 // if -1, it will be size of tokenizer.model
+MultipleOf: 1024 // make SwiGLU hidden layer size multiple of large power of 2
+FFNDimMultiplier: 1.3
+NormEpsilon: 0.00001
+RopeTheta: 500000
+UseScaledRope: true
+MaxSequenceLength: 2048
 N_Rep: 0 // will be calculated further
 HeadDim: 0 // will be calculated further
 ```

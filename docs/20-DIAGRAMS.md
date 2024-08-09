@@ -2,7 +2,7 @@
 
 ## Complete Model Diagram
 
-The whole flow of the LLaMa 7B-Chat model, this diagram tries to reveal all of the details as much as possible:<br><br>
+The whole flow of the Llama 3.1 8B-Instruct model, this diagram tries to reveal all of the details as much as possible:<br><br>
 
 ![Complete Model Diagram](./images/DIAG01-complete-model.drawio.svg)
 

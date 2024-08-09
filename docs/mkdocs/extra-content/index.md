@@ -5,7 +5,7 @@ menus:
   - main
 weight: 0
 ---
-# <img src="assets/icon.svg" style="width: 0.8em"></img> **LLaMA Nuts and Bolts**
+# <img src="assets/icon.svg" style="width: 0.8em"></img> **Llama Nuts and Bolts**
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white&style=flat-square)](https://www.linkedin.com/in/alper-dalkiran/)
 [![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=X&logoColor=white&style=flat-square)](https://twitter.com/aalperdalkiran)
@@ -14,18 +14,18 @@ weight: 0
 
 !!! info "Welcome!"
 
-    This documentation website is a customized version of original documentation of the [:fontawesome-brands-github: LLaMA Nuts and Bolts repository](https://github.com/adalkiran/llama-nuts-and-bolts). You can find the running Go implementation of the project codes in this repository.
+    This documentation website is a customized version of original documentation of the [:fontawesome-brands-github: Llama Nuts and Bolts repository](https://github.com/adalkiran/llama-nuts-and-bolts). You can find the running Go implementation of the project codes in this repository.
 
-A holistic way of understanding how LLaMA and its components run in practice, with code and detailed documentation. "The nuts and bolts" (practical side instead of theoretical facts, pure implementation details) of required components, infrastructure, and mathematical operations without using external dependencies or libraries.
+A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation. "The nuts and bolts" (practical side instead of theoretical facts, pure implementation details) of required components, infrastructure, and mathematical operations without using external dependencies or libraries.
 
 This project intentionally **<u>doesn't have</u>** support for [GPGPU](https://en.wikipedia.org/wiki/General-purpose_computing_on_graphics_processing_units) (such as [nVidia CUDA](https://tr.wikipedia.org/wiki/CUDA), [OpenCL](https://tr.wikipedia.org/wiki/OpenCL)) as well as [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) because it doesn't aim to be a production application, for now. Instead, the project relies on CPU cores to perform all mathematical operations, including linear algebraic computations. To increase performance, the code has been optimized as much as necessary, utilizing parallelization via [goroutines](https://gobyexample.com/goroutines).
 
-![LLaMA Nuts and Bolts Screen Recording GIF](images/llama-nuts-and-bolts-screen-record.gif)<br>
-<sup>*LLaMA Nuts and Bolts Screen Recording GIF, captured while the application was running on the Apple MacBook Pro M1 Chip. Predefined prompts within the application were executed. The GIF is 20x faster.*</sup>
+![Llama Nuts and Bolts Screen Recording GIF](images/llama-nuts-and-bolts-screen-record.gif)<br>
+<sup>*Llama Nuts and Bolts Screen Recording GIF, captured while the application was running on the Apple MacBook Pro M1 Chip. Predefined prompts within the application were executed. The GIF is 20x faster.*</sup>
 
 ## :thought_balloon: **WHY THIS PROJECT?**
 
-This project was developed for only educational purposes, and has not been tested for production or commercial usage. The goal is to make an experimental project that can perform inference on the LLaMa 2 7B-chat model completely outside of the Python ecosystem. Throughout this journey, the aim is to acquire knowledge and shed light on the abstracted internal layers of this technology.
+This project was developed for only educational purposes, and has not been tested for production or commercial usage. The goal is to make an experimental project that can perform inference on the Llama 3.1 8B-Instruct model completely outside of the Python ecosystem. Throughout this journey, the aim is to acquire knowledge and shed light on the abstracted internal layers of this technology.
 
 This journey is an intentional journey of literally *reinventing the wheel*. While reading this journey here, you will navigate toward the target with a deductive flow. You will encounter the same stops and obstacles I encountered during this journey.
 
@@ -33,13 +33,13 @@ If you are curious like me about how the LLMs (Large Language Models) and transf
 
 ## :triangular_ruler: **MODEL DIAGRAM**
 
-The whole flow of LLaMa 7B-Chat model without abstraction:<br><br>
+The whole flow of Llama 3.1 8B-Instruct model without abstraction:<br><br>
 
 ![Complete Model Diagram](images/DIAG01-complete-model.drawio.svg)
 
 ## :dart: **COVERAGE**
 
-Due to any of the existing libraries (except the built-in packages and a few helpers) wasn't used, all of the required functions were implemented by this project in the style of Go. However, the main goal of this project is to do inference only on the LLaMa 2 7B-chat model, the functionality fulfills only the requirements of this specific model. Not much, not less, because the goal of our project is not to be a production-level tensor framework.
+Due to any of the existing libraries (except the built-in packages and a few helpers) wasn't used, all of the required functions were implemented by this project in the style of Go. However, the main goal of this project is to do inference only on the Llama 3.1 8B-Instruct model, the functionality fulfills only the requirements of this specific model. Not much, not less, because the goal of our project is not to be a production-level tensor framework.
 
 The project provides a CLI (command line interface) application allowing users to choose from predefined prompts or write custom prompts. It then performs inference on the model and displays the generated text on the console. The application supports "streaming," enabling immediate display of generated tokens on the screen without waiting for the entire process to complete.
 
@@ -52,10 +52,10 @@ As you can see in the chapters here, covered things are:
 * Implementing support for "streaming" output via [Go channels](https://go101.org/article/channel.html), see [Chapter 13](13-GENERATING-NEXT-TOKENS.md),
 * Loading a [PyTorch](https://pytorch.org/) model weights file ("consolidated.00.pth") which was saved as [Pickle (.pkl)](https://github.com/python/cpython/blob/main/Lib/pickle.py) format, from scratch, see [Chapter 2](02-LOADING-TORCH-MODEL.md) and [Chapter 3](03-LOADING-TORCH-MODEL-DETAILS.md),
 * Loading the model arguments JSON file ("params.json"), see [Chapter 4](04-LOADING-MODEL-ARGS.md),
-* Loading a [SentencePiece (SPM)](https://github.com/google/sentencepiece) tokenizer model file ("tokenizer.model") which was saved as [Protocol Buffers (Protobuf)](https://protobuf.dev/) format, from scratch, see [Chapter 5](05-LOADING-TOKENIZER-MODEL.md) and  see [Chapter 6](06-LOADING-TOKENIZER-MODEL-DETAILS.md),
+* Loading a [Byte-Pair Encoding (BPE)](https://huggingface.co/learn/nlp-course/en/chapter6/5) tokenizer model which was saved as [Tiktoken tokenizer format](https://github.com/openai/tiktoken) file ("tokenizer.model"), from scratch, see [Chapter 5](05-LOADING-TOKENIZER-MODEL/),
 * Implementing a [Tensor](https://en.wikipedia.org/wiki/Tensor_%28machine_learning%29) type, tensor aritmetic and machine learning mathematical operation functions, see [Chapter 8](08-TENSOR.md),
 * Working with  [C contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays) arrays in multi-dimensional form, see [Chapter 8](08-TENSOR.md),
-* Building the blocks of LLaMa 2 model architecture, see [Chapter 9](09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE.md),
+* Building the blocks of Llama 3.1 model architecture, see [Chapter 9](09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE.md),
 * Implementing [RoPE \(Rotary Positional Embeddings\)](https://arxiv.org/abs/2104.09864v5) and precomputing frequency tensor, see [Chapter 10](10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS.md) and [Chapter 10.BONUS](10.BONUS-PRECOMPUTING-FREQUENCY-TENSOR.ipynb),
 * Understanding tokens, vocabulary, and tokenization, see [Chapter 12](12-TOKENIZATION.md),
 * Generating the next token, internals of transformer block, being an auto-regressive model, multi-head self-attention, and much more, see [Chapter 13](13-GENERATING-NEXT-TOKENS.md), [Chapter 14](14-MAKING-PREDICTION-WITH-LLAMA-MODEL-1.md), [Chapter 15](15-MAKING-PREDICTION-WITH-LLAMA-MODEL-2.md), [Chapter 16](16-MAKING-PREDICTION-WITH-LLAMA-MODEL-3.md),
@@ -76,7 +76,7 @@ When you run the project, you will see the following screen. It prints the summa
 
 ### Printing Model Metadata
 
-If you select the first item in the menu by pressing 0 key and ENTER, the application prints the metadata of LLaMa 2 7B-chat model on the console:
+If you select the first item in the menu by pressing 0 key and ENTER, the application prints the metadata of Llama 3.1 8B-Instruct model on the console:
 
 ![Printing metadata 1](images/SS02-print-metadata-1.png)
 ![Printing metadata 2](images/SS02-print-metadata-2.png)
@@ -87,16 +87,18 @@ Alongside you can select one of predefined prompts in the menu, you can select o
 
 With the ```[Text completion]``` choices, the model is used only to perform text completion task. New tokens will be generated according to the input prompt text.
 
-With the ```[Chat mode]``` choices, the application surrounds the prompt with ```"[INST]"``` and ```"[/INST]"``` strings to specify "this is an instruction prompt". Also it surrounds the system prompt part with ```<<SYS>>\n``` and ```\n<</SYS>>\n\n``` strings to specify this part is a *system prompt*.
+With the ```[Chat mode]``` choices, the application starts the prompt with ```""<|begin_of_text|>"``` string to specify "this is an instruction prompt". Also it surrounds the system prompt part with ```<|start_header_id|>system<|end_header_id|>\n``` and ```<|eot_id|>``` strings to specify this part is a *system prompt*, surrounds the user prompt part with ```<|start_header_id|>user<|end_header_id|>\n``` and ```<|eot_id|>``` strings to specify this part is a *user prompt*.
 
 At the end, a chat mode prompt string will be look like following:
 
 ```sh
-"[INST] <<SYS>>
-Always answer with emojis
-<</SYS>>
+"<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
-How to go from Beijing to NY? [/INST]"
+Always answer with emojis<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+How to go from Beijing to NY?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+"
 ```
 
 And the output of this prompt is like the following (consists of emojis with their names and unicode escape sequences):
@@ -107,9 +109,9 @@ And the output of this prompt is like the following (consists of emojis with the
 
 The full-compliant, generic, production-ready, and battle-tested tensor frameworks should have support for a wide range of platforms, acceleration devices/processors/platforms, use cases, and lots of convertibility between data types, etc.
 
-In **LLaMA Nuts and Bolts** scenario, some assumptions have been made to focus only on required set of details.
+In **Llama Nuts and Bolts** scenario, some assumptions have been made to focus only on required set of details.
 
-| Full-compliant applications/frameworks | LLaMA Nuts and Bolts |
+| Full-compliant applications/frameworks | Llama Nuts and Bolts |
 |---|---|
 | Use existing robust libraries to read/write file formats, perform calculations, etc. | This project aims to *reinvent the wheel*, so it doesn't use any existing library. It implements everything it requires, precisely as much as necessary. |
 | Should support a wide range of different data types and perform calculations between different typed tensors in an optimized and performant way. | Has a limited elasticity for only required operations. |
@@ -131,20 +133,22 @@ You can find a complete and categorized list of refereces in [19. REFERENCES](19
 
 The following resources are  most crucial ones, but it's suggested that to check out the [19. REFERENCES](19-REFERENCES.md) chapter:
 
-* [Meta LLaMa website](https://llama.meta.com/)
-* [Original LLaMa 2 Python repository of Meta](https://github.com/facebookresearch/llama/)
+* [Meta Llama website](https://llama.meta.com/)
+* [Original Llama 3.1 Python package repository of Meta](https://github.com/meta-llama/llama-models/)
+* [Original Llama Toolchain Python repository of Meta](https://github.com/meta-llama/llama-toolchain)
 * [Georgi Gerganov](https://github.com/ggerganov)'s [llama.cpp](https://github.com/ggerganov/llama.cpp)
 * [Wikipedia](https://en.wikipedia.org)
 * [PyTorch Documentation](https://pytorch.org/)
 * [Youtube - Andrej Karpathy - Let's build GPT: from scratch, in code, spelled out.](https://www.youtube.com/watch?v=kCc8FmEb1nY)
+* [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/)
 * [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288)
-* [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971v1)
+* [Llama: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971v1)
 * [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
-* [Youtube - Umar Jamil - LLaMA explained: KV-Cache, Rotary Positional Embedding, RMS Norm, Grouped Query Attention, SwiGLU](https://www.youtube.com/watch?v=Mn_9W1nCFLo)
+* [Youtube - Umar Jamil - Llama explained: KV-Cache, Rotary Positional Embedding, RMS Norm, Grouped Query Attention, SwiGLU](https://www.youtube.com/watch?v=Mn_9W1nCFLo)
 * [Youtube - DeepLearning Hero - RoPE (Rotary positional embeddings) explained: The positional workhorse of modern LLMs](https://www.youtube.com/watch?v=GQPOtyITy54)
 * [Youtube - Intermation - Computer Organization and Design Fundamentals - Ep 020: Unicode Code Points and UTF-8 Encoding](https://www.youtube.com/watch?v=tbdym9ZtepQ&list=PLxfrSxK7P38X7XfG4X8Y9cdOURvC7ObMF)
 * Several documents, articles, and code samples: In the code and documentation of this project, you can find several code or document links that were cited.
 
 ## :scroll: **LICENSE**
 
-LLaMA Nuts and Bolts is licensed under the Apache License, Version 2.0. See [LICENSE](https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/LICENSE) for the full license text.
+Llama Nuts and Bolts is licensed under the Apache License, Version 2.0. See [LICENSE](https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/LICENSE) for the full license text.

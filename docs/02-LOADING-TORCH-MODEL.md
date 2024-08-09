@@ -70,7 +70,7 @@ func LoadModelEx(modelDir string, includeTensors bool, includeVocab bool) (*Mode
 
 ### **2.2.1. Reading Model File as a ZIP File**
 
-The file "consolidated.00.pth" in the specified path is an **uncompressed** ZIP file containing 1 Pickle file and 292 files of weight tensors (valid for LLaMa 2 7B/7B-chat models). Utilizing **uncompressed ZIP** instead of **compressed ZIP** allows for direct content reading (a must for memory mapping) without the need for an unzipper stream wrapper. Additionally, utilizing a ZIP file allows the storage and transfer of multiple files as a single file.
+The file "consolidated.00.pth" in the specified path is an **uncompressed** ZIP file containing 1 Pickle file and 291 files of weight tensors (valid for Llama 3.1 8B/8B-Instruct models). Utilizing **uncompressed ZIP** instead of **compressed ZIP** allows for direct content reading (a must for memory mapping) without the need for an unzipper stream wrapper. Additionally, utilizing a ZIP file allows the storage and transfer of multiple files as a single file.
 
 If you are curious about what this file contains, you can simply change extension of this file to ".zip" and check out it as a ZIP file.
 
@@ -93,6 +93,7 @@ If you check out the contents of the "consolidated.00.pth" file, you will find a
 
 ```sh
 consolidated (parent directory)
+  |-byteorder
   |-version
   |-data.pkl
   |-data
@@ -127,11 +128,11 @@ Pickle (.pkl) file is a specific file format of Python platform. Our project's P
 
 In the ML world, the Pickle library and its format have become a de facto standard. However, it comes with certain side effects, such as the risk of malicious code execution, because it allows calling functions during the serialization/deserialization process. Alternatives like [Safetensors](https://github.com/huggingface/safetensors) provide a more secure approach to accomplishing these tasks.
 
-The original LLaMa model weight files were saved via Pytorch in Pickle format. You can find these weights in different file formats on the Internet, but we will continue with the original files distributed by Meta.
+The original Llama model weight files were saved via Pytorch in Pickle format. You can find these weights in different file formats on the Internet, but we will continue with the original files distributed by Meta.
 
 Torch model file reader functionality was separated into two packages: [pickle](../src/pickle) and [torch](../src/torch).
 
-* The [pickle](../src/pickle) package contains functions and structures for reading a generic Pickle (.pkl) file. It's important to note that our ported version supports only a limited count of Pickle opcodes necessary for loading specific LLaMa model.
+* The [pickle](../src/pickle) package contains functions and structures for reading a generic Pickle (.pkl) file. It's important to note that our ported version supports only a limited count of Pickle opcodes necessary for loading specific Llama model.
 * The [torch](../src/torch) package contains functions and structures specialized for Pytorch model files. The Pickle format comes with an elastic structure that allows us to extend it with customized functionalities. ```pickle``` package functions will call/use our customized functions/structures defined in ```torch``` if it reads an ```opcode``` that requires to do, in the file.
 
 Our steps:
@@ -175,7 +176,7 @@ Pickle format consists of pairs of opcode and data bytes. Each pair starts with 
 
 Each supported Pickle "opcode" should be defined as a byte constant and have a corresponding dispatcher (reader) function in our ```dispatcher``` map.
 
-In our project, our goal is to exclusively read LLaMa 2 7B/7B-chat model files. As a result, we have defined and implemented only the necessary opcodes and corresponding functions required for successfully reading this specific model file.
+In our project, our goal is to exclusively read Llama 3.1 8B/8B-Instruct model files. As a result, we have defined and implemented only the necessary opcodes and corresponding functions required for successfully reading this specific model file.
 
 After defining supported opcode byte constants and reader functions, we need to register them into ```dispatcher``` map via ```init()``` function.
 
@@ -305,7 +306,7 @@ In view of this succinct information, we can understand following simple flow. T
 
 >**Note: If you're curious about the details of how the Pickle file structure can be read, please refer to:** [3. LOADING TORCH MODEL \(DETAILS\)](../docs/03-LOADING-TORCH-MODEL-DETAILS.md)
 
-<sup>from [src/torch/torchmodelreader.go](../src/pickle/picklereader.go)</sup>
+<sup>from [src/pickle/picklereader.go](../src/pickle/picklereader.go)</sup>
 
 ```go
 func (pr *PickleReader) Load() (*PickleDict[interface{}], error) {
@@ -339,11 +340,11 @@ model.keys:
 model.items: 
 "layers.0.attention.wo.weight": interface {}(*github.com/adalkiran/llama-nuts-and-bolts/src/ml.Tensor {Size: []int len: 2, cap: 2, [4096,4096],...
 
-"layers.7.feed_forward.w2.weight": interface {}(*github.com/adalkiran/llama-nuts-and-bolts/src/ml.Tensor) *{Size: []int len: 2, cap: 2, [4096,11008],...
+"layers.7.feed_forward.w2.weight": interface {}(*github.com/adalkiran/llama-nuts-and-bolts/src/ml.Tensor) *{Size: []int len: 2, cap: 2, [4096,14336],...
 
 "layers.31.attention.wq.weight": interface {}(*github.com/adalkiran/llama-nuts-and-bolts/src/ml.Tensor) *{Size: []int len: 2, cap: 2, [4096,4096],...
 
-"layers.1.feed_forward.w1.weight": interface {}(*github.com/adalkiran/llama-nuts-and-bolts/src/ml.Tensor) *{Size: []int len: 2, cap: 2, [11008,4096],...
+"layers.1.feed_forward.w1.weight": interface {}(*github.com/adalkiran/llama-nuts-and-bolts/src/ml.Tensor) *{Size: []int len: 2, cap: 2, [14336,4096],...
 ...
 ```
 
@@ -406,8 +407,8 @@ Now,
 And we can see output lines in the console as follows:
 
 ```sh
-[INFO] ... Loading model file: "/workspace/models-original/7B-chat/consolidated.00.pth"...
-[INFO] ... Found 292 tensors in the model.
+[INFO] ... Loading model file: "/workspace/models-original/Meta-Llama-3.1-8B-Instruct/consolidated.00.pth"...
+[INFO] ... Found 291 tensors in the model.
 ```
 
 <br>

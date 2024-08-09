@@ -2,7 +2,7 @@
 
 In computing, computers commonly process the information *digitally* as *bit*s. Then, *bit*s come together to form *byte*s, and *byte*s create various data types. Most of these types are different ways to represent a number, think of, *character*s in a *string* are represented with numbers, behind the curtains.
 
-In our project, normal Unicode text characters are supported built-in via Go language platform. But, LLaMa models have an capability to generate *emoji*s as *sequence of byte tokens*. In this case, the built-in support might not be enough.
+In our project, normal Unicode text characters are supported built-in via Go language platform. But, Llama models have an capability to generate *emoji*s as *sequence of byte tokens*. In this case, the built-in support might not be enough.
 
 Also, this project supports to be compiled for and run on multiple operating systems such as Windows, Linux, and, MacOS. The application provides a CLI (command line interface). At this point, the Linux and MacOS terminals have Unicode emoji rendering capabilities. But in Windows, some terminals can't render completely, some can render partially.
 
@@ -67,13 +67,13 @@ As you can see in ```TestSimulatedEmojiOutputMultipleCompositeEmojis``` unit tes
 | |  👨‍👩‍👧 <br> = <br> 👨 + `:ZWJ:` + 👩 + `:ZWJ:` + 👧 | `:family_man_woman_girl:`<br>=<br>`:man: + :ZWJ: + :woman: + :ZWJ: + :girl:`   | `\U0001F468` + `\U0000200D` + `\U0001F469` + `\U0000200D` + `\U0001F467`  | (0xF0 0x9F 0x91 0xA8), (0xE2 0x80 0x8D), (0xF0 0x9F 0x91 0xA9), (0xE2 0x80 0x8D), (0xF0 0x9F 0x91 0xA7) |
 | [iEmoji Link](https://www.iemoji.com/view/emoji/1715/smileys-people/family-man-woman-girl-boy) |  👨‍👩‍👧‍👦 <br> = <br> 👨 + `:ZWJ:` + 👩 + `:ZWJ:` + 👧 + `:ZWJ:` + 👦  | `:family_man_woman_girl_boy:`<br>=<br>`:man: + :ZWJ: + :woman: + :ZWJ: + :girl: + :ZWJ: + :boy:`   | `\U0001F468` + `\U0000200D` + `\U0001F469` + `\U0000200D` + `\U0001F467` + `\U0000200D` + `\U0001F466`  | (0xF0 0x9F 0x91 0xA8), (0xE2 0x80 0x8D), (0xF0 0x9F 0x91 0xA9), (0xE2 0x80 0x8D), (0xF0 0x9F 0x91 0xA7), (0xE2 0x80 0x8D), (0xF0 0x9F 0x91 0xA6) |
 
-### **17.3.2. LLaMa Emoji Generation**
+### **17.3.2. Llama Emoji Generation**
 
-Large Language Models like LLaMa and most of other NLP (natural language processing) systems use tokenization to represent words or word partitions. So, the generative ones generate new tokens. However, their tokenizers have a limited number of items in their vocabulary. Mostly these vocabularies don't include emojis.
+Large Language Models like Llama and most of other NLP (natural language processing) systems use tokenization to represent words or word partitions. So, the generative ones generate new tokens. However, their tokenizers have a limited number of items in their vocabulary. Mostly these vocabularies don't include emojis.
 
-LLaMa's tokenizer model supports emojis employing byte type tokens. For e.g., if the LLaMa model wants to generate the "👨" (:man:) emoji, it generates this emoji byte-by-byte.
+Llama's tokenizer model supports emojis employing byte type tokens. For e.g., if the Llama model wants to generate the "👨" (:man:) emoji, it generates this emoji byte-by-byte.
 
-In our example, the "👨" (:man:) emoji is encoded in UTF-8 encoding with 4 bytes: 0xF0, 0x9F, 0x91, 0xA8. The LLaMa model generates "<0xF0>" byte token at first, then generates "<0x9F>", "<0x91>", and "<0xA8>" respectively. After generation of each byte token, our project's [InferenceEngine.TokenToString(...)](../src/inference/tokenize.go) method checks if enough byte tokens are generated for representing an emoji, via ```utf8.Valid(...)``` as follows.
+In our example, the "👨" (:man:) emoji is encoded in UTF-8 encoding with 4 bytes: 0xF0, 0x9F, 0x91, 0xA8. The Llama model generates "<0xF0>" byte token at first, then generates "<0x9F>", "<0x91>", and "<0xA8>" respectively. After generation of each byte token, our project's [InferenceEngine.TokenToString(...)](../src/inference/tokenize.go) method checks if enough byte tokens are generated for representing an emoji, via ```utf8.Valid(...)``` as follows.
 
 If the generated new token is a byte type token, it is added into ```decodingContext.waitingBytes``` array.
 
@@ -86,26 +86,24 @@ This detection process seems simple at first sight, but emojis consisting of mul
 <sup>from [src/inference/tokenize.go](../src/inference/tokenize.go)</sup>
 
 ```go
-func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, decodingContext *generationDecodingContext) (token sentencepiece.SentencePiece, resultString string, addedToWaiting bool) {
+func (ie *InferenceEngine) TokenToString(tokenId model.TokenId, decodingContext *generationDecodingContext) (token model.TokenPiece, resultString string, addedToWaiting bool) {
     ...
-    switch token.PieceType {
-    ...
-    case sentencepiece.BYTE:
-        if decodingContext.waitingBytes == nil {
-            decodingContext.waitingBytes = make([]byte, 0)
-        }
-        decodingContext.waitingBytes = append(decodingContext.waitingBytes, token.ByteFallback)
-        if utf8.Valid(decodingContext.waitingBytes) {
-            r, rsize := utf8.DecodeRune(decodingContext.waitingBytes)
-            decodingContext.waitingBytes = decodingContext.waitingBytes[rsize:]
-            resultString += processEmoji(decodingContext, r, rsize)
-        } else {
-            addedToWaiting = true
-        }
-        return
-    ...
+	if token.IsByte {
+		if decodingContext.waitingBytes == nil {
+			decodingContext.waitingBytes = make([]byte, 0)
+		}
+		decodingContext.waitingBytes = append(decodingContext.waitingBytes, token.ByteFallback...)
+		if utf8.Valid(decodingContext.waitingBytes) {
+			r, rsize := utf8.DecodeRune(decodingContext.waitingBytes)
+			decodingContext.waitingBytes = decodingContext.waitingBytes[rsize:]
+			resultString += processEmoji(decodingContext, r)
+		} else {
+			addedToWaiting = true
+		}
+		return
+	} else {
+        ...
     }
-    ...
 }
 ```
 

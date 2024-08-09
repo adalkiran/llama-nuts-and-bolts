@@ -1,7 +1,7 @@
-site_name: LLaMA Nuts and Bolts
+site_name: Llama Nuts and Bolts
 site_url: https://adalkiran.github.io/llama-nuts-and-bolts/
 site_author: Adil Alper DALKIRAN
-site_description: A holistic way of understanding how LLaMA and its components run in practice, with code and detailed documentation.
+site_description: A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation.
 copyright: Copyright &copy; 2024 - present, Adil Alper DALKIRAN. All rights reserved.
 repo_url: https://github.com/adalkiran/llama-nuts-and-bolts
 repo_name: adalkiran/llama-nuts-and-bolts
@@ -46,7 +46,7 @@ extra_css:
   - stylesheets/custom.css
 
 nav:
-  - LLaMA Nuts and Bolts:
+  - Llama Nuts and Bolts:
 {{navigation_placeholder}}
   - 'WebRTC Nuts and Bolts': '../webrtc-nuts-and-bolts'
   - 'Contact': 'https://www.linkedin.com/in/alper-dalkiran/'

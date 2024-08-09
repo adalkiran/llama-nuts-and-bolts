@@ -235,7 +235,7 @@ pr.stack: {
     StorageKind{ml.DT_BF16},
     "0",
     "cpu",
-    131072000
+    525336576
 }
 pr.metastack: {
     {
@@ -274,7 +274,7 @@ pr.stack: {
         StorageKind{ml.DT_BF16},
         "0",
         "cpu",
-        131072000
+        525336576
     }
 }
 pr.metastack: {
@@ -308,7 +308,7 @@ pr.stack: {
         StorageKind{ml.DT_BF16},
         "0",
         "cpu",
-        131072000
+        525336576
     }
 }
 pr.metastack: {
@@ -333,21 +333,21 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         }
 }
 ```
 
 * Read key byte: 0x51, char: 'Q', corresponding opcode: BINPERSID, function: load_binpersid
-    * Pop last item from ```pr.stack```, result is an array: ```{"storage", StorageKind{ml.DT_BF16}, "0", "cpu", 131072000}```. Identifies "pid" argument for ```pr.persistentLoad(...)``` function
+    * Pop last item from ```pr.stack```, result is an array: ```{"storage", StorageKind{ml.DT_BF16}, "0", "cpu", 525336576}```. Identifies "pid" argument for ```pr.persistentLoad(...)``` function
     * ```pr.persistentLoad(...)``` function calls ```pr.PersistentLoadFn(...)``` custom function with "pid" array argument
     * ```TorchModelReader.persistentLoad(...)``` function is called with "pid" array argument
-        * This function parses the pid array ```{"storage", StorageKind{ml.DT_BF16}, "0", "cpu", 131072000}```
+        * This function parses the pid array ```{"storage", StorageKind{ml.DT_BF16}, "0", "cpu", 525336576}```
             * pid[0] = "storage", it must be
             * pid[1] = StorageKind{ml.DT_BF16}, data type kind of defined storage
             * pid[2] = "0", filenameStem, filename is defined as: "consolidated/data/0"
             * pid[3] = "cpu", identifies the tensor device, we don't use this data
-            * pid[4] = 131072000, identifies element count of the tensor contained by "consolidated/data/0" file
+            * pid[4] = 525336576, identifies element count of the tensor contained by "consolidated/data/0" file
         * Find "consolidated/data/0" file entry in the ZIP file, get its storage offset, 34304 (starting location of the tensor bytes)
         * Create a TorchStorage object with given data type and storage offset
         * Calculate byte locations (starting location, end location) with given storage offfset and given element count
@@ -385,7 +385,7 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         }
 }
 ```
@@ -430,14 +430,14 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         }
 }
 ```
 
 * Read key byte: 0x4d, char: 'M', corresponding opcode: BININT2, function: load_binint2
     * Push 2-byte unsigned int
-    * Read 2 bytes: [0x00, 0x7D], convert it to uint16 as little-endian: 32000 (decimal).
+    * Read 2 bytes: [0x00, 0x7D], convert it to uint16 as little-endian: 128256 (decimal).
     * Push it into the ```pr.stack```
 
 ```yaml
@@ -448,7 +448,7 @@ pr.stack: {
         storageOffset: 34304
     },
     0,
-    32000
+    128256
 }
 pr.metastack: {
     {
@@ -472,7 +472,7 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         }
 }
 ```
@@ -490,7 +490,7 @@ pr.stack: {
         storageOffset: 34304
     },
     0,
-    32000,
+    128256,
     4096,
 }
 pr.metastack: {
@@ -515,7 +515,7 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         }
 }
 ```
@@ -532,7 +532,7 @@ pr.stack: {
         storageOffset: 34304
     },
     0,
-    {32000, 4096},
+    {128256, 4096},
     {4096, 1},
     false,
 }
@@ -558,7 +558,7 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         }
 }
 ```
@@ -577,7 +577,7 @@ pr.stack: {
         storageOffset: 34304
     },
     0,
-    {32000, 4096},
+    {128256, 4096},
     {4096, 1},
     false,
     pickle.NewPickleDict[interface {}]()
@@ -604,7 +604,7 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         }
 }
 ```
@@ -621,7 +621,7 @@ pr.stack: {
         storageOffset: 34304
     },
     0,
-    {32000, 4096},
+    {128256, 4096},
     {4096, 1},
     false,
     pickle.NewPickleDict[interface {}](),
@@ -649,9 +649,9 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         },
-    8: {32000, 4096},
+    8: {128256, 4096},
     9: {4096, 1},
     10: pickle.NewPickleDict[interface {}]()
 }
@@ -673,7 +673,7 @@ pr.stack: {
         storageOffset: 34304
     },
     0,
-    {32000, 4096},
+    {128256, 4096},
     {4096, 1},
     false,
     PickleDict{}
@@ -700,9 +700,9 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         },
-    8: {32000, 4096},
+    8: {128256, 4096},
     9: {4096, 1},
     10: pickle.NewPickleDict[interface {}]()
 }
@@ -723,7 +723,7 @@ pr.stack: {
             storageOffset: 34304
         },
         0,
-        {32000, 4096},
+        {128256, 4096},
         {4096, 1},
         false,
         PickleDict{}
@@ -747,9 +747,9 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         },
-    8: {32000, 4096},
+    8: {128256, 4096},
     9: {4096, 1},
     10: pickle.NewPickleDict[interface {}]()
 }
@@ -761,16 +761,16 @@ memo: {
 
 * Read key byte: 0x52, char: 'R', corresponding opcode: REDUCE, function: load_reduce
     * Apply callable to argtuple, both on stack
-    * Pop last item from ```pr.stack```, result is an array array, identifies rawArgsArr array will be passed to upcoming function, result array: ```{torch.TorchStorage {...}, 0, {32000, 4096}, {4096, 1}, false, PickleDict{}}```
+    * Pop last item from ```pr.stack```, result is an array array, identifies rawArgsArr array will be passed to upcoming function, result array: ```{torch.TorchStorage {...}, 0, {128256, 4096}, {4096, 1}, false, PickleDict{}}```
     * Take the last item in the ```pr.stack``` (this time we don't remove with pop)
     * Taken item is our function: ```torch.rebuild_tensor_v2(...)```
     * Convert ```rawArgsArr``` items to expected data types of reflected function object
-    * Call the ```torch.rebuild_tensor_v2(...)``` with passing converted arguments, then replace the last item in the ```pr.stack``` with the function's result: a [ml.Tensor](../src/ml/tensor.go) object with Size=```[32000,4096]```, Stride=```[4096,1]```, DataType=```ml.DT_BF16```, RawData=```(memory mapped []byte)```
+    * Call the ```torch.rebuild_tensor_v2(...)``` with passing converted arguments, then replace the last item in the ```pr.stack``` with the function's result: a [ml.Tensor](../src/ml/tensor.go) object with Size=```[128256,4096]```, Stride=```[4096,1]```, DataType=```ml.DT_BF16```, RawData=```(memory mapped []byte)```
 
 ```yaml
 pr.stack: {
     "tok_embeddings.weight"
-    ml.Tensor{Size=[32000,4096], ...}
+    ml.Tensor{Size=[128256,4096], ...}
 }
 pr.metastack: {
     {
@@ -790,9 +790,9 @@ memo: {
             StorageKind{ml.DT_BF16},
             "0",
             "cpu",
-            131072000
+            525336576
         },
-    8: {32000, 4096},
+    8: {128256, 4096},
     9: {4096, 1},
     10: pickle.NewPickleDict[interface {}](),
     11: PickleDict{}
@@ -802,12 +802,12 @@ memo: {
 ..... Now,<br>
 
 * The first item of our ```pr.stack``` is ```"tok_embeddings.weight"``` (the name of the tensor)
-* The second item of our  ```pr.stack``` is ```ml.Tensor{Size=[32000,4096], ...}``` (the tensor itself)
+* The second item of our  ```pr.stack``` is ```ml.Tensor{Size=[128256,4096], ...}``` (the tensor itself)
 * In the next steps, this flow will be recurred for other tensors.
 
 ## **3.7. Completion of Reading All Tensors**
 
->Now, we have all of 292 tensors with names in our ```pr.stack```. A healthy Pickle file ends with a [StopSignal](../src/pickle/types.go) instruction.
+>Now, we have all of 291 tensors with names in our ```pr.stack```. A healthy Pickle file ends with a [StopSignal](../src/pickle/types.go) instruction.
 
 ..... Some steps were taken
 
@@ -816,11 +816,11 @@ memo: {
 ```yaml
 pr.stack: {
     PickleDict {
-        a PickleDict (map) of 292 tensor names and corresponding ml.Tensor objects
+        a PickleDict (map) of 291 tensor names and corresponding ml.Tensor objects
     }
 }
 pr.metastack: {}
-memo: {an array of 2342 items}
+memo: {an array of 2334 items}
 ```
 
 * Read key byte: 0x2e, char: '.', corresponding opcode: STOP, function: load_stop

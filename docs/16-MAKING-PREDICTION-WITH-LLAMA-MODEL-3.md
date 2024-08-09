@@ -9,7 +9,7 @@ Now, we have the ```currentTensor```, which is the resulting tensor after runnin
 
 ## **16.1. Performing Forward Pass Through Output Prenormalization - RMSNorm.Forward(...)**
 
-The LLaMa 2 models use [Pre-RMSNorm (Root Mean Square Layer Normalization)](https://paperswithcode.com/method/rmsnorm). Because of we perform Root Mean Square Layer Normalization before performing multiplication of current tensor with normalization weights tensor, we call this normalization stage as "pre-normalization".
+The Llama 3.1 models use [Pre-RMSNorm (Root Mean Square Layer Normalization)](https://paperswithcode.com/method/rmsnorm). Because of we perform Root Mean Square Layer Normalization before performing multiplication of current tensor with normalization weights tensor, we call this normalization stage as "pre-normalization".
 
 >In [this source](https://paperswithcode.com/method/rmsnorm), it writes:<br>
 > RMSNorm regularizes the summed inputs to a neuron in one layer according to root mean square (RMS), giving the model re-scaling invariance property and implicit learning rate adaptation ability. RMSNorm is computationally simpler and thus more efficient than LayerNorm.
@@ -30,7 +30,7 @@ func (lt *LlamaTransformer) Forward(infContext *InferenceContext, inputTokens *m
 We can see output lines in the "debug.log" file if debugging is enabled, as follows:
 
 ```sh
-[DEBUG] ... Calling RMSNorm for currentTensor shape([32 4096]) (result of all transformer blocks) and LlamaTransformer.output_norm weights shape([4096]) -> tensor currentTensor ...
+[DEBUG] ... Calling RMSNorm for currentTensor shape([22 4096]) (result of all transformer blocks) and LlamaTransformer.output_norm weights shape([4096]) -> tensor currentTensor ...
 ```
 
 In [RMSNorm.Forward(...)](../src/model/llamatransformer.go) method, we call the ```RMSNorm.doNormalization(...)``` method, then perform an element-wise multiplication with ```LlamaTransformer.output_norm``` normalization weights tensor via [ml.MultiplyElementwise](../src/ml/operations_impl.go).
@@ -49,13 +49,13 @@ func (rms *RMSNorm) Forward(infContext *InferenceContext, x *ml.Tensor) (*ml.Ten
 
 The ```RMSNorm.doNormalization(...)``` method consists of multiple steps:
 
-* Take ```currentTensor``` which is the resulting tensor after running all 32 transformer block layers as input ```x``` tensor with shape of ```{32, 4096}```,
+* Take ```currentTensor``` which is the resulting tensor after running all 32 transformer block layers as input ```x``` tensor with shape of ```{22, 4096}```,
 * Calculate square of each item in the ```x``` tensor via ```h, err = ml.Pow(x, 2)``` and assign it to ```h``` tensor,
-* Calculate mean values of <u>last dimension</u>, <u>without removing the last dimension</u>: input shape was ```{32, 4096}```, output shape is ```{32, 1}```,
+* Calculate mean values of <u>last dimension</u>, <u>without removing the last dimension</u>: input shape was ```{22, 4096}```, output shape is ```{22, 1}```,
   >For further information, check out: [torch.mean](https://pytorch.org/docs/stable/generated/torch.mean.html) documentation.
-* Add scalar value of ```0.000001``` at [RMSNorm.epsilon](../src/model/llamatransformer.go) to each item in the ```h``` tensor via [ml.AddScalar](../src/ml/operations_impl.go). Because we have ```model.ModelArgs.NormEpsilon = 1e-06``` as read from "params.json" configuration file. Output shape is ```{32, 1}```,
+* Add scalar value of ```0.00001``` at [RMSNorm.epsilon](../src/model/llamatransformer.go) to each item in the ```h``` tensor via [ml.AddScalar](../src/ml/operations_impl.go). Because we have ```model.ModelArgs.NormEpsilon = 1e-05``` as read from "params.json" configuration file. Output shape is ```{22, 1}```,
   >The model configuration file "params.json" is parsed as [ModelArgs](../src/model/modelargs.go) object via JSON parser.
-* Calculate reciprocal of the square-root of each item in the ```h``` tensor via [ml.RSqrt](../src/ml/operations_impl.go). Output shape is ```{32, 1}```,
+* Calculate reciprocal of the square-root of each item in the ```h``` tensor via [ml.RSqrt](../src/ml/operations_impl.go). Output shape is ```{22, 1}```,
   >For further information, check out: [torch.rsqrt](https://pytorch.org/docs/stable/generated/torch.rsqrt.html) documentation.<br>
   > The formula is:<br>
 
@@ -63,11 +63,11 @@ $$
 out_i = \frac{1}{\sqrt{input_i}}
 $$
 
-* Perform an element-wise multiplication with ```x``` input tensor with shape of ```{32, 4096}``` and ```h``` normalization tensor with shape of ```{32, 1}``` via [ml.MultiplyElementwise](../src/ml/operations_impl.go). Output shape is ```{32, 4096}```,
+* Perform an element-wise multiplication with ```x``` input tensor with shape of ```{22, 4096}``` and ```h``` normalization tensor with shape of ```{22, 1}``` via [ml.MultiplyElementwise](../src/ml/operations_impl.go). Output shape is ```{22, 4096}```,
 
-Now, in ```RMSNorm.Forward(...)``` method, we have the ```h``` tensor with shape of ```{32, 4096}``` and ```RMSNorm.weights``` nromalization weights tensor with shape of ```{4096}```.
+Now, in ```RMSNorm.Forward(...)``` method, we have the ```h``` tensor with shape of ```{22, 4096}``` and ```RMSNorm.weights``` nromalization weights tensor with shape of ```{4096}```.
 
-Then, we perform an element-wise multiplication with the ```h``` tensor with shape of ```{32, 4096}``` and ```RMSNorm.weights``` nromalization weights tensor with shape of ```{4096}```. Output shape is ```{32, 4096}```.
+Then, we perform an element-wise multiplication with the ```h``` tensor with shape of ```{22, 4096}``` and ```RMSNorm.weights``` nromalization weights tensor with shape of ```{4096}```. Output shape is ```{22, 4096}```.
 
 <sup>from [src/model/llamatransformer.go](../src/model/llamatransformer.go)</sup>
 
@@ -94,7 +94,7 @@ func (rms *RMSNorm) doNormalization(x *ml.Tensor) (*ml.Tensor, error) {
 }
 ```
 
-Now, In [LlamaTransformer.Forward(...)](../src/model/llamatransformer.go) method, we have the pre-normalized via RMSNorm tensor ```currentTensor``` with shape of ```{32, 4096}```.
+Now, In [LlamaTransformer.Forward(...)](../src/model/llamatransformer.go) method, we have the pre-normalized via RMSNorm tensor ```currentTensor``` with shape of ```{22, 4096}```.
 
 Sources:
 
@@ -104,9 +104,9 @@ Sources:
 
 We've done pre-normalization over the ```currentTensor```.
 
-We have the output weights tensor at ```lt.output``` already loaded to ```LlamaTransformer``` struct. In our case, shape of our output weights layer is ```{32000, 4096}```.
+We have the output weights tensor at ```lt.output``` already loaded to ```LlamaTransformer``` struct. In our case, shape of our output weights layer is ```{128256, 4096}```.
 
- Now we do matrix multiplication over ```currentTensor``` with shape of ```{32, 4096}``` and transpose of ```lt.output``` with shape of ```{32000, 4096}``` via [ml.LinearTransformation](../src/ml/operations_impl.go). Output shape is ```{32, 32000}```.
+ Now we do matrix multiplication over ```currentTensor``` with shape of ```{22, 4096}``` and transpose of ```lt.output``` with shape of ```{128256, 4096}``` via [ml.LinearTransformation](../src/ml/operations_impl.go). Output shape is ```{22, 128256}```.
 
  >In our project, we have implemented two separate functions to perform matrix multiplication, because one is for direct matrix multiplication, other is for matrix multiplication with transpose of second argument (generally, a weights tensor). We've defined the first one as [ml.MatMul(...)](../src/ml/operations_impl.go) and the second one as [ml.LinearTransformation(...)](../src/ml/operations_impl.go).
 
@@ -124,12 +124,12 @@ func (lt *LlamaTransformer) Forward(infContext *InferenceContext, inputTokens *m
 We can see output lines in the "debug.log" file if debugging is enabled, as follows:
 
 ```sh
-[DEBUG] ... Calling ml.LinearTransformation for currentTensor (normalized result of all transformer blocks) shape([32 4096]) and LlamaTransformer.output weights shape([32000 4096]) -> tensor output ...
+[DEBUG] ... Calling ml.LinearTransformation for currentTensor (normalized result of all transformer blocks) shape([22 4096]) and LlamaTransformer.output weights shape([128256 4096]) -> tensor output ...
 ```
 
-## **14.3. Converting the Output Tensor to Float32 Tensor and Returning It**
+## **16.3. Converting the Output Tensor to Float32 Tensor and Returning It**
 
-Now, we have the ```output``` tensor that contains probabilities of each alternative token in our vocabulary. In our case, at the first iteration, the shape of this tensor is ```{32, 32000}```. 32 stands for sequence length, 32,000 stands for the vocabulary size. This output tensor contains our ```logits```,  we perform the [Argmax](https://en.wikipedia.org/wiki/Arg_max) operation over this logits tensor. But here, we just convert our tensor items to float32, to make performing argmax easy via [Tensor.ToFloat32(...)](../src/ml/tensor.go) method.
+Now, we have the ```output``` tensor that contains probabilities of each alternative token in our vocabulary. In our case, at the first iteration, the shape of this tensor is ```{22, 128256}```. 22 stands for sequence length, 128,256 stands for the vocabulary size. This output tensor contains our ```logits```,  we perform the [Argmax](https://en.wikipedia.org/wiki/Arg_max) operation over this logits tensor. But here, we just convert our tensor items to float32, to make performing argmax easy via [Tensor.ToFloat32(...)](../src/ml/tensor.go) method.
 
 How this ```output``` tensor is used was described in the chapter **"13.5.2. Looping through sequence length"** at [13. GENERATING NEXT TOKENS](./13-GENERATING-NEXT-TOKENS.md).
 
@@ -150,8 +150,8 @@ func (lt *LlamaTransformer) Forward(infContext *InferenceContext, inputTokens *m
 We can see output lines in the "debug.log" file if debugging is enabled, as follows:
 
 ```sh
-[DEBUG] ... Converting output tensor shape([32 32000]) to Float32 tensor -> tensor output ...
-[DEBUG] ... Returning tensor output: shape([32 32000]) ...
+[DEBUG] ... Converting output tensor shape([22 128256]) to Float32 tensor -> tensor output ...
+[DEBUG] ... Returning tensor output: shape([22 128256]) ...
 ```
 
 With this step, we have finished all of the steps of ```LlamaTransformer.Forward(...)``` method and made prediction of the next token with probabilities. The journey continues in the loop at the chapter **"13.5.2. Looping through sequence length"** at [13. GENERATING NEXT TOKENS](./13-GENERATING-NEXT-TOKENS.md).

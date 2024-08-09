@@ -1,8 +1,148 @@
-# **6. LOADING TOKENIZER MODEL (DETAILS)**
+# **6. OBSOLETE - LOADING LLAMA 2 TOKENIZER MODEL**
 
-In this chapter, we'll walk through the process of reading some pieces (vocabulary token) stored in the "tokenizer.model" file, step by step.
+## **Being Obsolete Note:**
+
+### The contents of this chapter are about the older tokenizer ([SentencePiece (SPM) model](https://github.com/google/sentencepiece)) used by Llama 1 and Llama 2 models. We haven't preferred to remove this chapter completely, because it contains comprehensive information about [SentencePiece (SPM) model](https://github.com/google/sentencepiece) and [Protocol Buffers](https://protobuf.dev/).
+
+**Ways to go:**
+<br>
+
+* If you only want to learn about things used in the latest Llama version (3.1), please continue with the next chapter: [BFLOAT16 DATA TYPE](./07-BFLOAT16-DATA-TYPE.md)
+
+<br>
+
+* Otherwise, if you are curious about different things used by older Llama versions, even if they aren't no longer used by Llama 3.1 anymore, please continue reading this chapter.
+
+<br>
+
+
+---
+---
+
+Obsolete Llama 2 content starts
+
+---
+---
+
+<br>
+
+
+## **6.0. The tokenizer model used by Llama 2 version**
+
+In this chapter, we'll walk through the process of loading tokenizer (vocabulary) model stored in the "tokenizer.model" file.
+
+In our case, Llama 2's tokenizer file *tokenizer.model* stores a [SentencePiece (SPM)](https://github.com/google/sentencepiece) tokenizer model in Protobuf message format.<br>
+Protobuf operates by adhering to a descriptor, which serves as a blueprint or schema defining the structure and data types within a serialized message. This descriptor defines message structures and guides the serializer and deserializer.
+
+>See: [Protocol Buffers](https://protobuf.dev/) | [Protobuf definition best practices](https://medium.com/@akhaku/protobuf-definition-best-practices-87f281576f31) | [Protocol Buffers (ProtoBuf) with GoLang](https://medium.com/trendyol-tech/protocol-buffers-protobuf-with-golang-41d0d332745d) | [Protocol Buffer Basics: Go](https://protobuf.dev/getting-started/gotutorial) |  [Protocol Buffer Encoding](https://protobuf.dev/programming-guides/encoding)
+
+The descriptor for deserializing our SentencePiece model file is [this Protobuf structure](https://github.com/google/sentencepiece/blob/022f8c3fed4d2feb4e4c670949cf01cef477dcc4/src/sentencepiece_model.proto), we have defined it in Go language as ```modelprotoDescriptor``` variable, in [llama2/src/sentencepiece/model.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/sentencepiece/model.go). This ```modelprotoDescriptor``` definition style is specific for our code infrastructure.
+
+Although there are lots of libraries to implement this messaging format, in this project, we implement it from scratch ourselves as we always do in the "nuts and bolts" mindset.
+
+### **6.0.1. Calling loadVocab() and Creating ProtobufReader**
+
+[loadVocab()](../src/model/loader.go) is called if ```includeVocab``` is true.
+
+<sup>from [llama2/src/model/loader.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/model/loader.go)</sup>
+
+```go
+func LoadModelEx(modelDir string, includeTensors bool, includeVocab bool) (*Model, error) {
+    model := &Model{}
+    ...
+    if includeVocab {
+        err := loadVocab(modelDir, model)
+        if err != nil {
+            return nil, err
+        }
+    }
+    ...
+}
+
+func loadVocab(modelDir string, model *Model) error {
+    vocabFilePath := filepath.Join(modelDir, "tokenizer.model")
+    common.GLogger.ConsolePrintf("Loading vocabulary/tokens file: \"%s\"...", vocabFilePath)
+    vocabModelProto, err := sentencepiece.Load(vocabFilePath)
+    if err != nil {
+        return err
+    }
+    model.Vocabulary = NewVocabulary(vocabModelProto)
+    common.GLogger.ConsolePrintf("Found %d tokens in the model.", len(model.Vocabulary.IdToToken))
+    return nil
+}
+```
+
+In ```SentencePiece.Load(...)``` function, we get a file instance by opening specified file. Then, we call ```protobuf.NewProtobufReader(...)``` function by providing the file instance along with ```modelprotoDescriptor``` variable defined in [llama2/src/sentencepiece/model.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/sentencepiece/model.go)
+
+<sup>from [llama2/src/sentencepiece/sentencepiecereader.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/sentencepiece/sentencepiecereader.go)</sup>
+
+```go
+func Load(vocabFilePath string) (*ModelProto, error) {
+    vocabFile, err := os.Open(vocabFilePath)
+    if err != nil {
+        return nil, err
+    }
+    defer vocabFile.Close()
+
+    vocabReader := protobuf.NewProtobufReader(vocabFile, modelprotoDescriptor)
+    ...
+}
+```
+
+### **6.0.2. Calling ProtobufReader.Unmarshal()**
+
+When we call ```vocabReader.Unmarshal()```, it reads the given "tokenizer.model" file in guidance and help of the given ```modelprotoDescriptor```. At the end of this process, as ```modelprotoDescriptor``` helps, it returns a [ModelProto](../src/sentencepiece/model.go) object that contains Pieces (token definitions) and other specifications of the tokenizer model.
+
+>**Note: If you're curious about the details of how the Protobuf file structure can be read, please refer to:** [6. LOADING TOKENIZER MODEL \(DETAILS\)](../docs/06-LOADING-TOKENIZER-MODEL-DETAILS.md)
+
+<sup>from [llama2/src/sentencepiece/sentencepiecereader.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/sentencepiece/sentencepiecereader.go)</sup>
+
+```go
+func Load(vocabFilePath string) (*ModelProto, error) {
+    ...
+    modelVal, err := vocabReader.Unmarshal()
+    if err != nil {
+        return nil, err
+    }
+    model, ok := modelVal.(*ModelProto)
+    if !ok {
+        return nil, fmt.Errorf("cannot convert %v to *ModelProto", model)
+    }
+    return &model, nil
+}
+```
+
+### **6.0.3. Returning Vocabulary Model**
+
+We get the [ModelProto](../src/sentencepiece/model.go) object as ```vocabModelProto```, then we call [NewVocabulary(...)](../src/model/vocabulary.go) function by specifying it. This function creates and returns a [Vocabulary](../src/model/vocabulary.go) object that has ```TokenToId```, ```IdToTokenId``` maps to provide two-way querying.<br>
+Then, we assign [Vocabulary](../src/model/vocabulary.go) object to ```model.Vocabulary``` property.
+
+<sup>from [llama2/src/model/loader.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/model/loader.go)</sup>
+
+```go
+func loadVocab(modelDir string, model *Model) error {
+    ...
+    vocabModelProto, err := sentencepiece.Load(vocabFilePath)
+    if err != nil {
+        return err
+    }
+    model.Vocabulary = NewVocabulary(vocabModelProto)
+    common.GLogger.ConsolePrintf("Found %d tokens in the model.", len(model.Vocabulary.IdToToken))
+    return nil
+}
+```
+
+And we can see output lines in the console as follows:
+
+```sh
+[INFO] ... Loading vocabulary/tokens file: "/workspace/models-original/7B-chat/tokenizer.model"...
+[INFO] ... Found 32000 tokens in the model.
+Model "/workspace/models-original/7B-chat" was loaded.
+```
 
 ## **6.1. Creating Main Object**
+
+Here, we'll walk through the process of reading some pieces (vocabulary token) stored in the "tokenizer.model" file, step by step.
 
 Protobuf messages may consist of multiple separated sub-messages/objects/object types, but for deserializing process, we need to have a root destination object. This is called as "main object" in our project.
 
@@ -32,7 +172,7 @@ To read the Protobuf file/stream, we have a simple flow:
 * Calls ```ProtobufReader.readField(...)``` method to read "message number" and "message data",
 * Returns successfully read [Message](../src/protobuf/protobufreader.go) object or ```ok=false```.
 
-<sup>from [src/protobuf/protobufreader.go](../src/protobuf/protobufreader.go)</sup>
+<sup>from [llama2/src/protobuf/protobufreader.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/protobuf/protobufreader.go)</sup>
 
 ```go
 func (pbr *ProtobufReader) readMessage() (message *Message, ok bool) {
@@ -57,7 +197,7 @@ func (pbr *ProtobufReader) readMessage() (message *Message, ok bool) {
 This ```number``` (int32) represents identifier number, which corresponds to key numbers in our ```MessageProcessorFns``` map in [modelprotoDescriptor](../src/sentencepiece/model.go). ```type_``` identifies the data type of current field/message data.
     >**Note that**, in this project, we only need to read Protobuf file/stream, not write, and we have implemented only required data types that used in the model file.
 
-<sup>from [src/protobuf/protobufreader.go](../src/protobuf/protobufreader.go)</sup>
+<sup>from [llama2/src/protobuf/protobufreader.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/protobuf/protobufreader.go)</sup>
 
 ```go
 func (pbr *ProtobufReader) readField(r *bufio.Reader) (number Number, result interface{}, ok bool) {
@@ -175,7 +315,7 @@ func (pbr *ProtobufReader) readField(r *bufio.Reader) (number Number, result int
 * The ```modelprotoDescriptor.MessageProcessorFns[1]``` function converts ```message.Value``` as ```props: map[protobuf.Number]interface{}```,
     * ```props[1]```: Piece (string), string value of the token,
     * ```props[2]```: Score (float32), score of the token,
-    * ```props[3]```: PieceType (Type/byte), token type of the token (can be ```sentencepiece.NORMAL```, ```sentencepiece.CONTROL```, ```sentencepiece.BYTE```, etc... constants were defined in [src/sentencepiece/model.go](../src/sentencepiece/model.go)). If not represented in props map, default is ```sentencepiece.NORMAL```,
+    * ```props[3]```: PieceType (Type/byte), token type of the token (can be ```sentencepiece.NORMAL```, ```sentencepiece.CONTROL```, ```sentencepiece.BYTE```, etc... constants were defined in [llama2/src/sentencepiece/model.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/sentencepiece/model.go)). If not represented in props map, default is ```sentencepiece.NORMAL```,
     * Then instantiates new ```sentencepiece.SentencePiece``` from ```props``` map,
     * Appends it into main object's Pieces array.
 
@@ -185,7 +325,7 @@ mainObject.Pieces: {
 }
 ```
 
-<sup>from [src/sentencepiece/model.go](../src/sentencepiece/model.go)</sup>
+<sup>from [llama2/src/sentencepiece/model.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/sentencepiece/model.go)</sup>
 
 ```go
 var modelprotoDescriptor = protobuf.ProtoDescriptor{
@@ -452,7 +592,7 @@ mainObject.Pieces: {
                 1: (string) "/large_experiments/theorem/datasets/MERGED/all.test1.merged"
                 2: (string) "spm_model_32k_200M_charcov099995_allowWSO__v2"
                 3: (int64) 2
-                4: (int64) 32000
+                4: (int64) 128256
                 6: (int64) 0
                 7: (string) "text"
                 10: (float32) 0.99995
@@ -494,7 +634,7 @@ mainObject.Pieces: {
 
 * We don't use this information, do nothing as following:
 
-<sup>from [src/sentencepiece/model.go](../src/sentencepiece/model.go)</sup>
+<sup>from [llama2/src/sentencepiece/model.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/sentencepiece/model.go)</sup>
 
 ```go
 var modelprotoDescriptor = protobuf.ProtoDescriptor{
@@ -532,7 +672,7 @@ var modelprotoDescriptor = protobuf.ProtoDescriptor{
 
 * We don't use this information, but we convert it as following:
 
-<sup>from [src/sentencepiece/model.go](../src/sentencepiece/model.go)</sup>
+<sup>from [llama2/src/sentencepiece/model.go](https://github.com/adalkiran/llama-nuts-and-bolts/blob/llama2/src/sentencepiece/model.go)</sup>
 
 ```go
 var modelprotoDescriptor = protobuf.ProtoDescriptor{

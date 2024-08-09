@@ -6,7 +6,7 @@ The entrypoint of the application is the "main" function in [cmd/main.go](../cmd
 
 At first sight, the console application doesn't need to be complicated functionality, just calls the inference engine's functions and prints the results on the screen. But in our case, we want to update the screen with various information, not only the output text.
 
-Also, sometimes (you'll see reading further) one output might not be generated at one time, the hard one, emojis are come as UTF-8 byte-by-byte, 1 byte per token, then the result will be combined as an emoji. So, we need to have a enough design that supports combine and orchestrate these operations.
+Also, sometimes (you'll see reading further) one output might not be generated at one time, the hard one, emojis are come as UTF-8 byte-by-byte, 1 byte or a few bytes per token, then the result will be combined as an emoji. So, we need to have a enough design that supports combine and orchestrate these operations.
 
 We start with defining our application state in one struct. We store such state variables in this variable.
 
@@ -52,7 +52,7 @@ See more:
     machineEndian := common.DetermineMachineEndian()
     common.GLogger.ConsolePrintf("Determined machine endianness: %s", machineEndian)
     if machineEndian != "LITTLE_ENDIAN" {
-        panic(fmt.Errorf("error: Endianness of your machine is not supported. Expected LITTLE_ENDIAN but got %s", machineEndian))
+        common.FriendlyPanic(fmt.Errorf("error: Endianness of your machine is not supported. Expected LITTLE_ENDIAN but got %s", machineEndian))
     }
 ```
 
@@ -68,9 +68,9 @@ Besides, we need to support searching for a model path near the executable path.
 <sup>from [cmd/main.go](../cmd/main.go)</sup>
 
 ```go
-    modelDir, err := searchForModelPath(modelsDirName, "7B-chat")
+    modelDir, err := searchForModelPath(modelsDirName, "Meta-Llama-3.1-8B-Instruct")
     if err != nil {
-        panic(err)
+        common.FriendlyPanic(err)
     }
 ```
 
@@ -89,7 +89,7 @@ Here, we create a context with a cancel function, so we will be able to send a "
 
 ## **1.5. Loading the Model**
 
-Finally, we can start to load our LLaMa 2 7B-chat model and tokenizer model files. For further details, continue reading [02. LOADING TORCH MODEL](./02-LOADING-TORCH-MODEL.md).
+Finally, we can start to load our Llama 3.1 8B-Instruct model and tokenizer model files. For further details, continue reading [02. LOADING TORCH MODEL](./02-LOADING-TORCH-MODEL.md).
 
 <sup>from [cmd/main.go](../cmd/main.go)</sup>
 

@@ -15,8 +15,9 @@ I want to thank to contributors of the awesome sources which were referred durin
 
 ## **Papers**
 
+* [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/)
 * [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288)
-* [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971v1)
+* [Llama: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971v1)
 * [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
 * [Grouped Multi-Query Attention](https://paperswithcode.com/method/grouped-query-attention)
 * RoFormer: Enhanced Transformer with Rotary Position Embedding: [Paper](https://arxiv.org/abs/2104.09864v5) | [Papers with Code](https://paperswithcode.com/paper/roformer-enhanced-transformer-with-rotary) | [LabML Annotated Implementation](https://nn.labml.ai/transformers/rope/index.html)
@@ -27,19 +28,19 @@ I want to thank to contributors of the awesome sources which were referred durin
 
 ### Large Language Models
 
-* [Meta LLaMa website](https://llama.meta.com/)
-* [Original LLaMa 2 Python repository of Meta](https://github.com/facebookresearch/llama/)
+* [Meta Llama website](https://llama.meta.com/)
+* [Original Llama 3.1 Python package repository of Meta](https://github.com/meta-llama/llama-models/)
+* [Original Llama Toolchain Python repository of Meta](https://github.com/meta-llama/llama-toolchain)
 * [Georgi Gerganov](https://github.com/ggerganov)'s [llama.cpp](https://github.com/ggerganov/llama.cpp)
-* [HuggingFace model: meta-llama/Llama-2-7b-hf](https://huggingface.co/meta-llama/Llama-2-7b-hf/tree/main)
+* [HuggingFace model: meta-llama/Meta-Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Meta-Llama-3.1-8B-Instruct/tree/main)
 
 ### Inspired Python Projects
 
 * [Pickle](https://github.com/python/cpython/blob/main/Lib/pickle.py)
-* [SentencePiece (SPM)](https://github.com/google/sentencepiece) and [this Protobuf structure](https://github.com/google/sentencepiece/blob/022f8c3fed4d2feb4e4c670949cf01cef477dcc4/src/sentencepiece_model.proto)
+* [Tiktoken Rust code](https://github.com/openai/tiktoken/blob/1b9faf2779855124f05174adf1383e53689ed94b/src/lib.rs)
 
 ### Inspired Go Projects
 
-* [Protocol Buffers (Protobuf)](https://protobuf.dev/) and [protobuf-go](https://github.com/protocolbuffers/protobuf-go/blob/e8baad6b6c9e2bb1c48e4963866248d4f35d4fd7/encoding/protowire/wire.go)
 * [Emoji - Go library lets you use emoji characters in strings](https://github.com/enescakir/emoji)
 
 ## **Wikipedia and Concept Definitions**
@@ -105,9 +106,6 @@ I want to thank to contributors of the awesome sources which were referred durin
 
 ### Go Language
 
-* [Protocol Buffers (ProtoBuf) with GoLang](https://medium.com/trendyol-tech/protocol-buffers-protobuf-with-golang-41d0d332745d)
-* [Protocol Buffer Basics: Go](https://protobuf.dev/getting-started/gotutorial)
-* [Protocol Buffer Encoding](https://protobuf.dev/programming-guides/encoding)
 * [Garbage Collector of Go](https://tip.golang.org/doc/gc-guide)
 * [Is it possible to inline function, containing loop in Golang?](https://stackoverflow.com/questions/45836981/is-it-possible-to-inline-function-containing-loop-in-golang)
 * [How To Use Contexts in Go](https://www.digitalocean.com/community/tutorials/how-to-use-contexts-in-go)
@@ -133,7 +131,7 @@ I want to thank to contributors of the awesome sources which were referred durin
 
 * [Youtube - Andrej Karpathy - Let's build GPT: from scratch, in code, spelled out.](https://www.youtube.com/watch?v=kCc8FmEb1nY)
 * [Youtube - Andrej Karpathy - 1hr Talk - Intro to Large Language Models](https://www.youtube.com/watch?v=zjkBMFhNj_g)
-* [Youtube - Umar Jamil - LLaMA explained: KV-Cache, Rotary Positional Embedding, RMS Norm, Grouped Query Attention, SwiGLU](https://www.youtube.com/watch?v=Mn_9W1nCFLo)
+* [Youtube - Umar Jamil - Llama explained: KV-Cache, Rotary Positional Embedding, RMS Norm, Grouped Query Attention, SwiGLU](https://www.youtube.com/watch?v=Mn_9W1nCFLo)
 * [Youtube - DeepLearning Hero - RoPE (Rotary positional embeddings) explained: The positional workhorse of modern LLMs](https://www.youtube.com/watch?v=GQPOtyITy54)
 * [Youtube - Serrano.Academy - The Attention Mechanism in Large Language Models](https://www.youtube.com/watch?v=OxCpWwDCDFQ)
 * [Youtube - Serrano.Academy - The math behind Attention: Keys, Queries, and Values matrices](https://www.youtube.com/watch?v=UPtG_38Oq8o)

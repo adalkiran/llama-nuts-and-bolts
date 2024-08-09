@@ -140,14 +140,14 @@ func NewTensor(name string, size []int, stride []int, dataType DataType, RawData
 **Example usage:**
 
 ```go
-tensorSize := []int{32000, 4096}
+tensorSize := []int{128256, 4096}
 tensorDataType := DT_BF16
 tensorByteStride := calculateByteStride(tensorSize, tensorDataType)
 ```
 
 ```tensorByteStride``` will output ```[]int{8192, 2}```.
 
-Because, think of our tensor is a matrix with *row count=32000*, *column count=4096*:
+Because, think of our tensor is a matrix with *row count=128256*, *column count=4096*:
 
 * Element index of the first element of our *Row 0* is 0. Elements are at indices between 0 and 4095. Address of it the first element is 0.
 * Element index of the first element of our *Row 1* is "column count of a row": 4096. Elements are at indices between 4096 and 8191. Address of it the first element is ```4096 * item byte size of BFloat16 = 4096 * 2 = 8192```.

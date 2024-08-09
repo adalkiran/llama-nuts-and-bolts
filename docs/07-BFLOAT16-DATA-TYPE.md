@@ -1,6 +1,6 @@
 # **7. BFLOAT16 DATA TYPE**
 
-LLaMa 2 Pytorch model file contains tensors stored as 2-byte [BFloat16 (Brain Floating Point)](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format) data type.<br>
+Llama 3.1 Pytorch model file contains tensors stored as 2-byte [BFloat16 (Brain Floating Point)](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format) data type.<br>
 The Go language doesn't have neither BFloat16 nor float16 (2-byte floating point) primitive type. Because of this, we need to implement it ourselves. Even it had support for 16-bit floating point (float16), bfloat16 has some differences from standard float16.<br>
 At first draft of this project, an 3rd party BFloat16 Go library was used, but because of performance issues, to decrease cycle count, own implementation was done.
 >Implementation can be found in [src/dtype/bfloat16.go](../src/dtype/bfloat16.go) file.
@@ -158,6 +158,6 @@ See for more information:
 
 <div align="right">
 
-[&lt;&nbsp;&nbsp;Previous chapter: LOADING TOKENIZER MODEL \(DETAILS\)](./06-LOADING-TOKENIZER-MODEL-DETAILS.md)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Next chapter: TENSOR&nbsp;&nbsp;&gt;](./08-TENSOR.md)
+[&lt;&nbsp;&nbsp;Previous chapter: OBSOLETE - LOADING LLAMA 2 TOKENIZER MODEL](./06-OBSOLETE-LOADING-LLAMA-2-TOKENIZER-MODEL.md)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Next chapter: TENSOR&nbsp;&nbsp;&gt;](./08-TENSOR.md)
 
 </div>
