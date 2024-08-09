@@ -8,7 +8,7 @@ First, we initiate the inference args, which has currently one variable ```Seque
 
 The application asks user for a prompt, with some predefined options in ```predefinedPrompts``` variable via ```askUserPromptChoice(...)``` function.
 
-If user chose an option that have ```IsChatMode=true``` defined, the application surrounds the prompt with ```B_INST``` and ```E_INST``` strings (```"[INST]"``` and ```"[/INST]"```) which means this prompt contains an *instruction*. The Llama Chat models are trained with these instruction patterns, so these models can understand that it is a chat *instruction* that must be followed.
+If user chose an option that have ```IsChatMode=true``` defined, the application surrounds the prompt with special tokens which means this prompt contains an *instruction*. The Llama Instruct/Chat models are trained with these instruction patterns, so these models can understand that it is a chat *instruction* that must be followed.
 
 Also, if ```IsChatMode=true```, this means that our prompt has a *system prompt* alongside the normal prompt, in this case, we call the normal prompt as *instruction prompt*. Briefly, a *system prompt* is the prompt part that enables us to give some directions to the model independently from the instruction, like defining who should the model act as, how an output format we want, etc... To understand more about the system prompt, you can check out the system prompt parts of our ```predefinedPrompts``` variable.
 
