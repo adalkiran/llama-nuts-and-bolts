@@ -33,7 +33,7 @@ We have several alternatives to calculate the positional embeddings. Some of the
     
     The original paper suggests using ```10000``` as base theta value, and the Llama 2 model uses this value. But newer versions of Llama (3 and higher) started to use ```500000``` as base theta value, so, we will stick to using ```500000```.
 
-    **<u>Update with Llama 3.1:</u>** The Llama 3.1 version comes with a small adjustment on frequencies. [apply_scaling(...)](https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L45) method was added into original Llama 3.1 implementation, that calculates wavelengths from these frequencies and applies some limitations on them. Implementation detail will be discussed in the following subchapters. Currently we represent this operation with $scl\left(...\right)$.
+    **<u>Update with Llama 3.1:</u>** The Llama 3.1 version comes with a small adjustment on frequencies. [apply_scaling(...)](https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L45) method was added into original Llama 3.1 implementation, that calculates wavelengths from these frequencies and applies some limitations on them. Implementation detail will be discussed in the following subchapters. Currently we represent this operation with ```scl(...)```.
 
     Our ```PE``` positional embedding array for ```3th``` position will be like:
 
@@ -563,7 +563,7 @@ After all of these processes, we will end up with a "positional encoding tensor"
 
 >Note: The $\LaTeX$ support of Github web app lacks and gives non-explanatory errors when you have more than a limit of superscipts/subscripts/fraction notations. So, it was a must to separate the biggest set notation into chunks.
 
-The operation of ```applyScaling(...)``` function is represented with $scl\left(...\right)$.
+The operation of ```applyScaling(...)``` function is represented with ```scl(...)```.
 
 $$
 PE = \left\lbrace
