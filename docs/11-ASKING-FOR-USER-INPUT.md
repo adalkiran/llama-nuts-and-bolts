@@ -16,7 +16,7 @@ Additionally, the Llama 3.1 Instruct model supports few-shot learning type promp
 
 With the ```[Text completion]``` choices, the model is used only to perform text completion task. New tokens will be generated according to the input prompt text.
 
-With the ```[Chat mode]``` choices, the application starts the prompt with ```""<|begin_of_text|>"``` string to specify "this is an instruction prompt". Also it surrounds the system prompt part with ```<|start_header_id|>system<|end_header_id|>\n``` and ```<|eot_id|>``` strings to specify this part is a *system prompt*, surrounds the user prompt part with ```<|start_header_id|>user<|end_header_id|>\n``` and ```<|eot_id|>``` strings to specify this part is a *user prompt*.
+With the ```[Chat mode]``` choices, the application starts the prompt with ```<|begin_of_text|>``` string to specify "this is an instruction prompt". Also it surrounds the system prompt part with ```<|start_header_id|>system<|end_header_id|>\n``` and ```<|eot_id|>``` strings to specify this part is a *system prompt*, surrounds the user prompt part with ```<|start_header_id|>user<|end_header_id|>\n``` and ```<|eot_id|>``` strings to specify this part is a *user prompt*.
 
 At the end, a chat mode prompt that we have in ```userPromptStr``` string variable will be look like following:
 
