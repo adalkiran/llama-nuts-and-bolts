@@ -505,7 +505,7 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 
 ```go
 func attentionRepeatKV(x *ml.Tensor, N_Rep int) (*ml.Tensor, error) {
-	// See: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L99
+	// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L103
 	if N_Rep == 1 {
 		return x, nil
 	}

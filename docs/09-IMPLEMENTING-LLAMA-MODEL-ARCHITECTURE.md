@@ -4,7 +4,7 @@ In this chapter, we'll walk through the process of defining and implementing the
 
 Llama 2, Llama 3 and Llama 3.1 transformer model architectures are very similar, but new versions have come with some improvements.
 
->Inspired by [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/api/model.py) | [llama.cpp](https://github.com/ggerganov/llama.cpp)
+>Inspired by [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/reference_impl/model.py) | [llama.cpp](https://github.com/ggerganov/llama.cpp)
 
 >**<u>A Quick Reminder:</u>**<br>
 >We've loaded 291 tensors from the model file into a map (PickleDict) of tensors per tensor name via ```torchModelReader.Load()```.
@@ -63,7 +63,7 @@ These preparations are done in this function:
 * If ```modelArgs.VocabSize``` is ```-1``` in the file, which indicates it wants us to set the default value. modelArgs wants to obey the "tokenizer.model" file. In our case, the tokenizer file contains 128,256 tokens.
 * If ```modelArgs.N_KVHeads``` is not specified in the file, which indicates it wants us to set the default value. The default value is ```N_Heads```.<br>
 This ```N_KVHeads``` is equal to ```8``` for 8B/8B-Instruct Llama models.
-* ```modelArgs.N_Rep``` is set to integer value of ```N_Heads / N_KVHeads```, the repetition count for the following operation in [original Llama code](https://github.com/meta-llama/llama-models/blob/5ee9cb5eaf92d542f1b1ee595af64a9ffdc07bac/models/llama3_1/api/model.py#L118) and also in [our implementation](../src/model/llamatransformer.go). In our case, it is ```32 / 8 = 4```. This means, our ```keys``` and ```values``` have ```8``` heads, other parts have ```32``` heads, so the ```8``` heads are repeated/copied ```4 times``` to adapt ```32``` heads.
+* ```modelArgs.N_Rep``` is set to integer value of ```N_Heads / N_KVHeads```, the repetition count for the following operation in [original Llama code](https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L122) and also in [our implementation](../src/model/llamatransformer.go). In our case, it is ```32 / 8 = 4```. This means, our ```keys``` and ```values``` have ```8``` heads, other parts have ```32``` heads, so the ```8``` heads are repeated/copied ```4 times``` to adapt ```32``` heads.
 * ```modelArgs.HeadDim``` is set to integer value of ```modelArgs.Dim / modelArgs.N_Heads```. In our case, it is ```4096 / 32 = 128```. This means we have 32 different ```attention heads``` and the dimension of each of these heads is ```128```.
 
 >Also, you can check out sources for **Grouped Multi-Query Attention** which isn't described here:
@@ -344,7 +344,7 @@ func NewLlamaTransformerBlock(model *Model, layerIndex int) (*LlamaTransformerBl
 
 In ```NewLlamaFeedForward(...)```:
 
-* Calculating dimension of feed forward neural network's hidden layer ```result.FFNHiddenDim```. Actually, I couldn't reasonate well this part, calculation method was taken directly from [here](https://github.com/meta-llama/llama-models/blob/5ee9cb5eaf92d542f1b1ee595af64a9ffdc07bac/models/llama3_1/api/model.py#L252) and [here](https://github.com/meta-llama/llama-models/blob/5ee9cb5eaf92d542f1b1ee595af64a9ffdc07bac/models/llama3_1/api/model.py#L223),
+* Calculating dimension of feed forward neural network's hidden layer ```result.FFNHiddenDim```. Actually, I couldn't reasonate well this part, calculation method was taken directly from [here](https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L256) and [here](https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L227),
 * Taking the weights tensor of Feed-forward gate corresponding to current layer index, ```"layers.%d.feed_forward.w1.weight"```. Then it is set to ```result.ffn_gate```,
 * Taking the weights tensor of Feed-forward down corresponding to current layer index, ```"layers.%d.feed_forward.w2.weight"```. Then it is set to ```result.ffn_down```,
 * Taking the weights tensor of Feed-forward up corresponding to current layer index, ```"layers.%d.feed_forward.w3.weight"```. Then it is set to ```result.ffn_up```,
@@ -360,10 +360,10 @@ func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error
 	dim := modelArgs.Dim // 4096
 	var err error
 
-	// See: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L252
+	// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L256
 	// Set it to 4 * dim at first
 	result.FFNHiddenDim = 4 * modelArgs.Dim
-	// See: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L223
+	// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L227
 	// Then, do this calculation below:
 	result.FFNHiddenDim = int(2 * result.FFNHiddenDim / 3)
 	if modelArgs.FFNDimMultiplier > -1 {

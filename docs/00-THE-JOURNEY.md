@@ -35,7 +35,7 @@ To achieve this, we need:
 
 * To download the Llama 3.1 8B-Instruct model from [Meta Llama website](https://llama.meta.com/llama-downloads/). We will need files *consolidated.00.pth*, *params.json* and *tokenizer.model* files.
 
-* To debug [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/api/model.py) and [Georgi Gerganov](https://github.com/ggerganov)'s [llama.cpp](https://github.com/ggerganov/llama.cpp) projects running in local machine.
+* To debug [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/reference_impl/model.py) and [Georgi Gerganov](https://github.com/ggerganov)'s [llama.cpp](https://github.com/ggerganov/llama.cpp) projects running in local machine.
     >I had to add configuration to run Pytorch with [memory mapping](https://en.wikipedia.org/wiki/Memory-mapped_file) support. [llama.cpp](https://github.com/ggerganov/llama.cpp) has builtin memory mapping support.
 
 * To implement [Pickle (.pkl)](https://github.com/python/cpython/blob/main/Lib/pickle.py) file reader (unpickler). We will use it to read Pytorch model checkpoint and weight tensors from *consolidated.00.pth*. This file is an uncompressed ZIP file containing 291 weight tensors. [Pickle](https://github.com/python/cpython/blob/main/Lib/pickle.py) format is a Python specific file format to store/load Python objects.
@@ -57,7 +57,7 @@ Llama 3.1 Pytorch model file contains tensors stored as 2-byte BFloat16 data typ
 At first draft of this project, an 3rd party BFloat16 Go library was used, but because of performance issues, to decrease cycle count, own implementation was done.
     >Implementation can be found in [src/dtype](../src/dtype) directory.
 
-* To implement Llama Transformer Model blocks and model loader. Inspired by [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/api/model.py).
+* To implement Llama Transformer Model blocks and model loader. Inspired by [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/reference_impl/model.py).
     >Implementation can be found in [src/model](../src/model) directory.
 
 * To implement [Tensor](https://en.wikipedia.org/wiki/Tensor_%28machine_learning%29) type, tensor aritmetic and machine learning mathematical operation functions.

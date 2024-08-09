@@ -298,7 +298,7 @@ The flow is:
     * Now, our ```logits``` tensor's shape was become ```{1, 128256}```,
     * Execute [ml.Argmax](../src/ml/operations_impl.go) function over our ```logits```, it will return ```nextToken``` tensor with ```DT_INT32``` data type and with shape of ```{1, 1}```,
     * Take *the only one item* from the ```nextToken``` token via ```nextToken.Item()``` as ```int32``` into ```nextTokenId``` variable, the value in our case is ```7979```,
-    * Take ```32th``` item from the ```tokens``` tensor into ```existingToken``` variable, then if it is not ```-1``` (```ie.model.Vocabulary.PadId```), take the existing token as next token. This step was implemented by the [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/api/model.py), and I have kept it as is,
+    * Take ```32th``` item from the ```tokens``` tensor into ```existingToken``` variable, then if it is not ```-1``` (```ie.model.Vocabulary.PadId```), take the existing token as next token. This step was implemented by the [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/reference_impl/model.py), and I have kept it as is,
     * Set ```22th``` item of the ```tensor``` to ```7979``` (value of ```nextTokenId```),
     * Check if the ```nextTokenId``` equals to ```ie.model.Vocabulary.EndOfSentenceId```, if yes, send a signal of EOS reached via ```generatedTokensCh``` channel,
     * Check if ```curPos``` reached to the sequence length, if yes, send a signal of maximum sequence length reached via ```generatedTokensCh``` channel,

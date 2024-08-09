@@ -33,7 +33,7 @@ We have several alternatives to calculate the positional embeddings. Some of the
     
     The original paper suggests using ```10000``` as base theta value, and the Llama 2 model uses this value. But newer versions of Llama (3 and higher) started to use ```500000``` as base theta value, so, we will stick to using ```500000```.
 
-    **<u>Update with Llama 3.1:</u>** The Llama 3.1 version comes with a small adjustment on frequencies. [apply_scaling(...)](https://github.com/meta-llama/llama-models/blob/5ee9cb5eaf92d542f1b1ee595af64a9ffdc07bac/models/llama3_1/api/model.py#L41) method was added into original Llama 3.1 implementation, that calculates wavelengths from these frequencies and applies some limitations on them. Implementation detail will be discussed in the following subchapters. Currently we represent this operation with $scl\left(...\right)$.
+    **<u>Update with Llama 3.1:</u>** The Llama 3.1 version comes with a small adjustment on frequencies. [apply_scaling(...)](https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L45) method was added into original Llama 3.1 implementation, that calculates wavelengths from these frequencies and applies some limitations on them. Implementation detail will be discussed in the following subchapters. Currently we represent this operation with $scl\left(...\right)$.
 
     Our ```PE``` positional embedding array for ```3th``` position will be like:
 
@@ -130,7 +130,7 @@ func NewLlamaTransformer(model *Model) (*LlamaTransformer, error) {
 
 ## **10.3. Initiating Angles of Frequency Tensor**
 
-In the [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/5ee9cb5eaf92d542f1b1ee595af64a9ffdc07bac/models/llama3_1/api/model.py#L66), this Python code initiates the ```freqs``` array:
+In the [original Llama 3.1 Python repository of Meta](https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L70), this Python code initiates the ```freqs``` array:
 
 ```py
 import torch
@@ -212,13 +212,13 @@ freqs =
 \end{gathered}
 $$
 
-You can find original Python implementation of [apply_scaling(...)](https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L41) function which is represented as $scl\left(...\right)$ here.
+You can find original Python implementation of [apply_scaling(...)](https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L45) function which is represented as $scl\left(...\right)$ here.
 
 <sup>from [src/model/llamatransformer.go](../src/model/llamatransformer.go)</sup>
 
 ```go
 func applyScaling(freqs *ml.Tensor) error {
-	// See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L41
+	// See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L45
 	// Values obtained from grid search
 	scaleFactor := float32(8.0)
 	lowFreqFactor := float32(1.0)

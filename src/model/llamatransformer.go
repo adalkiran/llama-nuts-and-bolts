@@ -527,7 +527,7 @@ func (lat *LlamaAttention) Forward(infContext *InferenceContext, x *ml.Tensor, s
 }
 
 func attentionRepeatKV(x *ml.Tensor, N_Rep int) (*ml.Tensor, error) {
-	// See: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L99
+	// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L103
 	if N_Rep == 1 {
 		return x, nil
 	}
@@ -564,10 +564,10 @@ func NewLlamaFeedForward(model *Model, layerIndex int) (*LlamaFeedForward, error
 	dim := modelArgs.Dim // 4096
 	var err error
 
-	// See: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L252
+	// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L256
 	// Set it to 4 * dim at first
 	result.FFNHiddenDim = 4 * modelArgs.Dim
-	// See: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L223
+	// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L227
 	// Then, do this calculation below:
 	result.FFNHiddenDim = int(2 * result.FFNHiddenDim / 3)
 	if modelArgs.FFNDimMultiplier > -1 {
@@ -660,7 +660,7 @@ func (rms *RMSNorm) doNormalization(x *ml.Tensor) (*ml.Tensor, error) {
 }
 
 func applyScaling(freqs *ml.Tensor) error {
-	// See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L41
+	// See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L45
 	// Values obtained from grid search
 	scaleFactor := float32(8.0)
 	lowFreqFactor := float32(1.0)
@@ -694,7 +694,7 @@ func applyScaling(freqs *ml.Tensor) error {
 func precomputeFreqsCis(dim int, end int, theta float64, useScaled bool) (*ml.Tensor, error) {
 	// Comment from Llama code
 	// See Llama 2 Comment: https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L80
-	// See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/6214a21dc837ce63983ef3fd7b172a6ed16e4905/models/llama3_1/api/model.py#L66
+	// See Llama 3.1 Code: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L70
 	/*
 		Precompute the frequency tensor for complex exponentials (cis) with given dimensions.
 
