@@ -13,19 +13,13 @@
 
 * Otherwise, if you are curious about different things used by older Llama versions, even if they aren't no longer used by Llama 3.1 anymore, please continue reading this chapter.
 
-<br>
-
-
 ---
 ---
 
-Obsolete Llama 2 content starts
+## *Obsolete Llama 2 content starts*
 
 ---
 ---
-
-<br>
-
 
 ## **6.0. The tokenizer model used by Llama 2 version**
 
