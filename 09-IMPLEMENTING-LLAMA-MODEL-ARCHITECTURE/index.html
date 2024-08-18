@@ -1,0 +1,1558 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation.">
+      
+      
+        <meta name="author" content="Adil Alper DALKIRAN">
+      
+      
+        <link rel="canonical" href="https://adalkiran.github.io/llama-nuts-and-bolts/09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE/">
+      
+      
+        <link rel="prev" href="../08-TENSOR/">
+      
+      
+        <link rel="next" href="../10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS/">
+      
+      
+      <link rel="icon" href="../assets/icon.png">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.31">
+    
+    
+      
+        <title>IMPLEMENTING LLAMA MODEL ARCHITECTURE - Llama Nuts and Bolts</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.3cba04c6.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/custom.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","G-05VMCF3NF0"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document$.subscribe(function(){var a=document.forms.feedback;if(void 0!==a)for(var e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}),location$.subscribe(function(e){n("config","G-05VMCF3NF0",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=G-05VMCF3NF0",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+      
+        <meta  property="og:type"  content="website" >
+      
+        <meta  property="og:title"  content="IMPLEMENTING LLAMA MODEL ARCHITECTURE - Llama Nuts and Bolts" >
+      
+        <meta  property="og:description"  content="A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation." >
+      
+        <meta  property="og:image"  content="https://adalkiran.github.io/llama-nuts-and-bolts/assets/images/social/09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE.png" >
+      
+        <meta  property="og:image:type"  content="image/png" >
+      
+        <meta  property="og:image:width"  content="1200" >
+      
+        <meta  property="og:image:height"  content="630" >
+      
+        <meta  property="og:url"  content="https://adalkiran.github.io/llama-nuts-and-bolts/09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE/" >
+      
+        <meta  name="twitter:card"  content="summary_large_image" >
+      
+        <meta  name="twitter:title"  content="IMPLEMENTING LLAMA MODEL ARCHITECTURE - Llama Nuts and Bolts" >
+      
+        <meta  name="twitter:description"  content="A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation." >
+      
+        <meta  name="twitter:image"  content="https://adalkiran.github.io/llama-nuts-and-bolts/assets/images/social/09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE.png" >
+      
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#9-implementing-llama-model-architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Llama Nuts and Bolts" class="md-header__button md-logo" aria-label="Llama Nuts and Bolts" data-md-component="logo">
+      
+  <img src="../assets/icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Llama Nuts and Bolts
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              IMPLEMENTING LLAMA MODEL ARCHITECTURE
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9h-1.9M20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69m-9.15 3.96h2.3L12 9l-1.15 3.65Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3 3.19.09m3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95 2.06.05m-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5c-.84 0-1.65.15-2.39.42L12 2M3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29L3.34 7m.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14L3.36 17M20.65 7l-1.77 3.79a7.023 7.023 0 0 0-2.38-4.15l4.15.36m-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29L20.64 17M12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44L12 22Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/adalkiran/llama-nuts-and-bolts" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    adalkiran/llama-nuts-and-bolts
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href=".." class="md-tabs__link">
+          
+  
+  Llama Nuts and Bolts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../webrtc-nuts-and-bolts" class="md-tabs__link">
+        
+  
+    
+  
+  WebRTC Nuts and Bolts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://www.linkedin.com/in/alper-dalkiran/" class="md-tabs__link">
+        
+  
+    
+  
+  Contact
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Llama Nuts and Bolts" class="md-nav__button md-logo" aria-label="Llama Nuts and Bolts" data-md-component="logo">
+      
+  <img src="../assets/icon.svg" alt="logo">
+
+    </a>
+    Llama Nuts and Bolts
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/adalkiran/llama-nuts-and-bolts" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    adalkiran/llama-nuts-and-bolts
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Llama Nuts and Bolts
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Llama Nuts and Bolts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    HOME
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-THE-JOURNEY/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    THE JOURNEY
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-INITIALIZATION/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    INITIALIZATION
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-LOADING-TORCH-MODEL/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING TORCH MODEL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-LOADING-TORCH-MODEL-DETAILS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING TORCH MODEL (DETAILS)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-LOADING-MODEL-ARGS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING MODEL ARGS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-LOADING-TOKENIZER-MODEL/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING TOKENIZER MODEL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-OBSOLETE-LOADING-LLAMA-2-TOKENIZER-MODEL/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    OBSOLETE - LOADING LLAMA 2 TOKENIZER MODEL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-BFLOAT16-DATA-TYPE/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    BFLOAT16 DATA TYPE
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-TENSOR/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    TENSOR
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    IMPLEMENTING LLAMA MODEL ARCHITECTURE
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    IMPLEMENTING LLAMA MODEL ARCHITECTURE
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#91-preparation-of-modelargs" class="md-nav__link">
+    <span class="md-ellipsis">
+      9.1. Preparation of modelArgs
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#92-the-first-layer-of-our-model-embeddings-layer-tok_embd" class="md-nav__link">
+    <span class="md-ellipsis">
+      9.2. The First Layer of our Model: Embeddings Layer (tok_embd)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#93-building-transformer-blocks" class="md-nav__link">
+    <span class="md-ellipsis">
+      9.3. Building Transformer Blocks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#94-building-each-transformer-block-llamatransformerblock" class="md-nav__link">
+    <span class="md-ellipsis">
+      9.4. Building Each Transformer Block (LlamaTransformerBlock)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9.4. Building Each Transformer Block (LlamaTransformerBlock)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#941-building-an-attention-module-llamaattention" class="md-nav__link">
+    <span class="md-ellipsis">
+      9.4.1. Building an Attention Module (LlamaAttention)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#942-building-a-feedforward-module-llamafeedforward" class="md-nav__link">
+    <span class="md-ellipsis">
+      9.4.2. Building a FeedForward Module (LlamaFeedForward)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#95-building-the-output-layers-of-the-llamatransformer" class="md-nav__link">
+    <span class="md-ellipsis">
+      9.5. Building the Output Layers of the LlamaTransformer
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#96-precomputing-the-frequency-tensor-for-complex-exponentials-cis" class="md-nav__link">
+    <span class="md-ellipsis">
+      9.6. Precomputing the Frequency Tensor for Complex Exponentials (cis)
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    RoPE (ROTARY POSITIONAL EMBEDDINGS)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../11-ASKING-FOR-USER-INPUT/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    ASKING FOR USER INPUT
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../12-TOKENIZATION/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    TOKENIZATION
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../13-GENERATING-NEXT-TOKENS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    GENERATING NEXT TOKENS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-MAKING-PREDICTION-WITH-LLAMA-MODEL-1/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MAKING PREDICTION with LLAMA MODEL - 1
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-MAKING-PREDICTION-WITH-LLAMA-MODEL-2/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MAKING PREDICTION with LLAMA MODEL - 2
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../16-MAKING-PREDICTION-WITH-LLAMA-MODEL-3/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MAKING PREDICTION with LLAMA MODEL - 3
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../17-UNICODE-UTF-8-EMOJIS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    UNICODE, UTF-8 and EMOJIS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../18-CONCLUSION/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    CONCLUSION
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../19-REFERENCES/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    REFERENCES
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../20-DIAGRAMS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    DIAGRAMS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../webrtc-nuts-and-bolts" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    WebRTC Nuts and Bolts
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://www.linkedin.com/in/alper-dalkiran/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Contact
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="9-implementing-llama-model-architecture"><strong>9. IMPLEMENTING LLAMA MODEL ARCHITECTURE</strong><a class="headerlink" href="#9-implementing-llama-model-architecture" title="Permanent link">&para;</a></h1>
+<p>In this chapter, we'll walk through the process of defining and implementing the Llama 3.1 Model architecture.</p>
+<p>Llama 2, Llama 3 and Llama 3.1 transformer model architectures are very similar, but new versions have come with some improvements.</p>
+<blockquote>
+<p>Inspired by <a href="https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/reference_impl/model.py" target="_blank">original Llama 3.1 Python repository of Meta</a> | <a href="https://github.com/ggerganov/llama.cpp" target="_blank">llama.cpp</a></p>
+<p><strong><u>A Quick Reminder:</u></strong><br>
+We've loaded 291 tensors from the model file into a map (PickleDict) of tensors per tensor name via <code>torchModelReader.Load()</code>.</p>
+</blockquote>
+<p>Now, <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">NewLlamaTransformer(...)</a> is called to build operation sequence graph of Llama architecture.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/loader.go" target="_blank">src/model/loader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">LoadModelEx</span><span class="p">(</span><span class="nx">modelDir</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">includeTensors</span><span class="w"> </span><span class="kt">bool</span><span class="p">,</span><span class="w"> </span><span class="nx">includeVocab</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">Model</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nx">model</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">Model</span><span class="p">{}</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">includeTensors</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">        </span><span class="o">...</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">        </span><span class="nx">modelTensors</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">torchModelReader</span><span class="p">.</span><span class="nx">Load</span><span class="p">()</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">        </span><span class="o">...</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">        </span><span class="nx">model</span><span class="p">.</span><span class="nx">Tensors</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">modelTensors</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">        </span><span class="o">...</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">includeTensors</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">        </span><span class="o">...</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">model</span><span class="p">.</span><span class="nx">Transformer</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">NewLlamaTransformer</span><span class="p">(</span><span class="nx">model</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="91-preparation-of-modelargs"><strong>9.1. Preparation of modelArgs</strong><a class="headerlink" href="#91-preparation-of-modelargs" title="Permanent link">&para;</a></h2>
+<p>The <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/modelargs.go" target="_blank">model.ModelArgs</a> was loaded from the JSON File, "params.json". But, some of them (<code>N_Rep</code> and <code>HeadDim</code>) are "fields that should be calculated" and some of others may have value <code>-1</code> meaning "default value".</p>
+<p>In our project, we used Meta-Llama-3.1-8B-Instruct model. This model has following parameters that are loaded into <code>model.ModelArgs</code>:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">Dim</span><span class="p">:</span><span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">4096 //dim</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">N_Layers</span><span class="p">:</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">32   //n_layers</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nt">N_Heads</span><span class="p">:</span><span class="w">    </span><span class="l l-Scalar l-Scalar-Plain">32   //n_heads</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nt">N_KVHeads</span><span class="p">:</span><span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">8   //n_kv_heads</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nt">VocabSize</span><span class="p">:</span><span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">128256 //vocab_size</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nt">MultipleOf</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024  //multiple_of</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nt">FFNDimMultiplier</span><span class="p">:</span><span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">1.3 //ffn_dim_multiplier</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nt">NormEpsilon</span><span class="p">:</span><span class="w">       </span><span class="l l-Scalar l-Scalar-Plain">1e-5 //norm_eps</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nt">RopeTheta</span><span class="p">:</span><span class="w">         </span><span class="l l-Scalar l-Scalar-Plain">500000 //rope_theta</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nt">UseScaledRope</span><span class="p">:</span><span class="w">     </span><span class="l l-Scalar l-Scalar-Plain">true //use_scaled_rope</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nt">MaxSequenceLength</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">//to be calculated</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="nt">N_Rep</span><span class="p">:</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">//to be calculated</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="nt">HeadDim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">//to be calculated</span>
+</span></code></pre></div>
+<p>These preparations are done in this function:</p>
+<ul>
+<li>If <code>modelArgs.VocabSize</code> is <code>-1</code> in the file, which indicates it wants us to set the default value. modelArgs wants to obey the "tokenizer.model" file. In our case, the tokenizer file contains 128,256 tokens.</li>
+<li>If <code>modelArgs.N_KVHeads</code> is not specified in the file, which indicates it wants us to set the default value. The default value is <code>N_Heads</code>.<br>
+This <code>N_KVHeads</code> is equal to <code>8</code> for 8B/8B-Instruct Llama models.</li>
+<li><code>modelArgs.N_Rep</code> is set to integer value of <code>N_Heads / N_KVHeads</code>, the repetition count for the following operation in <a href="https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L122" target="_blank">original Llama code</a> and also in <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">our implementation</a>. In our case, it is <code>32 / 8 = 4</code>. This means, our <code>keys</code> and <code>values</code> have <code>8</code> heads, other parts have <code>32</code> heads, so the <code>8</code> heads are repeated/copied <code>4 times</code> to adapt <code>32</code> heads.</li>
+<li><code>modelArgs.HeadDim</code> is set to integer value of <code>modelArgs.Dim / modelArgs.N_Heads</code>. In our case, it is <code>4096 / 32 = 128</code>. This means we have 32 different <code>attention heads</code> and the dimension of each of these heads is <code>128</code>.</li>
+</ul>
+<blockquote>
+<p>Also, you can check out sources for <strong>Grouped Multi-Query Attention</strong> which isn't described here:</p>
+<ul>
+<li><a href="https://paperswithcode.com/method/grouped-query-attention" target="_blank">Grouped Multi-Query Attention</a></li>
+<li><a href="https://aliissa99.medium.com/-a596e4d86f79" target="_blank">What's Grouped-Query attention (GQA)? a paper from Google Research</a></li>
+<li><a href="https://www.youtube.com/watch?v=Mn_9W1nCFLo&t=3240s" target="_blank">Llama explained... - "Grouped Multi-Query Attention" section - Youtube</a></li>
+</ul>
+</blockquote>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaTransformer</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaTransformer</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaTransformer</span><span class="p">{}</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nx">modelArgs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">model</span><span class="p">.</span><span class="nx">ModelArgs</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="c1">// Compare (VocabSize, Dim) vs. &quot;tok_embeddings.weight&quot; tensor shape</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nx">dim</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">Dim</span><span class="w">             </span><span class="c1">// 4096</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nx">vocabSize</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">VocabSize</span><span class="w"> </span><span class="c1">// 128256</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_KVHeads</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">        </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_KVHeads</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Heads</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Rep</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Heads</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_KVHeads</span><span class="p">)</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">    </span><span class="c1">// Calculate dimension of each head</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">    </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">HeadDim</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">Dim</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Heads</span><span class="p">)</span><span class="w"> </span><span class="c1">// 128</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="92-the-first-layer-of-our-model-embeddings-layer-tok_embd"><strong>9.2. The First Layer of our Model: Embeddings Layer (tok_embd)</strong><a class="headerlink" href="#92-the-first-layer-of-our-model-embeddings-layer-tok_embd" title="Permanent link">&para;</a></h2>
+<p>Yes! We are at the stage where we REALLY are starting to build the model by laying the first brick!</p>
+<p>The <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/loader.go" target="_blank">getTensor</a> function gets the weights tensor with the name we specified from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/model.go" target="_blank">Model.Tensors</a> map, checks if it has really the expected shape we specified, then returns the <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">ml.Tensor</a> object, or returns "incorrect shape" error.</p>
+<p>The weights tensor with name "tok_embeddings.weight" is taken and set to <code>result.tok_embd</code> as first brick. Our <code>result.tok_embd</code> weights tensor is with shape of <code>{vocabSize, dim} = {128256, 4096}</code>.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaTransformer</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaTransformer</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaTransformer</span><span class="p">{}</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">tok_embd</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">getTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;tok_embeddings.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">vocabSize</span><span class="p">,</span><span class="w"> </span><span class="nx">dim</span><span class="p">});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="93-building-transformer-blocks"><strong>9.3. Building Transformer Blocks</strong><a class="headerlink" href="#93-building-transformer-blocks" title="Permanent link">&para;</a></h2>
+<p>The most important part of the transformer models that provide accurate outputs is <a href="https://arxiv.org/abs/1706.03762" target="_blank">the attention mechanism</a>. Each "block" of Llama consists of a self-attention and a feed-forward neural network parts. The details will be explained further, but also we call these "block"s as "layer"s.</p>
+<p>The value of the <code>modelArgs.N_Layers</code> variable corresponds to the number of blocks we have. It is <code>32</code>, so we will initiate 32 different transformer block <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">LlamaTransformerBlock</a> objects via <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">NewLlamaTransformerBlock(...)</a> function. To achieve this, we instantiate <code>result.Layers</code> array with 32 items, then set each item with instantiating each block.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaTransformer</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaTransformer</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaTransformer</span><span class="p">{}</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">Layers</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">make</span><span class="p">([]</span><span class="o">*</span><span class="nx">LlamaTransformerBlock</span><span class="p">,</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Layers</span><span class="p">)</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">layerIdx</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="nx">layerIdx</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Layers</span><span class="p">;</span><span class="w"> </span><span class="nx">layerIdx</span><span class="o">++</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">        </span><span class="kd">var</span><span class="w"> </span><span class="nx">layer</span><span class="w"> </span><span class="o">*</span><span class="nx">LlamaTransformerBlock</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">layer</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">NewLlamaTransformerBlock</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIdx</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">        </span><span class="nx">result</span><span class="p">.</span><span class="nx">Layers</span><span class="p">[</span><span class="nx">layerIdx</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">layer</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="94-building-each-transformer-block-llamatransformerblock"><strong>9.4. Building Each Transformer Block (LlamaTransformerBlock)</strong><a class="headerlink" href="#94-building-each-transformer-block-llamatransformerblock" title="Permanent link">&para;</a></h2>
+<p>The <code>LlamaTransformerBlock</code> object consists of <code>attn_norm</code> (RMS normalization), <code>attention</code> (Attention mechanism), <code>ffn_norm</code> (RMS normalization), and <code>feedForward</code> (Feed Forward Neural Network) modules. These modules operate respectively.</p>
+<p><strong><u>Type definition:</u></strong></p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">LlamaTransformerBlock</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="nx">LayerIndex</span><span class="w"> </span><span class="kt">int</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nx">attn_norm</span><span class="w"> </span><span class="o">*</span><span class="nx">RMSNorm</span><span class="w"> </span><span class="c1">// Weights Original: &quot;layers.0.attention_norm.weight&quot;  |  ggml: &quot;blk.0.attn_norm.weight&quot; | shape: [4096] -&gt; [Dim]</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nx">ffn_norm</span><span class="w">  </span><span class="o">*</span><span class="nx">RMSNorm</span><span class="w"> </span><span class="c1">// Weights Original: &quot;layers.0.ffn_norm.weight&quot;  |  ggml: &quot;blk.0.ffn_norm.weight&quot; | shape: [4096] -&gt; [Dim]</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nx">attention</span><span class="w">   </span><span class="o">*</span><span class="nx">LlamaAttention</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nx">feedForward</span><span class="w"> </span><span class="o">*</span><span class="nx">LlamaFeedForward</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>In Llama models, these normalization modules are operated before their pair modules, for e.g., <code>attn_norm</code> is operated before <code>attention</code> module, <code>ffn_norm</code> is operated before <code>feedForward</code>. This approach is called as <code>prenormalization</code>. <a href="https://paperswithcode.com/method/rmsnorm" target="_blank">Root Mean Square Layer Normalization</a> is used as normalization technique.</p>
+<p>We will dive into deeper the details in further chapters, at this stage, we should stay zoomed-out view.</p>
+<p>At this stage, our steps are:</p>
+<ul>
+<li>Taking the weights tensor of attention norm corresponding to current layer index, <code>"layers.%d.attention_norm.weight"</code>. In Llama model, these weight tensors are named like "layers.0.attention_norm.weight", "layers.1.attention_norm.weight", "layers.2.attention_norm.weight", ..., "layers.31.attention_norm.weight". This weights tensor is with shape of <code>{dim} = {4096}</code>,</li>
+<li>Instantiating an <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">RMSNorm</a> object with specifying <code>modelArgs.NormEpsilon</code> (<code>1e-5</code> as epsilon value) and <code>attn_norm_weights</code> tensor via <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">NewRMSNorm(...)</a>. Then it is set to <code>result.attn_norm</code>,</li>
+<li>Instantiating a <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">LlamaAttention</a> object via <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">NewLlamaAttention(...)</a>. Then it is set to <code>result.attention</code>,</li>
+<li>Taking the weights tensor of feed-forward neural network norm corresponding to current layer index, <code>"layers.%d.ffn_norm.weight"</code>. In Llama model, these weight tensors are named like "layers.0.ffn_norm.weight", "layers.1.ffn_norm.weight", "layers.2.ffn_norm.weight", ..., "layers.31.ffn_norm.weight". This weights tensor is with shape of <code>{dim} = {4096}</code>,</li>
+<li>Instantiating an <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">RMSNorm</a> object with specifying <code>modelArgs.NormEpsilon</code> (<code>1e-5</code> as epsilon value) and <code>ffn_norm_weights</code> tensor via <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">NewRMSNorm(...)</a>. Then it is set to <code>result.ffn_norm</code>,</li>
+<li>Instantiating a <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">LlamaFeedForward</a> object via <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">NewLlamaFeedForward(...)</a>. Then it is set to <code>result.feedForward</code>,</li>
+</ul>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaTransformerBlock</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaTransformerBlock</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaTransformerBlock</span><span class="p">{</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">        </span><span class="nx">LayerIndex</span><span class="p">:</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nx">modelArgs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">model</span><span class="p">.</span><span class="nx">ModelArgs</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nx">dim</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">Dim</span><span class="w"> </span><span class="c1">// 4096</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="c1">// attention normalization</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="nx">attn_norm_weights</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">getLayerTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;layers.%d.attention_norm.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">dim</span><span class="p">})</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">attn_norm</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">NewRMSNorm</span><span class="p">(</span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">NormEpsilon</span><span class="p">,</span><span class="w"> </span><span class="nx">attn_norm_weights</span><span class="p">)</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">attention</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">NewLlamaAttention</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="w">    </span><span class="c1">// feed forward normalization</span>
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="w">    </span><span class="nx">ffn_norm_weights</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">getLayerTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;layers.%d.ffn_norm.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">dim</span><span class="p">})</span>
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">ffn_norm</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">NewRMSNorm</span><span class="p">(</span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">NormEpsilon</span><span class="p">,</span><span class="w"> </span><span class="nx">ffn_norm_weights</span><span class="p">)</span>
+</span><span id="__span-6-26"><a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>
+</span><span id="__span-6-27"><a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">feedForward</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">NewLlamaFeedForward</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-28"><a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-6-29"><a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-30"><a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a>
+</span><span id="__span-6-31"><a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-6-32"><a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="941-building-an-attention-module-llamaattention"><strong>9.4.1. Building an Attention Module (LlamaAttention)</strong><a class="headerlink" href="#941-building-an-attention-module-llamaattention" title="Permanent link">&para;</a></h3>
+<p>The <code>LlamaAttention</code> object consists of:</p>
+<ul>
+<li><code>attn_wq</code>: Attention query weights tensor with shape of <code>{N_Heads * HeadDim, Dim} = {32 * 128, 4096} = {4096, 4096}</code>,</li>
+<li><code>attn_wk</code>: Attention key weights tensor with shape of <code>{N_KVHeads * HeadDim, Dim} = {8 * 128, 4096} = {1024, 4096}</code>,</li>
+<li><code>attn_wv</code>: Attention value weights tensor with shape of <code>{N_KVHeads * HeadDim, Dim} = {8 * 128, 4096} = {1024, 4096}</code>,</li>
+<li><code>attn_wo</code>: Attention output weights tensor with shape of <code>{N_Heads * HeadDim, Dim} = {32 * 128, 4096} = {4096, 4096}</code>.</li>
+</ul>
+<p><strong><u>Type definition:</u></strong></p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">LlamaAttention</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="nx">LayerIndex</span><span class="w"> </span><span class="kt">int</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nx">N_Heads</span><span class="w">   </span><span class="kt">int</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nx">N_KVHeads</span><span class="w"> </span><span class="kt">int</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nx">N_Rep</span><span class="w">     </span><span class="kt">int</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nx">HeadDim</span><span class="w">   </span><span class="kt">int</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">    </span><span class="nx">attn_wq</span><span class="w"> </span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="w"> </span><span class="c1">// Original: &quot;layers.0.attention.wq.weight&quot;  |  ggml: &quot;blk.0.attn_q.weight&quot; | [out_features, in_features] -&gt; shape: [4096 4096] -&gt; [N_Heads * HeadDim, Dim]</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="nx">attn_wk</span><span class="w"> </span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="w"> </span><span class="c1">// Original: &quot;layers.0.attention.wk.weight&quot;  |  ggml: &quot;blk.0.attn_k.weight&quot; | [out_features, in_features] -&gt; shape: [1024 4096] -&gt; [N_KVHeads * HeadDim, Dim]</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">    </span><span class="nx">attn_wv</span><span class="w"> </span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="w"> </span><span class="c1">// Original: &quot;layers.0.attention.wv.weight&quot;  |  ggml: &quot;blk.0.attn_v.weight&quot; | [out_features, in_features] -&gt; shape: [1024 4096] -&gt; [N_KVHeads * HeadDim, Dim]</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">    </span><span class="nx">attn_wo</span><span class="w"> </span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="w"> </span><span class="c1">// Original: &quot;layers.0.attention.wo.weight&quot;  |  ggml: &quot;blk.0.attn_output.weight&quot; | [out_features, in_features] -&gt; shape: [4096 4096] -&gt; [N_Heads * HeadDim, Dim]</span>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><code>NewLlamaAttention(...)</code> is called to instantiate a new LlamaAttention object for current layer.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaTransformerBlock</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaTransformerBlock</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaTransformerBlock</span><span class="p">{</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">        </span><span class="nx">LayerIndex</span><span class="p">:</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">attention</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">NewLlamaAttention</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>In <code>NewLlamaAttention(...)</code>:</p>
+<ul>
+<li>Calculating dimension of normal heads and KV heads (key-value heads). In our case, results are both 4096,</li>
+<li>Taking the weights tensor of attention query corresponding to current layer index, <code>"layers.%d.attention.wq.weight"</code>. Then it is set to <code>result.attn_wq</code>,</li>
+<li>Taking the weights tensor of attention key corresponding to current layer index, <code>"layers.%d.attention.wk.weight"</code>. Then it is set to <code>result.attn_wk</code>,</li>
+<li>Taking the weights tensor of attention value corresponding to current layer index, <code>"layers.%d.attention.wv.weight"</code>. Then it is set to <code>result.attn_wv</code>,</li>
+<li>Taking the weights tensor of attention output corresponding to current layer index, <code>"layers.%d.attention.wo.weight"</code>. Then it is set to <code>result.attn_wo</code>,</li>
+</ul>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaAttention</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaAttention</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaAttention</span><span class="p">{</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">        </span><span class="nx">LayerIndex</span><span class="p">:</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nx">modelArgs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">model</span><span class="p">.</span><span class="nx">ModelArgs</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="nx">dim</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">Dim</span><span class="w"> </span><span class="c1">// 4096</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">N_Heads</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Heads</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">N_KVHeads</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_KVHeads</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">N_Rep</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Rep</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">    </span><span class="c1">// Calculate dimension of each head</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">HeadDim</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">HeadDim</span><span class="w">                        </span><span class="c1">// 128</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">    </span><span class="nx">normalHeadsTotalDim</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Heads</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">HeadDim</span><span class="w"> </span><span class="c1">// 4096</span>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">    </span><span class="nx">kvHeadsTotalDim</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">N_KVHeads</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">HeadDim</span><span class="w">      </span><span class="c1">// 4096</span>
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">    </span><span class="c1">// attn_wq, attn_wk, attn_wv, attn_wo are Linear units, so weight shapes are ordered reversely as [out_features, in_features]</span>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">attn_wq</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">getLayerTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;layers.%d.attention.wq.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">normalHeadsTotalDim</span><span class="p">,</span><span class="w"> </span><span class="nx">dim</span><span class="p">});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">attn_wk</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">getLayerTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;layers.%d.attention.wk.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">kvHeadsTotalDim</span><span class="p">,</span><span class="w"> </span><span class="nx">dim</span><span class="p">});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">attn_wv</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">getLayerTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;layers.%d.attention.wv.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">kvHeadsTotalDim</span><span class="p">,</span><span class="w"> </span><span class="nx">dim</span><span class="p">});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-9-27"><a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">attn_wo</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">getLayerTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;layers.%d.attention.wo.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">normalHeadsTotalDim</span><span class="p">,</span><span class="w"> </span><span class="nx">dim</span><span class="p">});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-28"><a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-9-29"><a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-9-30"><a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a>
+</span><span id="__span-9-31"><a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-9-32"><a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="942-building-a-feedforward-module-llamafeedforward"><strong>9.4.2. Building a FeedForward Module (LlamaFeedForward)</strong><a class="headerlink" href="#942-building-a-feedforward-module-llamafeedforward" title="Permanent link">&para;</a></h3>
+<p>The <code>LlamaFeedForward</code> object consists of:</p>
+<ul>
+<li><code>ffn_gate</code>: Feed-forward gate weights tensor with shape of <code>{FFNHiddenDim, Dim} = {14336, 4096}</code>,</li>
+<li><code>ffn_down</code>: Feed-forward down weights tensor with shape of <code>{Dim, FFNHiddenDim} = {4096, 14336}</code>,</li>
+<li><code>ffn_up</code>: Feed-forward up weights tensor with shape of <code>{FFNHiddenDim, Dim} = {14336, 4096}</code>,</li>
+</ul>
+<blockquote>
+<p>Note: <code>FFNHiddenDim</code> value is calculated as <code>14336</code>, we will see how is it calculated below.</p>
+</blockquote>
+<p><strong><u>Type definition:</u></strong></p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">LlamaFeedForward</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="nx">FFNHiddenDim</span><span class="w"> </span><span class="kt">int</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="nx">ffn_gate</span><span class="w"> </span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="w"> </span><span class="c1">// Original: &quot;layers.0.feed_forward.w1.weight&quot;  |  ggml: &quot;blk.0.ffn_gate.weight&quot; | [out_features, in_features] -&gt; shape: [14336 4096] -&gt; [FFNHiddenDim, Dim] | w1</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="nx">ffn_down</span><span class="w"> </span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="w"> </span><span class="c1">// Original: &quot;layers.0.feed_forward.w2.weight&quot;  |  ggml: &quot;blk.0.ffn_down.weight&quot; | [out_features, in_features] -&gt; shape: [4096 14336] -&gt; [Dim, FFNHiddenDim] | w2</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span><span class="nx">ffn_up</span><span class="w">   </span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="w"> </span><span class="c1">// Original: &quot;layers.0.feed_forward.w3.weight&quot;  |  ggml: &quot;blk.0.ffn_up.weight&quot; | [out_features, in_features] -&gt; shape: [14336 4096] -&gt; [FFNHiddenDim, Dim] | w3</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><code>NewLlamaFeedForward(...)</code> is called to instantiate a new LlamaFeedForward object for current layer.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaTransformerBlock</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaTransformerBlock</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaTransformerBlock</span><span class="p">{</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">        </span><span class="nx">LayerIndex</span><span class="p">:</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">feedForward</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">NewLlamaFeedForward</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>In <code>NewLlamaFeedForward(...)</code>:</p>
+<ul>
+<li>Calculating dimension of feed forward neural network's hidden layer <code>result.FFNHiddenDim</code>. Actually, I couldn't reasonate well this part, calculation method was taken directly from <a href="https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L256" target="_blank">here</a> and <a href="https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L227" target="_blank">here</a>,</li>
+<li>Taking the weights tensor of Feed-forward gate corresponding to current layer index, <code>"layers.%d.feed_forward.w1.weight"</code>. Then it is set to <code>result.ffn_gate</code>,</li>
+<li>Taking the weights tensor of Feed-forward down corresponding to current layer index, <code>"layers.%d.feed_forward.w2.weight"</code>. Then it is set to <code>result.ffn_down</code>,</li>
+<li>Taking the weights tensor of Feed-forward up corresponding to current layer index, <code>"layers.%d.feed_forward.w3.weight"</code>. Then it is set to <code>result.ffn_up</code>,</li>
+</ul>
+<blockquote>
+<p>Note: <code>ffn_gate</code>, <code>ffn_down</code>, <code>ffn_up</code> are Linear units, so weight shapes are ordered reversely as [out_features, in_features]. At first sight, it may confuse.</p>
+</blockquote>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaFeedForward</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaFeedForward</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaFeedForward</span><span class="p">{}</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="nx">modelArgs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">model</span><span class="p">.</span><span class="nx">ModelArgs</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="nx">dim</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">Dim</span><span class="w"> </span><span class="c1">// 4096</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">    </span><span class="c1">// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L256</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">    </span><span class="c1">// Set it to 4 * dim at first</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">Dim</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">    </span><span class="c1">// See: https://github.com/meta-llama/llama-models/blob/f45cdfd624b98b6655540f7101d8d9cb432e631c/models/llama3_1/reference_impl/model.py#L227</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">    </span><span class="c1">// Then, do this calculation below:</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">FFNDimMultiplier</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="w">        </span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">FFNDimMultiplier</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nb">float64</span><span class="p">(</span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="p">))</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="w">    </span><span class="c1">// Ensure ffnHiddenDim is multiple of modelArgs.MultipleOf value</span>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">MultipleOf</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">((</span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">MultipleOf</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">MultipleOf</span><span class="p">))</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a><span class="w">    </span><span class="c1">// ffn_gate, ffn_down, ffn_up are Linear units, so weight shapes are ordered reversely as [out_features, in_features]</span>
+</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">ffn_gate</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">getLayerTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;layers.%d.feed_forward.w1.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="p">,</span><span class="w"> </span><span class="nx">dim</span><span class="p">});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">ffn_down</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">getLayerTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;layers.%d.feed_forward.w2.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">dim</span><span class="p">,</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="p">});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">ffn_up</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">getLayerTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;layers.%d.feed_forward.w3.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">layerIndex</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">result</span><span class="p">.</span><span class="nx">FFNHiddenDim</span><span class="p">,</span><span class="w"> </span><span class="nx">dim</span><span class="p">});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a>
+</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>After completion of this stage, our <code>LlamaTransformerBlock</code> object of the first layer has been built.</p>
+<p>This part will be recurred for 32 times for the Llama 3.1 8B models.</p>
+<h2 id="95-building-the-output-layers-of-the-llamatransformer"><strong>9.5. Building the Output Layers of the LlamaTransformer</strong><a class="headerlink" href="#95-building-the-output-layers-of-the-llamatransformer" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong><u>A Quick Reminder:</u></strong><br>
+We've done following things until now:</p>
+<ul>
+<li>Built the embedding layer,</li>
+<li>Built 32 LlamaTransformerBlock objects, each containing an attention module and a feed-forward module with RMS prenormalization.</li>
+</ul>
+</blockquote>
+<p>After executing these layers, we have a <code>currentTensor</code> object as output of previous "transformer blocks". Then, we need to prenormalize our tensor, then process it with the "output weights".</p>
+<p>We continue with:</p>
+<ul>
+<li>Taking the weights tensor of output norm, <code>"norm.weight"</code>. This weights tensor is with shape of <code>{dim} = {4096}</code>,</li>
+<li>Instantiating an <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">RMSNorm</a> object with specifying <code>modelArgs.NormEpsilon</code> (<code>1e-5</code> as epsilon value) and <code>output_norm_weights</code> tensor via <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">NewRMSNorm(...)</a>. Then it is set to <code>result.output_norm</code>,</li>
+<li>Taking the weights tensor of output, <code>"output.weight"</code>. This weights tensor is with shape of <code>{vocabSize, dim} = {128256, 4096}</code>. Then it is set to <code>result.output</code>,</li>
+</ul>
+<blockquote>
+<p>Note: The <code>output</code> is a Linear unit, so weight shapes are ordered reversely as [out_features, in_features]. At first sight, it may confuse.</p>
+</blockquote>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaTransformer</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaTransformer</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaTransformer</span><span class="p">{}</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="nx">output_norm_weights</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">getTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;norm.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">dim</span><span class="p">})</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">    </span><span class="nx">result</span><span class="p">.</span><span class="nx">output_norm</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">NewRMSNorm</span><span class="p">(</span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">NormEpsilon</span><span class="p">,</span><span class="w"> </span><span class="nx">output_norm_weights</span><span class="p">)</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">    </span><span class="c1">// output is a Linear unit, so weight shape is ordered reversely as [out_features, in_features]</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">output</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">getTensor</span><span class="p">(</span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;output.weight&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="nx">vocabSize</span><span class="p">,</span><span class="w"> </span><span class="nx">dim</span><span class="p">});</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="96-precomputing-the-frequency-tensor-for-complex-exponentials-cis"><strong>9.6. Precomputing the Frequency Tensor for Complex Exponentials (cis)</strong><a class="headerlink" href="#96-precomputing-the-frequency-tensor-for-complex-exponentials-cis" title="Permanent link">&para;</a></h2>
+<p>The code comment <a href="https://github.com/facebookresearch/llama/blob/ef351e9cd9496c579bf9f2bb036ef11bdc5ca3d2/llama/model.py#L80" target="_blank">from the original Llama 2 Python code</a> that explains this:</p>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="sd">Precompute the frequency tensor for complex exponentials (cis) with given dimensions.</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="sd">This function calculates a frequency tensor with complex exponentials using the given dimension &#39;dim&#39;</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="sd">and the end index &#39;end&#39;. The &#39;theta&#39; parameter scales the frequencies.</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="sd">The returned tensor contains complex values in complex64 data type.</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="sd">Args:</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="sd">    dim (int): Dimension of the frequency tensor.</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="sd">    end (int): End index for precomputing frequencies.</span>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="sd">    theta (float, optional): Scaling factor for frequency computation. Defaults to 500000.0.</span>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="sd">Returns:</span>
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="sd">    torch.Tensor: Precomputed frequency tensor with complex exponentials.</span>
+</span><span id="__span-14-15"><a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="sd">&quot;&quot;&quot;</span>
+</span></code></pre></div>
+<p><code>precomputeFreqsCis(...)</code> is called to calculate the frequency tensor for complex exponentials (cis). This tensor values will be used by <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">applyRotaryEmbeddings</a> while applying Rotary Embeddings further.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/llamatransformer.go" target="_blank">src/model/llamatransformer.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewLlamaTransformer</span><span class="p">(</span><span class="nx">model</span><span class="w"> </span><span class="o">*</span><span class="nx">Model</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">LlamaTransformer</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">LlamaTransformer</span><span class="p">{}</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">PrecomputedFreqsCis</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">precomputeFreqsCis</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nx">dim</span><span class="o">/</span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">N_Heads</span><span class="p">),</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">MaxSequenceLength</span><span class="o">*</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">RopeTheta</span><span class="p">,</span><span class="w"> </span><span class="nx">modelArgs</span><span class="p">.</span><span class="nx">UseScaledRope</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>The details of <code>precomputeFreqsCis(...)</code> function is discussed in a dedicated chapter: <a href="../10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS/">10. RoPE (ROTARY POSITIONAL EMBEDDINGS)</a>.</p>
+<p>Now, we have a complete <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/model.go" target="_blank">Model</a> object that contains model arguments, the tokenizer, the <code>LlamaTransformer</code> object at its <code>model.Transformer</code> field, which has a complete Llama 3.1 8B model architecture.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12Z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../08-TENSOR/" class="md-footer__link md-footer__link--prev" aria-label="Previous: TENSOR">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                TENSOR
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS/" class="md-footer__link md-footer__link--next" aria-label="Next: RoPE (ROTARY POSITIONAL EMBEDDINGS)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                RoPE (ROTARY POSITIONAL EMBEDDINGS)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2024 - present, Adil Alper DALKIRAN. All rights reserved.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/adalkiran" target="_blank" rel="noopener" title="adalkiran" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/alper-dalkiran/" target="_blank" rel="noopener" title="@aadalkiran" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8l164.9-188.5L26.8 48h145.6l100.5 132.9L389.2 48zm-24.8 373.8h39.1L151.1 88h-42l255.3 333.8z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/alper-dalkiran/" target="_blank" rel="noopener" title="in/alper-dalkiran" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["toc.follow", "toc.integrate", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "navigation.footer", "content.code.copy"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.fe8b6f2b.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

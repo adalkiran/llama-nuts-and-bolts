@@ -1,0 +1,1525 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation.">
+      
+      
+        <meta name="author" content="Adil Alper DALKIRAN">
+      
+      
+        <link rel="canonical" href="https://adalkiran.github.io/llama-nuts-and-bolts/02-LOADING-TORCH-MODEL/">
+      
+      
+        <link rel="prev" href="../01-INITIALIZATION/">
+      
+      
+        <link rel="next" href="../03-LOADING-TORCH-MODEL-DETAILS/">
+      
+      
+      <link rel="icon" href="../assets/icon.png">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.31">
+    
+    
+      
+        <title>LOADING TORCH MODEL - Llama Nuts and Bolts</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.3cba04c6.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/custom.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","G-05VMCF3NF0"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document$.subscribe(function(){var a=document.forms.feedback;if(void 0!==a)for(var e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}),location$.subscribe(function(e){n("config","G-05VMCF3NF0",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=G-05VMCF3NF0",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+      
+        <meta  property="og:type"  content="website" >
+      
+        <meta  property="og:title"  content="LOADING TORCH MODEL - Llama Nuts and Bolts" >
+      
+        <meta  property="og:description"  content="A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation." >
+      
+        <meta  property="og:image"  content="https://adalkiran.github.io/llama-nuts-and-bolts/assets/images/social/02-LOADING-TORCH-MODEL.png" >
+      
+        <meta  property="og:image:type"  content="image/png" >
+      
+        <meta  property="og:image:width"  content="1200" >
+      
+        <meta  property="og:image:height"  content="630" >
+      
+        <meta  property="og:url"  content="https://adalkiran.github.io/llama-nuts-and-bolts/02-LOADING-TORCH-MODEL/" >
+      
+        <meta  name="twitter:card"  content="summary_large_image" >
+      
+        <meta  name="twitter:title"  content="LOADING TORCH MODEL - Llama Nuts and Bolts" >
+      
+        <meta  name="twitter:description"  content="A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation." >
+      
+        <meta  name="twitter:image"  content="https://adalkiran.github.io/llama-nuts-and-bolts/assets/images/social/02-LOADING-TORCH-MODEL.png" >
+      
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#2-loading-torch-model" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Llama Nuts and Bolts" class="md-header__button md-logo" aria-label="Llama Nuts and Bolts" data-md-component="logo">
+      
+  <img src="../assets/icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Llama Nuts and Bolts
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              LOADING TORCH MODEL
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9h-1.9M20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69m-9.15 3.96h2.3L12 9l-1.15 3.65Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3 3.19.09m3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95 2.06.05m-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5c-.84 0-1.65.15-2.39.42L12 2M3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29L3.34 7m.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14L3.36 17M20.65 7l-1.77 3.79a7.023 7.023 0 0 0-2.38-4.15l4.15.36m-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29L20.64 17M12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44L12 22Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/adalkiran/llama-nuts-and-bolts" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    adalkiran/llama-nuts-and-bolts
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href=".." class="md-tabs__link">
+          
+  
+  Llama Nuts and Bolts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../webrtc-nuts-and-bolts" class="md-tabs__link">
+        
+  
+    
+  
+  WebRTC Nuts and Bolts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://www.linkedin.com/in/alper-dalkiran/" class="md-tabs__link">
+        
+  
+    
+  
+  Contact
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Llama Nuts and Bolts" class="md-nav__button md-logo" aria-label="Llama Nuts and Bolts" data-md-component="logo">
+      
+  <img src="../assets/icon.svg" alt="logo">
+
+    </a>
+    Llama Nuts and Bolts
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/adalkiran/llama-nuts-and-bolts" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    adalkiran/llama-nuts-and-bolts
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Llama Nuts and Bolts
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Llama Nuts and Bolts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    HOME
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-THE-JOURNEY/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    THE JOURNEY
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-INITIALIZATION/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    INITIALIZATION
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    LOADING TORCH MODEL
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    LOADING TORCH MODEL
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#21-creating-torchmodelreader" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.1. Creating TorchModelReader
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#22-calling-torchmodelreaderload" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2. Calling TorchModelReader.Load()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2.2. Calling TorchModelReader.Load()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#221-reading-model-file-as-a-zip-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2.1. Reading Model File as a ZIP File
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#222-searching-for-a-pkl-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2.2. Searching for a .pkl File
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#223-reading-pickle-file-reader-initialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2.3. Reading Pickle File - Reader Initialization
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#224-reading-pickle-file-reading-opcodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2.4. Reading Pickle File - Reading Opcodes
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2.2.4. Reading Pickle File - Reading Opcodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#2241-opcodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2.4.1. Opcodes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2242-reader-functions-corresponding-to-opcodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2.4.2. Reader Functions Corresponding to Opcodes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2244-reading-the-whole-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2.4.4. Reading the Whole File
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#225-reading-pickle-file-returning-model-tensors" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2.5. Reading Pickle File - Returning Model Tensors
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-LOADING-TORCH-MODEL-DETAILS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING TORCH MODEL (DETAILS)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-LOADING-MODEL-ARGS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING MODEL ARGS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-LOADING-TOKENIZER-MODEL/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING TOKENIZER MODEL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-OBSOLETE-LOADING-LLAMA-2-TOKENIZER-MODEL/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    OBSOLETE - LOADING LLAMA 2 TOKENIZER MODEL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-BFLOAT16-DATA-TYPE/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    BFLOAT16 DATA TYPE
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-TENSOR/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    TENSOR
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    IMPLEMENTING LLAMA MODEL ARCHITECTURE
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    RoPE (ROTARY POSITIONAL EMBEDDINGS)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../11-ASKING-FOR-USER-INPUT/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    ASKING FOR USER INPUT
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../12-TOKENIZATION/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    TOKENIZATION
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../13-GENERATING-NEXT-TOKENS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    GENERATING NEXT TOKENS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-MAKING-PREDICTION-WITH-LLAMA-MODEL-1/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MAKING PREDICTION with LLAMA MODEL - 1
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-MAKING-PREDICTION-WITH-LLAMA-MODEL-2/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MAKING PREDICTION with LLAMA MODEL - 2
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../16-MAKING-PREDICTION-WITH-LLAMA-MODEL-3/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MAKING PREDICTION with LLAMA MODEL - 3
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../17-UNICODE-UTF-8-EMOJIS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    UNICODE, UTF-8 and EMOJIS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../18-CONCLUSION/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    CONCLUSION
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../19-REFERENCES/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    REFERENCES
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../20-DIAGRAMS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    DIAGRAMS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../webrtc-nuts-and-bolts" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    WebRTC Nuts and Bolts
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://www.linkedin.com/in/alper-dalkiran/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Contact
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="2-loading-torch-model"><strong>2. LOADING TORCH MODEL</strong><a class="headerlink" href="#2-loading-torch-model" title="Permanent link">&para;</a></h1>
+<p>In this chapter, we'll walk through the process of loading model weights stored in the "consolidated.00.pth" file.</p>
+<h2 id="21-creating-torchmodelreader"><strong>2.1. Creating TorchModelReader</strong><a class="headerlink" href="#21-creating-torchmodelreader" title="Permanent link">&para;</a></h2>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/loader.go" target="_blank">src/model/loader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">LoadModelEx</span><span class="p">(</span><span class="nx">modelDir</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">includeTensors</span><span class="w"> </span><span class="kt">bool</span><span class="p">,</span><span class="w"> </span><span class="nx">includeVocab</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">Model</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nx">model</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">Model</span><span class="p">{}</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">includeTensors</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">        </span><span class="nx">modelFilePath</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">modelDir</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;consolidated.00.pth&quot;</span><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">        </span><span class="nx">torchModelReader</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">torch</span><span class="p">.</span><span class="nx">NewTorchModelReader</span><span class="p">(</span><span class="nx">modelFilePath</span><span class="p">)</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">        </span><span class="k">defer</span><span class="w"> </span><span class="nx">torchModelReader</span><span class="p">.</span><span class="nx">Close</span><span class="p">()</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">        </span><span class="o">...</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>When we step into the function, we observe the creation of a <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/common/memorymapper_unix.go" target="_blank">common.MemoryMapper</a> object for the reader. This allows us to set up mappings between virtual memory addresses and file locations on disk and enables us to represent and access them as <code>[]byte</code> slices in the code.</p>
+<p>The file "consolidated.00.pth" contains various weight tensors. We will determine file offsets corresponding to these tensors and create tensor objects by establishing memory mapping with these offset values.</p>
+<p>See more: <a href="https://en.wikipedia.org/wiki/Memory-mapped_file" target="_blank">Memory Mapping</a>.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">src/torch/torchmodelreader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewTorchModelReader</span><span class="p">(</span><span class="nx">modelFilePath</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">TorchModelReader</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nx">memoryMapper</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">common</span><span class="p">.</span><span class="nx">NewMemoryMapper</span><span class="p">(</span><span class="nx">modelFilePath</span><span class="p">)</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">TorchModelReader</span><span class="p">{</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">        </span><span class="nx">modelFilePath</span><span class="p">:</span><span class="w"> </span><span class="nx">modelFilePath</span><span class="p">,</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">        </span><span class="nx">memoryMapper</span><span class="p">:</span><span class="w">  </span><span class="nx">memoryMapper</span><span class="p">,</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="22-calling-torchmodelreaderload"><strong>2.2. Calling TorchModelReader.Load()</strong><a class="headerlink" href="#22-calling-torchmodelreaderload" title="Permanent link">&para;</a></h2>
+<p><a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">TorchModelReader.Load(...)</a> is called if <code>includeTensors</code> is true.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/loader.go" target="_blank">src/model/loader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">LoadModelEx</span><span class="p">(</span><span class="nx">modelDir</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">includeTensors</span><span class="w"> </span><span class="kt">bool</span><span class="p">,</span><span class="w"> </span><span class="nx">includeVocab</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">Model</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">includeTensors</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">        </span><span class="o">...</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">        </span><span class="nx">common</span><span class="p">.</span><span class="nx">GLogger</span><span class="p">.</span><span class="nx">ConsolePrintf</span><span class="p">(</span><span class="s">&quot;Loading model file: \&quot;%s\&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">modelFilePath</span><span class="p">)</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">        </span><span class="nx">modelTensors</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">torchModelReader</span><span class="p">.</span><span class="nx">Load</span><span class="p">()</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">        </span><span class="nx">model</span><span class="p">.</span><span class="nx">Tensors</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">modelTensors</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">        </span><span class="nx">common</span><span class="p">.</span><span class="nx">GLogger</span><span class="p">.</span><span class="nx">ConsolePrintf</span><span class="p">(</span><span class="s">&quot;Found %d tensors in the model.&quot;</span><span class="p">,</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">model</span><span class="p">.</span><span class="nx">Tensors</span><span class="p">.</span><span class="nx">GetKeys</span><span class="p">()))</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">        </span><span class="o">...</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="221-reading-model-file-as-a-zip-file"><strong>2.2.1. Reading Model File as a ZIP File</strong><a class="headerlink" href="#221-reading-model-file-as-a-zip-file" title="Permanent link">&para;</a></h3>
+<p>The file "consolidated.00.pth" in the specified path is an <strong>uncompressed</strong> ZIP file containing 1 Pickle file and 291 files of weight tensors (valid for Llama 3.1 8B/8B-Instruct models). Utilizing <strong>uncompressed ZIP</strong> instead of <strong>compressed ZIP</strong> allows for direct content reading (a must for memory mapping) without the need for an unzipper stream wrapper. Additionally, utilizing a ZIP file allows the storage and transfer of multiple files as a single file.</p>
+<p>If you are curious about what this file contains, you can simply change extension of this file to ".zip" and check out it as a ZIP file.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">src/torch/torchmodelreader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">tmr</span><span class="w"> </span><span class="o">*</span><span class="nx">TorchModelReader</span><span class="p">)</span><span class="w"> </span><span class="nx">Load</span><span class="p">()</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">pickle</span><span class="p">.</span><span class="nx">PickleDict</span><span class="p">[</span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="p">],</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nx">tmr</span><span class="p">.</span><span class="nx">inputZipReader</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">zip</span><span class="p">.</span><span class="nx">OpenReader</span><span class="p">(</span><span class="nx">tmr</span><span class="p">.</span><span class="nx">modelFilePath</span><span class="p">)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="222-searching-for-a-pkl-file"><strong>2.2.2. Searching for a .pkl File</strong><a class="headerlink" href="#222-searching-for-a-pkl-file" title="Permanent link">&para;</a></h3>
+<p>If you check out the contents of the "consolidated.00.pth" file, you will find a structure like this:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>consolidated<span class="w"> </span><span class="o">(</span>parent<span class="w"> </span>directory<span class="o">)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="p">|</span>-byteorder
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="p">|</span>-version
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="p">|</span>-data.pkl
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="p">|</span>-data
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span>-135
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span>-61
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span>-95
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span>-132
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span>-59
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span>-92
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">  </span><span class="p">|</span><span class="w">  </span><span class="p">|</span>-...
+</span></code></pre></div>
+<p>The name of .pkl file is not important for us (it is data.pkl), we look for <strong>exactlly one</strong> .pkl file in the ZIP file, and call <code>tmr.readPickleFile</code> function for this file.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">src/torch/torchmodelreader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="w">    </span><span class="nx">pklRegexp</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">regexp</span><span class="p">.</span><span class="nx">Compile</span><span class="p">(</span><span class="s">`\.pkl$`</span><span class="p">)</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="nx">pklFileList</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">tmr</span><span class="p">.</span><span class="nx">findFilesInZip</span><span class="p">(</span><span class="nx">pklRegexp</span><span class="p">)</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">pklFileList</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;no .pkl file found in Torch model file \&quot;%s\&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">tmr</span><span class="p">.</span><span class="nx">modelFilePath</span><span class="p">)</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nx">modelTensorVals</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">tmr</span><span class="p">.</span><span class="nx">readPickleFile</span><span class="p">(</span><span class="nx">pklFileList</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="223-reading-pickle-file-reader-initialization"><strong>2.2.3. Reading Pickle File - Reader Initialization</strong><a class="headerlink" href="#223-reading-pickle-file-reader-initialization" title="Permanent link">&para;</a></h3>
+<p>Pickle (.pkl) file is a specific file format of Python platform. Our project's Pickle reader was inspired by <a href="https://github.com/python/cpython/blob/main/Lib/pickle.py" target="_blank">pickle.py in Python repository</a> code. Historically, Pickle project was an open-source project, independent of Python repository. Then it was integrated into Python standard library. It aims to serialize/deserialize Python objects and dictionaries with data and methods. The simplicity of its usage and elasticity made it a superior and most-used library to achieve these types of tasks.</p>
+<p>In the ML world, the Pickle library and its format have become a de facto standard. However, it comes with certain side effects, such as the risk of malicious code execution, because it allows calling functions during the serialization/deserialization process. Alternatives like <a href="https://github.com/huggingface/safetensors" target="_blank">Safetensors</a> provide a more secure approach to accomplishing these tasks.</p>
+<p>The original Llama model weight files were saved via Pytorch in Pickle format. You can find these weights in different file formats on the Internet, but we will continue with the original files distributed by Meta.</p>
+<p>Torch model file reader functionality was separated into two packages: <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/pickle" target="_blank">pickle</a> and <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch" target="_blank">torch</a>.</p>
+<ul>
+<li>The <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/pickle" target="_blank">pickle</a> package contains functions and structures for reading a generic Pickle (.pkl) file. It's important to note that our ported version supports only a limited count of Pickle opcodes necessary for loading specific Llama model.</li>
+<li>The <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch" target="_blank">torch</a> package contains functions and structures specialized for Pytorch model files. The Pickle format comes with an elastic structure that allows us to extend it with customized functionalities. <code>pickle</code> package functions will call/use our customized functions/structures defined in <code>torch</code> if it reads an <code>opcode</code> that requires to do, in the file.</li>
+</ul>
+<p>Our steps:</p>
+<ul>
+<li>Found .pkl file in the ZIP stream is open as <code>io.ReadCloser</code></li>
+<li>A <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/pickle/picklereader.go" target="_blank">pickle.PickleReader</a> is created</li>
+<li><a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">findClassTorch</a> function is pointed as <code>pickleReader.FindClassFn</code>. This function will be used to instantiate supported classes and to point supported functions, referred in the Pickle file, via the defined <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/types.go" target="_blank">TORCH_CLASSES</a> map. Further, we will see how a Pickle file refers and lets us instantiate/point Go objects/functions.</li>
+<li><a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">persistentLoad</a> function is pointed as <code>pickleReader.PersistentLoadFn</code>. This function will be used to point out a tensor file in the ZIP file as <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/types.go" target="_blank">torch.TorchStorage</a> and to do memory mapping to the specified file location/offset. Returned objects will be used while creating weight tensors.</li>
+</ul>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">src/torch/torchmodelreader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">tmr</span><span class="w"> </span><span class="o">*</span><span class="nx">TorchModelReader</span><span class="p">)</span><span class="w"> </span><span class="nx">readPickleFile</span><span class="p">(</span><span class="nx">inputPickleFile</span><span class="w"> </span><span class="o">*</span><span class="nx">zip</span><span class="p">.</span><span class="nx">File</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">pickle</span><span class="p">.</span><span class="nx">PickleDict</span><span class="p">[</span><span class="kd">interface</span><span class="p">{}],</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="nx">fileReader</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">inputPickleFile</span><span class="p">.</span><span class="nx">Open</span><span class="p">()</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="k">defer</span><span class="w"> </span><span class="nx">fileReader</span><span class="p">.</span><span class="nx">Close</span><span class="p">()</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nx">tmr</span><span class="p">.</span><span class="nx">dataBasePath</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">inputPickleFile</span><span class="p">.</span><span class="nx">FileHeader</span><span class="p">.</span><span class="nx">Name</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="nx">inputPickleFile</span><span class="p">.</span><span class="nx">FileHeader</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="nx">pickleReader</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pickle</span><span class="p">.</span><span class="nx">NewPickleReader</span><span class="p">(</span><span class="nx">fileReader</span><span class="p">)</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="nx">pickleReader</span><span class="p">.</span><span class="nx">FindClassFn</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">findClassTorch</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="nx">pickleReader</span><span class="p">.</span><span class="nx">PersistentLoadFn</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">tmr</span><span class="p">.</span><span class="nx">persistentLoad</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pickleReader</span><span class="p">.</span><span class="nx">Load</span><span class="p">()</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="224-reading-pickle-file-reading-opcodes"><strong>2.2.4. Reading Pickle File - Reading Opcodes</strong><a class="headerlink" href="#224-reading-pickle-file-reading-opcodes" title="Permanent link">&para;</a></h3>
+<p>Now, we are ready to read the bytes of the Pickle file.</p>
+<h4 id="2241-opcodes"><strong>2.2.4.1. Opcodes</strong><a class="headerlink" href="#2241-opcodes" title="Permanent link">&para;</a></h4>
+<p>Pickle uses a simple stack-based virtual machine that records the instructions used to reconstruct the object. The file is just a list of serialized opcodes, the first one being expected to be the protocol version and the last one a stop opcode. When the stop opcode is met, the current object on the stack is popped.</p>
+<blockquote>
+<p>See: <a href="https://en.wikipedia.org/wiki/Serialization#Python" target="_blank">Wikipedia</a> | <a href="https://spootnik.org/entries/2014/04/05/diving-into-the-python-pickle-formatt/" target="_blank">Diving into the Python Pickle format</a></p>
+</blockquote>
+<p>Pickle format consists of pairs of opcode and data bytes. Each pair starts with one byte that stands for an "opcode" and then continues with data bytes varying by each type of opcode.</p>
+<p>Each supported Pickle "opcode" should be defined as a byte constant and have a corresponding dispatcher (reader) function in our <code>dispatcher</code> map.</p>
+<p>In our project, our goal is to exclusively read Llama 3.1 8B/8B-Instruct model files. As a result, we have defined and implemented only the necessary opcodes and corresponding functions required for successfully reading this specific model file.</p>
+<p>After defining supported opcode byte constants and reader functions, we need to register them into <code>dispatcher</code> map via <code>init()</code> function.</p>
+<p>Also, we have <code>stack []interface{}</code> and <code>metastack []interface{}</code> arrays, also <code>memo map[int]interface{}</code> map in our <code>PickleReader</code> to store, collect, and structure already read data chunks.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/pickle/pickledispatch.go" target="_blank">src/pickle/pickledispatch.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kd">const</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nx">PROTO</span><span class="w"> </span><span class="kt">byte</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mh">0x80</span><span class="w"> </span><span class="c1">// identify pickle protocol</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nx">EMPTY_DICT</span><span class="w">      </span><span class="kt">byte</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="sc">&#39;}&#39;</span><span class="w">    </span><span class="c1">// push empty dict</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nx">BINPUT</span><span class="w">          </span><span class="kt">byte</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="sc">&#39;q&#39;</span><span class="w">    </span><span class="c1">//   &quot;     &quot;    &quot;   &quot;   &quot; ;   &quot;    &quot; 1-byte arg</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nx">MARK</span><span class="w">            </span><span class="kt">byte</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="sc">&#39;(&#39;</span><span class="w">    </span><span class="c1">// push special markobject on stack</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">    </span><span class="nx">BINPERSID</span><span class="w">       </span><span class="kt">byte</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="sc">&#39;Q&#39;</span><span class="w">    </span><span class="c1">//  &quot;       &quot;         &quot;  ;  &quot;  &quot;   &quot;     &quot;  stack</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">    </span><span class="nx">REDUCE</span><span class="w">          </span><span class="kt">byte</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="sc">&#39;R&#39;</span><span class="w">    </span><span class="c1">// apply callable to argtuple, both on stack</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="p">)</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="kd">type</span><span class="w"> </span><span class="nx">dispatchFunc</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="o">*</span><span class="nx">PickleReader</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
+</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
+</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="kd">var</span><span class="w"> </span><span class="nx">dispatcher</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">byte</span><span class="p">]</span><span class="nx">dispatchFunc</span><span class="p">)</span>
+</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>
+</span><span id="__span-7-19"><a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="kd">func</span><span class="w"> </span><span class="nx">init</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-20"><a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">    </span><span class="nx">dispatcher</span><span class="p">[</span><span class="nx">PROTO</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">load_proto</span>
+</span><span id="__span-7-21"><a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">    </span><span class="nx">dispatcher</span><span class="p">[</span><span class="nx">EMPTY_DICT</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">load_empty_dictionary</span>
+</span><span id="__span-7-22"><a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="w">    </span><span class="nx">dispatcher</span><span class="p">[</span><span class="nx">BINPUT</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">load_binput</span>
+</span><span id="__span-7-23"><a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="w">    </span><span class="nx">dispatcher</span><span class="p">[</span><span class="nx">MARK</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">load_mark</span>
+</span><span id="__span-7-24"><a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-7-25"><a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="w">    </span><span class="nx">dispatcher</span><span class="p">[</span><span class="nx">BINPERSID</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">load_binpersid</span>
+</span><span id="__span-7-26"><a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-7-27"><a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="w">    </span><span class="nx">dispatcher</span><span class="p">[</span><span class="nx">REDUCE</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">load_reduce</span>
+</span><span id="__span-7-28"><a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-7-29"><a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="p">}</span>
+</span></code></pre></div>
+<h4 id="2242-reader-functions-corresponding-to-opcodes"><strong>2.2.4.2. Reader Functions Corresponding to Opcodes</strong><a class="headerlink" href="#2242-reader-functions-corresponding-to-opcodes" title="Permanent link">&para;</a></h4>
+<p>To help you understand well, I'll provide some example reader functions/opcodes:</p>
+<ul>
+<li><strong>load_empty_dictionary (EMPTY_DICT byte = '}')</strong>
+    &gt;Creates an empty dictionary (the term "dictionary" exists in the Python world, and we have defined <code>PickleDict[T any]</code>, a custom type of map, to fulfill this custom requirement).</li>
+<li><strong>load_binput (BINPUT byte = 'q')</strong>
+    &gt;Reads a byte <code>i</code>, takes the last element of <code>stack</code> and assigns it as <code>i</code>-th item of <code>memo</code>.</li>
+<li><strong>load_mark (MARK byte = '(')</strong>
+    &gt;<em> Appends the <code>stack</code> array into <code>metastack</code> array (array of arrays),
+    &gt;</em> Creates new <code>stack</code> array.</li>
+<li>
+<p><strong>load_binpersid (BINPERSID byte = 'Q')</strong>
+    &gt;<em> Pops the last item in the <code>stack</code>, which will be our <code>pid</code> argument,
+    &gt;</em> Passes this pid (persistent id) argument to the <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/pickle/picklereader.go" target="_blank">PickleReader.persistentLoad(...)</a> method,
+    &gt;<em> Calls the custom <code>PersistentLoadFn</code>,
+    &gt;</em> Appends the result into the <code>stack</code>.
+    &gt;
+    &gt;<br></p>
+<blockquote>
+<p>In our case, <code>PersistentLoadFn</code> is <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">TorchModelReader.persistentLoad(...)</a> method, pid argument is the name of the file containing tensor weights in the ZIP file.</p>
+<p>This method:
+* Finds the file header for specified file in the ZIP file,
+* Takes the offset (starting point location) of the file,
+* Creates a <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/types.go" target="_blank">TorchStorage</a> object, with memory-mapped <code>rawData</code> byte array,
+* And, returns it.
+* <strong>load_reduce (REDUCE byte = 'R')</strong>
+* Pops the last item in the <code>stack</code>, it will be our <code>rawArgsArr</code> argument array,
+* Takes the last item in the <code>stack</code> (this time we don't remove with pop),
+* Converts <code>rawArgsArr</code> items to expected data types of reflected function object <code>fn</code>,
+* Calls the <code>fn</code> with passing converted arguments, then replaces the last item in the <code>stack</code> with the function's result.</p>
+<p><br></p>
+<p>In our case, <code>fn</code> can be:
+* <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/pickle/types.go" target="_blank">NewPickleDict[interface{}](...)</a> corresponds to "collections.OrderedDict" defined in <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/pickle/types.go" target="_blank">BASE_CLASSES</a>, creates a new PickleDict (keys are ordered)
+* <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/types.go" target="_blank">rebuild_tensor_v2(...)</a> corresponds to "torch._utils._rebuild_tensor_v2" defined in <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/types.go" target="_blank">TORCH_CLASSES</a>, creates and returns a <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">ml.Tensor</a> with specified arguments.</p>
+</blockquote>
+</li>
+</ul>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/pickle/pickledispatch.go" target="_blank">src/pickle/pickledispatch.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">load_empty_dictionary</span><span class="p">(</span><span class="nx">pr</span><span class="w"> </span><span class="o">*</span><span class="nx">PickleReader</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="nx">pr</span><span class="p">.</span><span class="nx">Append</span><span class="p">(</span><span class="nx">NewPickleDict</span><span class="p">[</span><span class="kd">interface</span><span class="p">{}]())</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="p">}</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="kd">func</span><span class="w"> </span><span class="nx">load_binput</span><span class="p">(</span><span class="nx">pr</span><span class="w"> </span><span class="o">*</span><span class="nx">PickleReader</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pr</span><span class="p">.</span><span class="nx">ReadByte</span><span class="p">()</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">    </span><span class="nx">pr</span><span class="p">.</span><span class="nx">memo</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="nx">i</span><span class="p">)]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">pr</span><span class="p">.</span><span class="nx">stack</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">pr</span><span class="p">.</span><span class="nx">stack</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="p">}</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="kd">func</span><span class="w"> </span><span class="nx">load_mark</span><span class="p">(</span><span class="nx">pr</span><span class="w"> </span><span class="o">*</span><span class="nx">PickleReader</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">    </span><span class="nx">pr</span><span class="p">.</span><span class="nx">metastack</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">pr</span><span class="p">.</span><span class="nx">metastack</span><span class="p">,</span><span class="w"> </span><span class="nx">pr</span><span class="p">.</span><span class="nx">stack</span><span class="p">)</span>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">    </span><span class="nx">pr</span><span class="p">.</span><span class="nx">stack</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">    </span><span class="nx">pr</span><span class="p">.</span><span class="nx">stack</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">make</span><span class="p">([]</span><span class="kd">interface</span><span class="p">{},</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="p">}</span>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="kd">func</span><span class="w"> </span><span class="nx">load_binpersid</span><span class="p">(</span><span class="nx">pr</span><span class="w"> </span><span class="o">*</span><span class="nx">PickleReader</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">pid</span><span class="w"> </span><span class="kd">interface</span><span class="p">{}</span>
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="w">    </span><span class="nx">pr</span><span class="p">.</span><span class="nx">stack</span><span class="p">,</span><span class="w"> </span><span class="nx">pid</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">pop</span><span class="p">(</span><span class="nx">pr</span><span class="p">.</span><span class="nx">stack</span><span class="p">)</span>
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="w">    </span><span class="nx">result</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pr</span><span class="p">.</span><span class="nx">persistentLoad</span><span class="p">(</span><span class="nx">pid</span><span class="p">.([]</span><span class="kd">interface</span><span class="p">{}))</span>
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-8-29"><a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="w">    </span><span class="nx">pr</span><span class="p">.</span><span class="nx">Append</span><span class="p">(</span><span class="nx">result</span><span class="p">)</span>
+</span><span id="__span-8-30"><a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-8-31"><a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a><span class="p">}</span>
+</span></code></pre></div>
+<h4 id="2244-reading-the-whole-file"><strong>2.2.4.4. Reading the Whole File</strong><a class="headerlink" href="#2244-reading-the-whole-file" title="Permanent link">&para;</a></h4>
+<p>In view of this succinct information, we can understand following simple flow. To read the Pickle file:</p>
+<ul>
+<li>We initiate a loop,</li>
+<li>Read a key (opcode byte),</li>
+<li>Dispatch this opcode function,</li>
+<li>Execute it,</li>
+<li>Check for errors, and continue if no <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/types.go" target="_blank">StopSignal</a> is encountered.</li>
+<li>If we get a <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/types.go" target="_blank">StopSignal</a>, its value is our result containing content map of the whole file.</li>
+<li>We return this result as <code>pickle.PickleDict[interface{}]</code>.</li>
+</ul>
+<p><code>pickle.PickleDict[interface{}]</code> consists of <code>keys</code> array and <code>items</code> map, imitating an <a href="https://www.geeksforgeeks.org/ordereddict-in-python/" target="_blank">OrderedDict</a> in Python. Keys are stored in sorted array, items (values) are stored in a key-value structure.</p>
+<blockquote>
+<p><strong>Note: If you're curious about the details of how the Pickle file structure can be read, please refer to:</strong> <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/docs/03-LOADING-TORCH-MODEL-DETAILS.md" target="_blank">3. LOADING TORCH MODEL (DETAILS)</a></p>
+</blockquote>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/pickle/picklereader.go" target="_blank">src/pickle/picklereader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">pr</span><span class="w"> </span><span class="o">*</span><span class="nx">PickleReader</span><span class="p">)</span><span class="w"> </span><span class="nx">Load</span><span class="p">()</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">PickleDict</span><span class="p">[</span><span class="kd">interface</span><span class="p">{}],</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">        </span><span class="nx">key</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pr</span><span class="p">.</span><span class="nx">ReadByte</span><span class="p">()</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">        </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">dispatch</span><span class="p">(</span><span class="nx">pr</span><span class="p">,</span><span class="w"> </span><span class="nx">key</span><span class="p">)</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="nx">stopSignal</span><span class="p">,</span><span class="w"> </span><span class="nx">ok</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">err</span><span class="p">.(</span><span class="o">*</span><span class="nx">StopSignal</span><span class="p">);</span><span class="w"> </span><span class="nx">ok</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="nx">stopSignal</span><span class="p">.</span><span class="nx">Value</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">            </span><span class="p">}</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Result <code>pickle.PickleDict[interface{}]</code> will be consisted of tensor names and <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">ml.Tensor</a> objects, will be seem like:</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nx">model</span><span class="p">.</span><span class="nx">keys</span><span class="p">:</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="w"> </span><span class="s">&quot;tok_embeddings.weight&quot;</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span><span class="w"> </span><span class="s">&quot;norm.weight&quot;</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="p">[</span><span class="mi">2</span><span class="p">]:</span><span class="w"> </span><span class="s">&quot;output.weight&quot;</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="p">[</span><span class="mi">3</span><span class="p">]:</span><span class="w"> </span><span class="s">&quot;layers.0.attention.wq.weight&quot;</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span><span class="p">[</span><span class="mi">4</span><span class="p">]:</span><span class="w"> </span><span class="s">&quot;layers.0.attention.wk.weight&quot;</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="nx">model</span><span class="p">.</span><span class="nx">items</span><span class="p">:</span><span class="w"> </span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="s">&quot;layers.0.attention.wo.weight&quot;</span><span class="p">:</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{}(</span><span class="o">*</span><span class="nx">github</span><span class="p">.</span><span class="nx">com</span><span class="o">/</span><span class="nx">adalkiran</span><span class="o">/</span><span class="nx">llama</span><span class="o">-</span><span class="nx">nuts</span><span class="o">-</span><span class="nx">and</span><span class="o">-</span><span class="nx">bolts</span><span class="o">/</span><span class="nx">src</span><span class="o">/</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="w"> </span><span class="p">{</span><span class="nx">Size</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="w"> </span><span class="nx">len</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nx">cap</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mi">4096</span><span class="p">,</span><span class="mi">4096</span><span class="p">],</span><span class="o">...</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="s">&quot;layers.7.feed_forward.w2.weight&quot;</span><span class="p">:</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{}(</span><span class="o">*</span><span class="nx">github</span><span class="p">.</span><span class="nx">com</span><span class="o">/</span><span class="nx">adalkiran</span><span class="o">/</span><span class="nx">llama</span><span class="o">-</span><span class="nx">nuts</span><span class="o">-</span><span class="nx">and</span><span class="o">-</span><span class="nx">bolts</span><span class="o">/</span><span class="nx">src</span><span class="o">/</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="p">{</span><span class="nx">Size</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="w"> </span><span class="nx">len</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nx">cap</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mi">4096</span><span class="p">,</span><span class="mi">14336</span><span class="p">],</span><span class="o">...</span>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="s">&quot;layers.31.attention.wq.weight&quot;</span><span class="p">:</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{}(</span><span class="o">*</span><span class="nx">github</span><span class="p">.</span><span class="nx">com</span><span class="o">/</span><span class="nx">adalkiran</span><span class="o">/</span><span class="nx">llama</span><span class="o">-</span><span class="nx">nuts</span><span class="o">-</span><span class="nx">and</span><span class="o">-</span><span class="nx">bolts</span><span class="o">/</span><span class="nx">src</span><span class="o">/</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="p">{</span><span class="nx">Size</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="w"> </span><span class="nx">len</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nx">cap</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mi">4096</span><span class="p">,</span><span class="mi">4096</span><span class="p">],</span><span class="o">...</span>
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="s">&quot;layers.1.feed_forward.w1.weight&quot;</span><span class="p">:</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{}(</span><span class="o">*</span><span class="nx">github</span><span class="p">.</span><span class="nx">com</span><span class="o">/</span><span class="nx">adalkiran</span><span class="o">/</span><span class="nx">llama</span><span class="o">-</span><span class="nx">nuts</span><span class="o">-</span><span class="nx">and</span><span class="o">-</span><span class="nx">bolts</span><span class="o">/</span><span class="nx">src</span><span class="o">/</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="p">{</span><span class="nx">Size</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="w"> </span><span class="nx">len</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nx">cap</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mi">14336</span><span class="p">,</span><span class="mi">4096</span><span class="p">],</span><span class="o">...</span>
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="o">...</span>
+</span></code></pre></div>
+<h3 id="225-reading-pickle-file-returning-model-tensors"><strong>2.2.5. Reading Pickle File - Returning Model Tensors</strong><a class="headerlink" href="#225-reading-pickle-file-returning-model-tensors" title="Permanent link">&para;</a></h3>
+<p>After running <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">tmr.readPickleFile</a>, the result <code>*pickle.PickleDict[interface{}]</code> is converted to <code>*pickle.PickleDict[*ml.Tensor]</code> object.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/torch/torchmodelreader.go" target="_blank">src/torch/torchmodelreader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">tmr</span><span class="w"> </span><span class="o">*</span><span class="nx">TorchModelReader</span><span class="p">)</span><span class="w"> </span><span class="nx">Load</span><span class="p">()</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">pickle</span><span class="p">.</span><span class="nx">PickleDict</span><span class="p">[</span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="p">],</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="nx">modelTensorVals</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">tmr</span><span class="p">.</span><span class="nx">readPickleFile</span><span class="p">(</span><span class="nx">pklFileList</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">    </span><span class="nx">modelTensors</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pickle</span><span class="p">.</span><span class="nx">NewPickleDict</span><span class="p">[</span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="p">]()</span>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">key</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">modelTensorVals</span><span class="p">.</span><span class="nx">GetKeys</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">        </span><span class="nx">val</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">modelTensorVals</span><span class="p">.</span><span class="nx">Get</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">        </span><span class="nx">tensorVal</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">val</span><span class="p">.(</span><span class="o">*</span><span class="nx">ml</span><span class="p">.</span><span class="nx">Tensor</span><span class="p">)</span>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">        </span><span class="nx">tensorVal</span><span class="p">.</span><span class="nx">Name</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">key</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">        </span><span class="nx">modelTensors</span><span class="p">.</span><span class="nx">Set</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span><span class="w"> </span><span class="nx">tensorVal</span><span class="p">)</span>
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="w">    </span><span class="nx">modelTensorVals</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>
+</span><span id="__span-11-18"><a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">modelTensors</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-11-19"><a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Then, <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/loader.go" target="_blank">LoadModelEx</a> function takes this result and assigns it to result object's Tensors property: <code>model.Tensors</code>.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/model/loader.go" target="_blank">src/model/loader.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">LoadModelEx</span><span class="p">(</span><span class="nx">modelDir</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">includeTensors</span><span class="w"> </span><span class="kt">bool</span><span class="p">,</span><span class="w"> </span><span class="nx">includeVocab</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">Model</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="nx">model</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">Model</span><span class="p">{}</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">includeTensors</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">        </span><span class="o">...</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">        </span><span class="nx">modelTensors</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">torchModelReader</span><span class="p">.</span><span class="nx">Load</span><span class="p">()</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">        </span><span class="nx">model</span><span class="p">.</span><span class="nx">Tensors</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">modelTensors</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">        </span><span class="nx">common</span><span class="p">.</span><span class="nx">GLogger</span><span class="p">.</span><span class="nx">ConsolePrintf</span><span class="p">(</span><span class="s">&quot;Found %d tensors in the model.&quot;</span><span class="p">,</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">model</span><span class="p">.</span><span class="nx">Tensors</span><span class="p">.</span><span class="nx">GetKeys</span><span class="p">()))</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">    </span><span class="o">...</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">model</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Now,</p>
+<ul>
+<li>The "data.pkl" file in the ZIP file "consolidated.00.pth" has been read,</li>
+<li>Names and file locations of each tensor have been determined,</li>
+<li>Memory-mapped []byte arrays have been defined for each tensor,</li>
+<li><a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">Tensor</a> objects have been created and added into <code>model.Tensors</code>.</li>
+</ul>
+<p>And we can see output lines in the console as follows:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="o">[</span>INFO<span class="o">]</span><span class="w"> </span>...<span class="w"> </span>Loading<span class="w"> </span>model<span class="w"> </span>file:<span class="w"> </span><span class="s2">&quot;/workspace/models-original/Meta-Llama-3.1-8B-Instruct/consolidated.00.pth&quot;</span>...
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="o">[</span>INFO<span class="o">]</span><span class="w"> </span>...<span class="w"> </span>Found<span class="w"> </span><span class="m">291</span><span class="w"> </span>tensors<span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>model.
+</span></code></pre></div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12Z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../01-INITIALIZATION/" class="md-footer__link md-footer__link--prev" aria-label="Previous: INITIALIZATION">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                INITIALIZATION
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../03-LOADING-TORCH-MODEL-DETAILS/" class="md-footer__link md-footer__link--next" aria-label="Next: LOADING TORCH MODEL (DETAILS)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                LOADING TORCH MODEL (DETAILS)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2024 - present, Adil Alper DALKIRAN. All rights reserved.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/adalkiran" target="_blank" rel="noopener" title="adalkiran" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/alper-dalkiran/" target="_blank" rel="noopener" title="@aadalkiran" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8l164.9-188.5L26.8 48h145.6l100.5 132.9L389.2 48zm-24.8 373.8h39.1L151.1 88h-42l255.3 333.8z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/alper-dalkiran/" target="_blank" rel="noopener" title="in/alper-dalkiran" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["toc.follow", "toc.integrate", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "navigation.footer", "content.code.copy"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.fe8b6f2b.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1363 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation.">
+      
+      
+        <meta name="author" content="Adil Alper DALKIRAN">
+      
+      
+        <link rel="canonical" href="https://adalkiran.github.io/llama-nuts-and-bolts/08-TENSOR/">
+      
+      
+        <link rel="prev" href="../07-BFLOAT16-DATA-TYPE/">
+      
+      
+        <link rel="next" href="../09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE/">
+      
+      
+      <link rel="icon" href="../assets/icon.png">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.31">
+    
+    
+      
+        <title>TENSOR - Llama Nuts and Bolts</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.3cba04c6.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/custom.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","G-05VMCF3NF0"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document$.subscribe(function(){var a=document.forms.feedback;if(void 0!==a)for(var e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}),location$.subscribe(function(e){n("config","G-05VMCF3NF0",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=G-05VMCF3NF0",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+      
+        <meta  property="og:type"  content="website" >
+      
+        <meta  property="og:title"  content="TENSOR - Llama Nuts and Bolts" >
+      
+        <meta  property="og:description"  content="A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation." >
+      
+        <meta  property="og:image"  content="https://adalkiran.github.io/llama-nuts-and-bolts/assets/images/social/08-TENSOR.png" >
+      
+        <meta  property="og:image:type"  content="image/png" >
+      
+        <meta  property="og:image:width"  content="1200" >
+      
+        <meta  property="og:image:height"  content="630" >
+      
+        <meta  property="og:url"  content="https://adalkiran.github.io/llama-nuts-and-bolts/08-TENSOR/" >
+      
+        <meta  name="twitter:card"  content="summary_large_image" >
+      
+        <meta  name="twitter:title"  content="TENSOR - Llama Nuts and Bolts" >
+      
+        <meta  name="twitter:description"  content="A holistic way of understanding how Llama and its components run in practice, with code and detailed documentation." >
+      
+        <meta  name="twitter:image"  content="https://adalkiran.github.io/llama-nuts-and-bolts/assets/images/social/08-TENSOR.png" >
+      
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#8-tensor" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Llama Nuts and Bolts" class="md-header__button md-logo" aria-label="Llama Nuts and Bolts" data-md-component="logo">
+      
+  <img src="../assets/icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Llama Nuts and Bolts
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              TENSOR
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9h-1.9M20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69m-9.15 3.96h2.3L12 9l-1.15 3.65Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3 3.19.09m3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95 2.06.05m-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5c-.84 0-1.65.15-2.39.42L12 2M3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29L3.34 7m.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14L3.36 17M20.65 7l-1.77 3.79a7.023 7.023 0 0 0-2.38-4.15l4.15.36m-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29L20.64 17M12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44L12 22Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/adalkiran/llama-nuts-and-bolts" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    adalkiran/llama-nuts-and-bolts
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href=".." class="md-tabs__link">
+          
+  
+  Llama Nuts and Bolts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../webrtc-nuts-and-bolts" class="md-tabs__link">
+        
+  
+    
+  
+  WebRTC Nuts and Bolts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://www.linkedin.com/in/alper-dalkiran/" class="md-tabs__link">
+        
+  
+    
+  
+  Contact
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Llama Nuts and Bolts" class="md-nav__button md-logo" aria-label="Llama Nuts and Bolts" data-md-component="logo">
+      
+  <img src="../assets/icon.svg" alt="logo">
+
+    </a>
+    Llama Nuts and Bolts
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/adalkiran/llama-nuts-and-bolts" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    adalkiran/llama-nuts-and-bolts
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Llama Nuts and Bolts
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Llama Nuts and Bolts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    HOME
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-THE-JOURNEY/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    THE JOURNEY
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-INITIALIZATION/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    INITIALIZATION
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-LOADING-TORCH-MODEL/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING TORCH MODEL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-LOADING-TORCH-MODEL-DETAILS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING TORCH MODEL (DETAILS)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-LOADING-MODEL-ARGS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING MODEL ARGS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-LOADING-TOKENIZER-MODEL/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LOADING TOKENIZER MODEL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-OBSOLETE-LOADING-LLAMA-2-TOKENIZER-MODEL/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    OBSOLETE - LOADING LLAMA 2 TOKENIZER MODEL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-BFLOAT16-DATA-TYPE/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    BFLOAT16 DATA TYPE
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    TENSOR
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    TENSOR
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#81-introduction-to-tensors" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.1. Introduction to Tensors
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#82-properties-of-a-tensor-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.2. Properties of a Tensor Type
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#83-accessing-to-elements" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.3. Accessing to Elements
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#84-methods-calculation-of-locations" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.4. Methods: Calculation of Locations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#85-methods-access-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.5. Methods: Access Methods
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8.5. Methods: Access Methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#851-access-methods-taking-offset-using-any-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.5.1. Access Methods Taking Offset, Using Any Type
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#852-access-methods-taking-offset-using-float32" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.5.2. Access Methods Taking Offset, Using Float32
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#853-access-methods-taking-location-using-any-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.5.3. Access Methods Taking Location, Using Any Type
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#854-access-methods-taking-location-using-float32" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.5.4. Access Methods Taking Location, Using Float32
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#855-accessing-directly-items-with-unsafe" class="md-nav__link">
+    <span class="md-ellipsis">
+      8.5.5. Accessing Directly Items with Unsafe
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    IMPLEMENTING LLAMA MODEL ARCHITECTURE
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../10-ROPE-ROTARY-POSITIONAL-EMBEDDINGS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    RoPE (ROTARY POSITIONAL EMBEDDINGS)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../11-ASKING-FOR-USER-INPUT/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    ASKING FOR USER INPUT
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../12-TOKENIZATION/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    TOKENIZATION
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../13-GENERATING-NEXT-TOKENS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    GENERATING NEXT TOKENS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-MAKING-PREDICTION-WITH-LLAMA-MODEL-1/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MAKING PREDICTION with LLAMA MODEL - 1
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-MAKING-PREDICTION-WITH-LLAMA-MODEL-2/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MAKING PREDICTION with LLAMA MODEL - 2
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../16-MAKING-PREDICTION-WITH-LLAMA-MODEL-3/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    MAKING PREDICTION with LLAMA MODEL - 3
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../17-UNICODE-UTF-8-EMOJIS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    UNICODE, UTF-8 and EMOJIS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../18-CONCLUSION/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    CONCLUSION
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../19-REFERENCES/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    REFERENCES
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../20-DIAGRAMS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    DIAGRAMS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../webrtc-nuts-and-bolts" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    WebRTC Nuts and Bolts
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://www.linkedin.com/in/alper-dalkiran/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Contact
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="8-tensor"><strong>8. TENSOR</strong><a class="headerlink" href="#8-tensor" title="Permanent link">&para;</a></h1>
+<p>In mathematics and computer science, <a href="https://en.wikipedia.org/wiki/Tensor_%28machine_learning%29" target="_blank">tensors</a> are fundamental structures to represent multi-dimensional arrays of numbers. Tensors are generalized form of scalars, vectors, and matrices, which have higher dimensions. Tensors are widely used in fields like mathematics, physics, engineering, computer graphics, and machine learning.</p>
+<p>Quantitive magnitudes without any direction are called <a href="https://en.wikipedia.org/wiki/Scalar_%28mathematics%29" target="_blank">scalars</a>, quantities having a magnitude and a direction, represented by one-dimensional arrays are called <a href="https://en.wikipedia.org/wiki/Vector" target="_blank">vectors</a>, and objects with two-dimensions, arranged in rows and columns are called <a href="https://en.wikipedia.org/wiki/Matrix_%28mathematics%29" target="_blank">matrices</a> are tensors.</p>
+<p>The number of dimensions in which the object is expressed is called <em>degree of the tensor</em>. While scalars, vectors, and matrices have degrees of zero, one, and two, respectively, tensors can have degree of three or higher.</p>
+<blockquote>
+<p>Source: <a href="https://tr.wikipedia.org/wiki/Tens%C3%B6r" target="_blank">Tensor - Wikipedia (Turkish)</a> | <a href="https://en.wikipedia.org/wiki/Tensor_%28machine_learning%29">Tensor (machine learning)
+</a></p>
+</blockquote>
+<h2 id="81-introduction-to-tensors"><strong>8.1. Introduction to Tensors</strong><a class="headerlink" href="#81-introduction-to-tensors" title="Permanent link">&para;</a></h2>
+<p>After making theoretical and mathematical definitions and pointing out the differences between these concepts, we can dive into the programmatical details of a tensor.</p>
+<p>In machine learning, all of these concepts of scalars (e.g., integers, floating points, complex numbers), vectors, matrices, and tensors are widely used to store numbers and perform mathematical operations between them.</p>
+<p>While implementing the tensor concept, we must design it as generalized as our project requires. Not much, not less, because the goal of our project is not to be a production-level tensor framework.</p>
+<h2 id="82-properties-of-a-tensor-type"><strong>8.2. Properties of a Tensor Type</strong><a class="headerlink" href="#82-properties-of-a-tensor-type" title="Permanent link">&para;</a></h2>
+<p>A tensor type should have at least the following features:</p>
+<ul>
+<li>
+<p><strong>Data type:</strong></p>
+<p>In the simplest approach, e.g., we could have defined a <code>[][][]float</code> 3D array of floats hardcoded for storage of numbers. However, this approach comes with limitations of having fixed dimensions and hardcoded data types. This approach wouldn't allow us to store our numbers as BFloat16 or complex numbers.</p>
+<p>To support multiple data types, we could have used generics by defining a struct as <code>Tensor[T any]</code>. I had tried to do this, but limitations of generics features of Go placed roadblocks on my path, like "methods of a struct can't have generic type parameters". I'm not sure if I could or couldn't succeed with this issue using another programming language that I'm already familiar with, such as C#, Java, or one of the others.</p>
+<p>But... The flexibility comes with the hard way, "having a type-agnostic data storage": <code>[]byte</code> array. The details will be explained following bullet.</p>
+<p>To make it flexible, the tensor type has a "data type" variable: <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">Tensor.DataType</a>. The "raw data" is read and written according to this data type specification.</p>
+<p>This data type can be one of following:</p>
+<ul>
+<li><a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/datatype.go" target="_blank">DT_BF16</a></li>
+<li><a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/datatype.go" target="_blank">DT_F32</a></li>
+<li><a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/datatype.go" target="_blank">DT_UINT16</a></li>
+<li><a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/datatype.go" target="_blank">DT_INT32</a></li>
+<li><a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/datatype.go" target="_blank">DT_COMPLEX</a></li>
+</ul>
+</li>
+<li>
+<p><strong>Raw data variable:</strong></p>
+<p>We pointed out that data is stored in <code>[]byte</code> array. <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">Tensor.RawData</a> is a byte array.</p>
+<p>Our Tensor type implementation stores the array always in <a href="https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays" target="_blank">C contiguous</a> form.</p>
+<p>Existing battle-tested tensor frameworks support both contiguous and non-contiguous forms, because of providing some features like Transpose. Our project has a Transpose method for Tensor type, but it creates a new tensor with realigned bytes, so in our case, all bytes are relocated physically, not virtually. So, our tensors are always in contiguous form.</p>
+<p>It can be visually explained, consider the 2D array (matrix) with shape [4, 3], it looks like as follows:</p>
+<p><img alt="Contiguous matrix example" src="../images/01-contiguous-matrix.png" /><br>
+<sup>Source: <a href="https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays" target="_blank">What is the difference between contiguous and non-contiguous arrays?</a></sup></p>
+<p>In the computer's memory (our <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">Tensor.RawData</a> <code>[]byte</code> array), the values of this matrix are stored as follows:</p>
+<p><img alt="Contiguous array example" src="../images/02-contiguous-array.png" /><br>
+<sup>Source: <a href="https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays" target="_blank">What is the difference between contiguous and non-contiguous arrays?</a></sup></p>
+<p>So, for e.g., we can address the element at row=1, col=2 as <code>contiguous item index = 1 * row size + 2 = 1 * 4 + 2 = 6</code>, we accessed to the value, it is 6.</p>
+<p>Here, we multiplied the "row size" with "row index", and we jumped to the starting address of the target row. We call this multiplier "row size" as "stride".</p>
+<p>The address calculation above was done on "item index as address". Assume our tensor's data type is <code>DT_BF16</code> (BFloat16) which has item size of 2 bytes. If we want to calculate pointer address of the item 6, we need to do this calculation: <code>contiguous item byte address = (1 * row size + 2) * 2 = (1 * 4 + 2) * 2 = 12</code>. Our item is stored in bytes 12nd and 13rd in the byte array.</p>
+<p>This calculation is done in this project with following method. ByteStride is precalculated using the tensor's Size when a tensor was created or a tensor's shape is changed:</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">src/ml/tensor.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">calculateByteOffset</span><span class="p">(</span><span class="nx">loc</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nx">offset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">loc</span><span class="p">);</span><span class="w"> </span><span class="nx">i</span><span class="o">++</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">        </span><span class="nx">offset</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">loc</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">ByteStride</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">offset</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>In some places this <code>calculateByteOffset</code> method is used directly, in other places (the places using unsafe memory access) the starting pointer address is calculated with this metohd, then local offsets is added to the base pointer address.</p>
+</li>
+<li>
+<p><strong>Shape (Size):</strong></p>
+<p>In Python world, it is called as "Shape", I saw in C world "Size" word is used for same aim. Because as I told in <a href="../00-THE-JOURNEY/">0. THE JOURNEY</a>, I've started to the project with exploring the <a href="https://github.com/ggerganov/llama.cpp" target="_blank">llama.cpp</a> project. <a href="https://github.com/ggerganov/llama.cpp" target="_blank">llama.cpp</a> uses "Size" word in its terminology, I've used "Size" too, then I didn't changed further.</p>
+<p>Thanks to the all data is stored as contiguous <code>[]byte</code> array, it doesn't matter we reshape a tensor with shape <code>[4, 3]</code> to <code>[3, 4]</code>. Or the same is correct for <code>[32, 128]</code> to <code>[32, 8, 16]</code>. While this reshaping operation, the raw data isn't changed physically, only the Size property of the tensor is changed. Reshaping operation has some constraints, like total item count can't be different between old shape and new shape.</p>
+</li>
+</ul>
+<h2 id="83-accessing-to-elements"><strong>8.3. Accessing to Elements</strong><a class="headerlink" href="#83-accessing-to-elements" title="Permanent link">&para;</a></h2>
+<p>While using Tensor type, there are three ways to access (read or write) elements:</p>
+<ul>
+<li><strong>Method 1:</strong> <em>(Calling a function)</em> Accessing with byte offset integer, index of starting byte of the item (<code>int</code>) in the raw data <code>[]byte</code> array, as a general datatype <code>any</code>, it is a <strong>safe</strong> method,</li>
+<li><strong>Method 2:</strong> <em>(Calling a function)</em> Accessing with human-readable location, with a multi-dimensional array of item indices (<code>[]int</code>), called "location", as a general datatype <code>any</code>, it is a <strong>safe</strong> method,</li>
+<li><strong>Method 3:</strong> <em>(Calling a function)</em> Accessing with pointer address of starting byte of the item (<code>unsafe.Pointer</code>) in the <code>[]byte</code> array, it is an <strong>unsafe</strong> method.</li>
+<li><strong>Method 4:</strong> <em>(Inline code, without calling a function)</em> Accessing with pointer address of starting byte of the item (<code>unsafe.Pointer</code>) in the <code>[]byte</code> array, it is an <strong>unsafe</strong> method.</li>
+</ul>
+<p>The <strong>safe</strong> methods, the first two mentioned above <em>(Method 1 and 2)</em>, are under the control of Go, thus you won't encounter a memory access error. However, in the case of the last two methods <em>(Method 3 and 4)</em>, which are <strong>unsafe</strong>, it's your code's responsibility to ensure that the accessed memory address via <code>unsafe.Pointer</code> is properly allocated and available for access. Otherwise, the <a href="https://tip.golang.org/doc/gc-guide" target="_blank">Garbage Collector of Go</a> might have freed the memory address before you attempt to access it.</p>
+<p>In addition to these advantages of <em>(Method 1 and 2)</em>, the performance of these  <strong>safe</strong> methods is relatively low, especially in case they are called millions of times in a row. Because each of them recalculates the offset and pointer location internally at each of time they called. Also, in our project, these methods take or return <code>any</code> type to provie flexibility. Using <code>any</code> type adds extra overheads like:</p>
+<ul>
+<li>Storing the type variable of the variable internally alongside the value, which requires extra storage,</li>
+<li>Requirement of type assertion (<code>valInt, ok := val.(float32)</code>) or type switch (<code>switch val := val.(type) {...}</code>) before using real value, this also leads to the consumption of additional CPU cycles that waste time unnecessarily.</li>
+</ul>
+<p>Alongside these issues, the last two <strong>unsafe</strong> methods <em>(Method 3 and 4)</em>, are faster than <strong>safe</strong> methods. Especially <em>Method 4</em> doesn't call another function at a different memory location,  it is the fastest way, but it is the hardest one for code reading and maintainability.</p>
+<blockquote>
+<p>Performance issues caused by calling another function (which hurts performance for millions of calls) can be avoided by using <a href="https://www.geeksforgeeks.org/inline-functions-cpp/" target="_blank">inline functions</a>. Go compiler itself decides inlining conditions, there isn't any directive to say compiler to use it as inline, you can check if a function is called inline or not, via go pprof tool.</p>
+<p>See: <a href="https://stackoverflow.com/questions/45836981/is-it-possible-to-inline-function-containing-loop-in-golang" target="_blank">Is it possible to inline function, containing loop in Golang?</a></p>
+</blockquote>
+<h2 id="84-methods-calculation-of-locations"><strong>8.4. Methods: Calculation of Locations</strong><a class="headerlink" href="#84-methods-calculation-of-locations" title="Permanent link">&para;</a></h2>
+<p>Because of we store our values in C contiguous form, we need to do some calculations to find the physical address of an element.</p>
+<ul>
+<li><strong>calculateByteStride:</strong></li>
+</ul>
+<p><code>calculateByteStride</code> is called explicitly when creating a new tensor with function family of <code>NewTensor</code>, or implicitly when calling <code>Tensor.Reshape</code>.</p>
+<p>It precalculates the <code>byte stride</code> of the new tensor while creating.</p>
+<blockquote>
+<p>See (note that, stride concept in Pytorch means the unit of element count, in our project, it means byte count):</p>
+<ul>
+<li><a href="https://pytorch.org/docs/stable/generated/torch.Tensor.stride.html" target="_blank">TORCH.TENSOR.STRIDE</a></li>
+<li><a href="https://zhang-yang.medium.com/explain-pytorch-tensor-stride-and-tensor-storage-with-code-examples-50e637f1076d" target="_blank">Explain Pytorch Tensor.stride and Tensor.storage with code examples</a></li>
+</ul>
+</blockquote>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">src/ml/tensor.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewTensor</span><span class="p">(</span><span class="nx">name</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">size</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">stride</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">dataType</span><span class="w"> </span><span class="nx">DataType</span><span class="p">,</span><span class="w"> </span><span class="nx">RawData</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">Tensor</span><span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="nx">Name</span><span class="p">:</span><span class="w">       </span><span class="nx">name</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">        </span><span class="nx">Size</span><span class="p">:</span><span class="w">       </span><span class="nx">size</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">        </span><span class="nx">Stride</span><span class="p">:</span><span class="w">     </span><span class="nx">stride</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span><span class="nx">DataType</span><span class="p">:</span><span class="w">   </span><span class="nx">dataType</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span><span class="nx">RawData</span><span class="p">:</span><span class="w">    </span><span class="nx">RawData</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">        </span><span class="nx">ByteStride</span><span class="p">:</span><span class="w"> </span><span class="nx">calculateByteStride</span><span class="p">(</span><span class="nx">size</span><span class="p">,</span><span class="w"> </span><span class="nx">dataType</span><span class="p">),</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><strong>Example usage:</strong></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">tensorSize</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="mi">128256</span><span class="p">,</span><span class="w"> </span><span class="mi">4096</span><span class="p">}</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nx">tensorDataType</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">DT_BF16</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nx">tensorByteStride</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">calculateByteStride</span><span class="p">(</span><span class="nx">tensorSize</span><span class="p">,</span><span class="w"> </span><span class="nx">tensorDataType</span><span class="p">)</span>
+</span></code></pre></div>
+<p><code>tensorByteStride</code> will output <code>[]int{8192, 2}</code>.</p>
+<p>Because, think of our tensor is a matrix with <em>row count=128256</em>, <em>column count=4096</em>:</p>
+<ul>
+<li>Element index of the first element of our <em>Row 0</em> is 0. Elements are at indices between 0 and 4095. Address of it the first element is 0.</li>
+<li>Element index of the first element of our <em>Row 1</em> is "column count of a row": 4096. Elements are at indices between 4096 and 8191. Address of it the first element is <code>4096 * item byte size of BFloat16 = 4096 * 2 = 8192</code>.</li>
+</ul>
+<p>Our the byte stride of 0th dimension (distance between two rows) is 8192, the byte stride of 1st dimension (distance between two columns) is 2 (byte size of one BFloat16). So, our byte stride array will be <code>[]int{8192, 2}</code>.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">src/ml/tensor.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">calculateByteStride</span><span class="p">(</span><span class="nx">size</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">dataType</span><span class="w"> </span><span class="nx">DataType</span><span class="p">)</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">size</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="mi">1</span><span class="p">}</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">([]</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">size</span><span class="p">))</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nx">result</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">size</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">dataType</span><span class="p">.</span><span class="nx">ItemSize</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">size</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="o">--</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">        </span><span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">size</span><span class="p">[</span><span class="nx">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">result</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="p">}</span>
+</span></code></pre></div>
+<ul>
+<li><strong>Tensor.calculateByteOffset:</strong></li>
+</ul>
+<p><code>Tensor.calculateByteOffset</code> calculates the byte offset of given multi-dimensional array location, using byte strides of the tensor.</p>
+<p><strong>Example usage:</strong></p>
+<p>Think of we have a tensor with:</p>
+<ul>
+<li>Size: <code>[]int {8192, 64}</code></li>
+<li>DataType: <code>DT_BF16 (BFloat16)</code></li>
+<li>ByteStride: <code>[]int {128, 2}</code></li>
+</ul>
+<p>And, you want to know the byte offset of the element at human-readable location <code>[]int{3, 19}</code>. Row index=3, column index=19.</p>
+<p>The <code>calculateByteOffset([]int{3, 19})</code> call will calculate <code>(3 * 128) + (19 * 2) = 422</code>. This means, the BFloat16 value at the location of <code>[]int{3, 19}</code> is stored at 422nd and 423rd bytes of the tensor raw data byte array.</p>
+<p><sup>from <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/tensor.go" target="_blank">src/ml/tensor.go</a></sup></p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">calculateByteOffset</span><span class="p">(</span><span class="nx">loc</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="nx">offset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">loc</span><span class="p">);</span><span class="w"> </span><span class="nx">i</span><span class="o">++</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">        </span><span class="nx">offset</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">loc</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">ByteStride</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">offset</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="85-methods-access-methods"><strong>8.5. Methods: Access Methods</strong><a class="headerlink" href="#85-methods-access-methods" title="Permanent link">&para;</a></h2>
+<h3 id="851-access-methods-taking-offset-using-any-type"><strong>8.5.1. Access Methods Taking Offset, Using Any Type</strong><a class="headerlink" href="#851-access-methods-taking-offset-using-any-type" title="Permanent link">&para;</a></h3>
+<p>The following methods accept the offset of the raw data byte array and retrieve or modify values as any. However, performance might be affected due to the necessity of using type assertion or type switch operations.</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">GetItemByOffset</span><span class="p">(</span><span class="nx">offset</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">any</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">SetItemByOffset</span><span class="p">(</span><span class="nx">offset</span><span class="w"> </span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="kt">any</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
+</span></code></pre></div>
+<h3 id="852-access-methods-taking-offset-using-float32"><strong>8.5.2. Access Methods Taking Offset, Using Float32</strong><a class="headerlink" href="#852-access-methods-taking-offset-using-float32" title="Permanent link">&para;</a></h3>
+<p>The following methods accept the offset of the raw data byte array and retrieve or modify values as Float32. However, performance might be affected due to the necessity of conversion between original data type (specified at <code>Tensor.DataType</code>) and <code>float32</code>.</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">GetItemByOffset_AsFloat32</span><span class="p">(</span><span class="nx">offset</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">float32</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">SetItemByOffset_FromFloat32</span><span class="p">(</span><span class="nx">offset</span><span class="w"> </span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="kt">float32</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
+</span></code></pre></div>
+<h3 id="853-access-methods-taking-location-using-any-type"><strong>8.5.3. Access Methods Taking Location, Using Any Type</strong><a class="headerlink" href="#853-access-methods-taking-location-using-any-type" title="Permanent link">&para;</a></h3>
+<p>The following methods accept the human-readable location, with a multi-dimensional array of item indices and retrieve or modify values as any. However, performance might be affected due to the necessity of using type assertion or type switch operations alongside the calculation of byte offset by specified <code>loc []int</code>.</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">GetItem</span><span class="p">(</span><span class="nx">loc</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">any</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">SetItem</span><span class="p">(</span><span class="nx">loc</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="kt">any</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
+</span></code></pre></div>
+<h3 id="854-access-methods-taking-location-using-float32"><strong>8.5.4. Access Methods Taking Location, Using Float32</strong><a class="headerlink" href="#854-access-methods-taking-location-using-float32" title="Permanent link">&para;</a></h3>
+<p>The following methods accept the human-readable location, with a multi-dimensional array of item indices and retrieve or modify values as Float32. However, performance might be affected due to the necessity of conversion between original data type (specified at <code>Tensor.DataType</code>) and <code>float32</code> alongside the calculation of byte offset by specified <code>loc []int</code>.</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">GetItem_AsFloat32</span><span class="p">(</span><span class="nx">loc</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">float32</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">Tensor</span><span class="p">)</span><span class="w"> </span><span class="nx">SetItem_FromFloat32</span><span class="p">(</span><span class="nx">loc</span><span class="w"> </span><span class="p">[]</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="kt">float32</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
+</span></code></pre></div>
+<h3 id="855-accessing-directly-items-with-unsafe"><strong>8.5.5. Accessing Directly Items with Unsafe</strong><a class="headerlink" href="#855-accessing-directly-items-with-unsafe" title="Permanent link">&para;</a></h3>
+<p>Samples can be found in <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/operations_lineartransform.go" target="_blank">src/ml/operations_lineartransform.go</a> and <a href="https://github.com/adalkiran/llama-nuts-and-bolts/blob/main/src/ml/operations_matmul.go" target="_blank">src/ml/operations_matmul.go</a> because these operations are highly CPU-intensive, we need to prevent any possible extra performance overhead, even calling a different function that couldn't be inlined by the compiler.</p>
+<blockquote>
+<p>These type of unsafe operations must be done correctly and carefully. It is suggested <strong>not to use</strong> unsafe methods in general.</p>
+</blockquote>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// Sample 1:</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nx">val1F32</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">dtype</span><span class="p">.</span><span class="nx">BFloat16bitsToFloat32</span><span class="p">((</span><span class="o">*</span><span class="p">(</span><span class="o">*</span><span class="kt">uint16</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Add</span><span class="p">(</span><span class="nx">inputRowPtr</span><span class="p">,</span><span class="w"> </span><span class="nx">wInIdx</span><span class="o">*</span><span class="nx">inputItemSize</span><span class="p">))))</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1">// Sample 2:</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="o">*</span><span class="p">(</span><span class="o">*</span><span class="kt">float32</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Add</span><span class="p">(</span><span class="nx">dstRawLocalPtr</span><span class="p">,</span><span class="w"> </span><span class="nx">dstValInRow</span><span class="p">.</span><span class="nx">itemOffsetInRow</span><span class="p">))</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">dstValInRow</span><span class="p">.</span><span class="nx">val</span>
+</span></code></pre></div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12Z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../07-BFLOAT16-DATA-TYPE/" class="md-footer__link md-footer__link--prev" aria-label="Previous: BFLOAT16 DATA TYPE">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                BFLOAT16 DATA TYPE
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../09-IMPLEMENTING-LLAMA-MODEL-ARCHITECTURE/" class="md-footer__link md-footer__link--next" aria-label="Next: IMPLEMENTING LLAMA MODEL ARCHITECTURE">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                IMPLEMENTING LLAMA MODEL ARCHITECTURE
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2024 - present, Adil Alper DALKIRAN. All rights reserved.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/adalkiran" target="_blank" rel="noopener" title="adalkiran" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/alper-dalkiran/" target="_blank" rel="noopener" title="@aadalkiran" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8l164.9-188.5L26.8 48h145.6l100.5 132.9L389.2 48zm-24.8 373.8h39.1L151.1 88h-42l255.3 333.8z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/alper-dalkiran/" target="_blank" rel="noopener" title="in/alper-dalkiran" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["toc.follow", "toc.integrate", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "navigation.footer", "content.code.copy"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.fe8b6f2b.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
