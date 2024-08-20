@@ -138,7 +138,7 @@ Llama model weights files can be found in several formats on the Internet. Meta'
 
 * Write ```meta-llama-3.1-8b-instruct``` and press ENTER, be careful on writing as it is because it is case-sensitive,
 
-* If everyting goes well, you will see a progress like:
+* If everything goes well, you will see a progress like:
 
     ```sh
     ...
@@ -157,7 +157,7 @@ Llama model weights files can be found in several formats on the Internet. Meta'
 
 * If you have issues with downloading process, check out the links above and click on the collapsible paragraph above to expand.
 
-* If everyting went well, you will have a directory (in our example it's named ```llama-models```)
+* If everything went well, you will have a directory (in our example it's named ```llama-models```)
 
     ```sh
     llama-models (parent directory)
